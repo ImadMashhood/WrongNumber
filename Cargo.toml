@@ -1,0 +1,19 @@
+[package]
+name = "wrong-number"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99.1"
+publish = false
+
+[dependencies]
+bevy = { version = "=0.20.0", default-features = false, features = [
+    "std", "async_executor", "bevy_asset", "bevy_log", "bevy_window",
+    "bevy_winit", "bevy_pbr", "bevy_core_pipeline", "multi_threaded",
+    "x11", "keyboard", "mouse", "png",
+] }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
