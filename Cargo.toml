@@ -1,3 +1,7 @@
+[workspace]
+members = ["crates/simulation"]
+resolver = "3"
+
 [package]
 name = "wrong-number"
 version = "0.1.0"

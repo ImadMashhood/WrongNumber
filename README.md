@@ -10,7 +10,7 @@ This repository is the project home. The first goal is a small, complete, playab
 
 ## Project status
 
-**M0 in progress.** The repository contains a Bevy startup scene; dispatch gameplay is not implemented yet. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
+**M1 implemented.** The repository contains a Bevy startup scene and a renderer-free dispatch simulation with a scripted terminal demo. The office and interactive shift UI are planned for M2. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
 
 ## Design pillars
 
@@ -57,25 +57,25 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M1 — Headless dispatch simulation
 
-- [ ] **Milestone status:** Not started
+- [x] **Milestone status:** Implemented and locally verified
 
 **Purpose:** Prove the central rules before investing in office art or AI.
 
 **Deliverables**
 
-- [ ] Typed models for incidents, known facts, locations, response units, commands, simulation events, and shift results.
-- [ ] An explicit incident lifecycle and responder lifecycle, including assignment, travel, arrival, resolution, return, and recovery.
-- [ ] A deterministic simulation clock and seeded scenario setup so a bug can be reproduced.
-- [ ] Validated commands for accepting a call, revealing an available clue, dispatching, cancelling or rerouting, and declining.
-- [ ] Basic scoring that rewards justified refusal and timely appropriate response, and explains penalties for waste or delay.
-- [ ] A small scenario set covering real, fake, non-emergency, exaggerated, and underreported calls.
+- [x] Typed models for incidents, known facts, locations, response units, commands, simulation events, and shift results.
+- [x] An explicit incident lifecycle and responder lifecycle, including assignment, travel, arrival, resolution, return, and recovery.
+- [x] A deterministic simulation clock and seeded scenario setup so a bug can be reproduced.
+- [x] Validated commands for accepting a call, revealing an available clue, dispatching, cancelling or rerouting, and declining.
+- [x] Basic scoring that rewards justified refusal and timely appropriate response, and explains penalties for waste or delay.
+- [x] A small scenario set covering real, fake, non-emergency, exaggerated, and underreported calls.
 
 **Acceptance checks**
 
-- [ ] The same seed and command sequence produce the same result.
-- [ ] Hidden scenario truth is fixed before dialogue begins and cannot be changed by a caller response.
-- [ ] Invalid actions, fabricated fact identifiers, impossible unit transitions, and double allocation are rejected.
-- [ ] Automated checks cover truth preservation, unit transitions, deadlines, scoring, and save/load of a shift snapshot.
+- [x] The same seed and command sequence produce the same result.
+- [x] Hidden scenario truth is fixed before dialogue begins and cannot be changed by a caller response.
+- [x] Invalid actions, fabricated fact identifiers, impossible unit transitions, and double allocation are rejected.
+- [x] Automated checks cover truth preservation, unit transitions, deadlines, scoring, and save/load of a shift snapshot.
 
 ### M2 — First-person dispatch office and playable solo shift
 
@@ -276,19 +276,37 @@ Development checks:
 
 ```bash
 cargo fmt --all -- --check
-cargo check --locked --all-targets
-cargo clippy --locked --all-targets -- -D warnings
-cargo test --locked
+cargo check --locked --workspace --all-targets
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo test --locked --workspace
 ```
 
 The first compilation downloads and builds the engine and can take several minutes. Logs print to the terminal; set `RUST_LOG=info` for normal startup diagnostics or `RUST_LOG=debug` for more detail. No API credentials or downloaded assets are needed for M0.
 
 See [the architecture decision](docs/architecture.md) for boundaries and pending networking decisions, and [asset provenance](assets/README.md) before adding external content. The two-platform CI workflow checks formatting, compilation, Clippy, and test targets; graphics launch checks currently run locally.
 
+## Run the M1 simulation demo
+
+This terminal demo requires no display, graphics driver, microphone, API key, or engine build:
+
+```bash
+cargo run --locked -p wrong-number-sim --bin dispatch-demo
+```
+
+It runs a fixed demonstration at seed 42: investigate six callers, correctly refuse three benign reports, dispatch all three responder types, advance 90 seconds, and validate a save/load round-trip. Expected result: **210 points**, three resolved emergencies, three appropriate refusals, and all units recovered. It prints the timestamped event history. This is a scripted rules demonstration; player-controlled office interactions arrive in M2.
+
+Run only the headless rules tests:
+
+```bash
+cargo test --locked -p wrong-number-sim
+```
+
+See [simulation rules and API](docs/simulation.md) for command examples, scoring, time semantics, and snapshot boundaries.
+
 ## M0 verification
 
 - Fedora 44: `cargo build`, formatting, `cargo check --all-targets`, and Clippy passed with the pinned toolchain and lockfile.
-- `cargo test` passes; there are currently zero gameplay tests. Simulation tests begin in M1.
+- The M0 build initially had no gameplay tests. M1 adds a dedicated simulation test suite.
 - The graphical launch check passed on Mesa llvmpipe (software Vulkan), opening the window and exiting normally after 60 updates.
 - The NVIDIA hardware driver on the development machine failed with `NVVM compilation failed` / device lost. Hardware rendering and Windows launch remain unverified.
 - Where Mesa's software Vulkan driver is installed, this diagnostic fallback can be used on Fedora (it is slower than hardware rendering):
