@@ -1,7 +1,10 @@
 //! Authoritative, renderer-free dispatch rules. Time advances only when requested.
 pub mod consequences;
+pub mod director;
 pub mod roads;
-use consequences::{ConsequenceModel, DamageEntry, DamageReason};
+use consequences::{
+    ConsequenceModel, DamageEntry, DamageReason, EscalationEntry, EscalationKind, ScenarioRules,
+};
 use roads::{Journey, RoadNetwork};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt};
@@ -15,6 +18,9 @@ pub type PlayerId = u8;
 pub struct Position {
     pub x: i32,
     pub y: i32,
+}
+fn default_response_window() -> u32 {
+    300
 }
 impl Position {
     fn distance(self, other: Self) -> u32 {
@@ -101,6 +107,12 @@ pub struct Incident {
     pub damage: u64,
     #[serde(default)]
     pub reported_at: Option<u32>,
+    #[serde(default)]
+    pub parent: Option<IncidentId>,
+    #[serde(default)]
+    pub escalated: bool,
+    #[serde(default = "default_response_window")]
+    pub response_seconds: u32,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitState {
@@ -161,6 +173,11 @@ fn default_speed() -> u32 {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventKind {
+    IncidentEscalated {
+        incident: IncidentId,
+        kind: EscalationKind,
+        secondary: Option<IncidentId>,
+    },
     DamageApplied {
         incident: IncidentId,
         amount: u64,
@@ -267,6 +284,8 @@ pub struct CallView {
     pub call: CallState,
     pub facts: Vec<Fact>,
     pub questions: Vec<(String, String)>,
+    pub escalated: bool,
+    pub parent: Option<IncidentId>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ScoreEntry {
@@ -287,6 +306,7 @@ pub struct ShiftResult {
     pub score_entries: Vec<ScoreEntry>,
     pub total_damage: u64,
     pub damage_entries: Vec<DamageEntry>,
+    pub escalations: Vec<EscalationEntry>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "UncheckedSimulation")]
@@ -299,6 +319,8 @@ pub struct Simulation {
     score: i32,
     #[serde(default)]
     network: Option<RoadNetwork>,
+    #[serde(default)]
+    rules: Option<ScenarioRules>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -311,6 +333,8 @@ struct UncheckedSimulation {
     score: i32,
     #[serde(default)]
     network: Option<RoadNetwork>,
+    #[serde(default)]
+    rules: Option<ScenarioRules>,
 }
 impl TryFrom<UncheckedSimulation> for Simulation {
     type Error = Error;
@@ -323,6 +347,7 @@ impl TryFrom<UncheckedSimulation> for Simulation {
             events: raw.events,
             score: raw.score,
             network: raw.network,
+            rules: raw.rules,
         };
         sim.validate()?;
         Ok(sim)
@@ -393,6 +418,7 @@ impl Simulation {
             events: vec![],
             score: 0,
             network: None,
+            rules: None,
         }
     }
     pub fn new_with_config(seed: u64, config: ShiftConfig) -> Result<Self, Error> {
@@ -466,6 +492,37 @@ impl Simulation {
         }
         self.network = Some(network);
         Ok(())
+    }
+    pub fn apply_scenario_rules(&mut self, rules: ScenarioRules) -> Result<(), Error> {
+        rules.validate()?;
+        if self.now != 0 || !self.events.is_empty() {
+            return Err(Error::InvalidTransition);
+        }
+        for i in self.incidents.values_mut() {
+            let profile = rules
+                .profiles
+                .iter()
+                .find(|p| p.capability == i.required)
+                .unwrap();
+            i.response_seconds = profile.response_seconds;
+            if i.state == IncidentState::Active {
+                i.deadline = profile.response_seconds;
+            }
+            i.consequence = if i.truth == Truth::Benign {
+                ConsequenceModel::default()
+            } else {
+                profile.consequence
+            };
+        }
+        self.rules = Some(rules);
+        Ok(())
+    }
+    pub fn activate_configured_call(&mut self, id: IncidentId) -> Result<(), Error> {
+        let window = self.incident(id)?.response_seconds;
+        self.activate_call(id, window)
+    }
+    pub fn director_policy(&self) -> Option<&director::DirectorPolicy> {
+        self.rules.as_ref().map(|r| &r.director)
     }
     pub fn enable_consequences(&mut self) -> Result<(), Error> {
         if self.now != 0 || !self.events.is_empty() {
@@ -588,6 +645,8 @@ impl Simulation {
         scenario.revealed.clear();
         scenario.damage = 0;
         scenario.reported_at = None;
+        scenario.parent = None;
+        scenario.escalated = false;
         let id = scenario.id;
         self.incidents.insert(id, scenario);
         Ok(id)
@@ -658,6 +717,27 @@ impl Simulation {
             }
         }
         ShiftResult {
+            escalations: self
+                .events
+                .iter()
+                .filter_map(|e| {
+                    if let EventKind::IncidentEscalated {
+                        incident,
+                        kind,
+                        secondary,
+                    } = e.kind
+                    {
+                        Some(EscalationEntry {
+                            incident,
+                            at: e.at,
+                            kind,
+                            secondary,
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
             total_damage: damage.values().map(|e| e.damage).sum(),
             damage_entries: damage.into_values().collect(),
             at: self.now,
@@ -701,6 +781,8 @@ impl Simulation {
         }
         let answered = !matches!(i.call, CallState::Ringing);
         Ok(CallView {
+            escalated: i.escalated,
+            parent: i.parent,
             id,
             report: i.report.clone(),
             location: i.location,
@@ -978,6 +1060,54 @@ impl Simulation {
             },
         );
     }
+    fn advance_escalation(&mut self) {
+        let Some(policy) = self.rules.as_ref().map(|r| r.escalation.clone()) else {
+            return;
+        };
+        let events: Vec<_> = self
+            .events
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::IncidentEscalated { .. }))
+            .collect();
+        if events.len() >= policy.max_events
+            || events
+                .last()
+                .is_some_and(|e| self.now.saturating_sub(e.at) < policy.cooldown_seconds)
+        {
+            return;
+        }
+        let candidate=self.incidents.values().find(|i|i.state==IncidentState::Active&&i.truth==Truth::Emergency&&i.required==Capability::Fire&&i.parent.is_none()&&!i.escalated&&self.now<i.deadline&&self.now.saturating_sub(i.reported_at.unwrap_or(0))>=policy.fire_after_seconds&&!self.units.values().any(|u|u.capability==Capability::Fire&&matches!(u.state,UnitState::OnScene{incident}|UnitState::Resolving{incident,..} if incident==i.id))).map(|i|(i.id,i.location));
+        let Some((incident, location)) = candidate else {
+            return;
+        };
+        let secondary = self.queue_scenario(5, location).ok();
+        if let Some(id) = secondary {
+            let child = self.incidents.get_mut(&id).unwrap();
+            child.parent = Some(incident);
+            child.report = "Injuries reported after the structure explosion".into();
+            child.facts=vec![Fact{id:"breathing".into(),question:"Is anyone hurt or struggling to breathe?".into(),answer:"A worker is coughing badly after the blast. We moved outside and need an ambulance.".into(),evidence:Evidence::CredibleDanger}];
+        }
+        self.incidents.get_mut(&incident).unwrap().escalated = true;
+        self.emit(EventKind::IncidentEscalated {
+            incident,
+            kind: EscalationKind::StructureExplosion,
+            secondary,
+        });
+        let i = self.incidents.get_mut(&incident).unwrap();
+        let amount = policy
+            .burst_damage
+            .min(i.consequence.max_damage.saturating_sub(i.damage));
+        i.damage += amount;
+        let total = i.damage;
+        if amount > 0 {
+            self.emit(EventKind::DamageApplied {
+                incident,
+                amount,
+                total,
+                reason: DamageReason::Explosion,
+            });
+        }
+    }
     /// One grid cell per second along X then Y; deadlines are exclusive.
     /// Expiry is processed before responder work at the same timestamp.
     pub fn advance(&mut self, seconds: u32) -> Result<(), Error> {
@@ -998,6 +1128,7 @@ impl Simulation {
                     reason: DamageReason::DelayedResponse,
                 });
             }
+            self.advance_escalation();
             let expired: Vec<_> = self
                 .incidents
                 .values()
@@ -1155,6 +1286,9 @@ impl Simulation {
         if let Some(network) = &self.network {
             network.validate()?;
         }
+        if let Some(rules) = &self.rules {
+            rules.validate()?;
+        }
         if self.now > 86_400
             || self.incidents.is_empty()
             || self.incidents.len() > 100
@@ -1179,6 +1313,19 @@ impl Simulation {
                     && (i.consequence != ConsequenceModel::default() || i.damage != 0))
                 || (matches!(i.state, IncidentState::Pending | IncidentState::Unreported)
                     && i.damage != 0)
+                || i.response_seconds == 0
+                || i.response_seconds > 3600
+                || i.parent.is_some_and(|id| {
+                    id >= i.id
+                        || !self
+                            .incidents
+                            .get(&id)
+                            .is_some_and(|p| p.parent.is_none() && p.escalated)
+                })
+                || (i.escalated
+                    && (i.truth != Truth::Emergency
+                        || i.required != Capability::Fire
+                        || i.parent.is_some()))
                 || i.reported_at.is_some_and(|at| at > self.now)
                 || (i.state == IncidentState::Pending && i.reported_at.is_some())
                 || (i.state == IncidentState::Active && i.deadline <= self.now)
@@ -1282,6 +1429,9 @@ impl Simulation {
             }
         }
         let mut ended = std::collections::BTreeSet::new();
+        let mut escalated = std::collections::BTreeSet::new();
+        let mut secondary_calls = std::collections::BTreeSet::new();
+        let mut last_escalation = None;
         let mut damages: BTreeMap<IncidentId, u64> = BTreeMap::new();
         let mut total = 0_i64;
         let mut last = 0;
@@ -1292,16 +1442,56 @@ impl Simulation {
             last = e.at;
             let valid_player = |player| (1..=6).contains(&player);
             match &e.kind {
+                EventKind::IncidentEscalated {
+                    incident,
+                    secondary,
+                    ..
+                } => {
+                    let i = self.incidents.get(incident).ok_or_else(invalid)?;
+                    let policy = &self.rules.as_ref().ok_or_else(invalid)?.escalation;
+                    if !i.escalated
+                        || !escalated.insert(*incident)
+                        || escalated.len() > policy.max_events
+                        || e.at.saturating_sub(i.reported_at.unwrap_or(0))
+                            < policy.fire_after_seconds
+                        || last_escalation
+                            .is_some_and(|at| e.at.saturating_sub(at) < policy.cooldown_seconds)
+                    {
+                        return Err(invalid());
+                    }
+                    last_escalation = Some(e.at);
+                    if let Some(child) = secondary
+                        && (!secondary_calls.insert(*child)
+                            || self.incidents.get(child).is_none_or(|c| {
+                                c.parent != Some(*incident)
+                                    || c.truth != Truth::Emergency
+                                    || c.required != Capability::Medical
+                            }))
+                    {
+                        return Err(invalid());
+                    }
+                }
                 EventKind::DamageApplied {
                     incident,
                     amount,
                     total,
-                    ..
+                    reason,
                 } => {
                     let i = self.incidents.get(incident).ok_or_else(invalid)?;
                     let recorded = damages.entry(*incident).or_default();
                     if *amount == 0
-                        || *amount > i.consequence.damage_per_second
+                        || match reason {
+                            DamageReason::DelayedResponse => {
+                                *amount > i.consequence.damage_per_second
+                            }
+                            DamageReason::Explosion => {
+                                !escalated.contains(incident)
+                                    || self
+                                        .rules
+                                        .as_ref()
+                                        .is_none_or(|r| *amount > r.escalation.burst_damage)
+                            }
+                        }
                         || *total > i.consequence.max_damage
                         || recorded.checked_add(*amount) != Some(*total)
                         || e.at.saturating_sub(i.reported_at.unwrap_or(0))
@@ -1380,6 +1570,12 @@ impl Simulation {
         if self.incidents.values().any(|i| {
             (!matches!(i.state, IncidentState::Active | IncidentState::Pending))
                 != ended.contains(&i.id)
+        }) {
+            return Err(invalid());
+        }
+        if self.incidents.values().any(|i| {
+            i.escalated != escalated.contains(&i.id)
+                || i.parent.is_some() && !secondary_calls.contains(&i.id)
         }) {
             return Err(invalid());
         }

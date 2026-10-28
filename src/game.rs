@@ -112,7 +112,7 @@ impl Session {
         )
         .expect("Valid shift configuration");
         crate::city::install(&mut sim);
-        sim.enable_consequences()
+        sim.apply_scenario_rules(crate::city::scenario_rules().clone())
             .expect("Authored consequence models are fixed before the shift");
         sim
     }
@@ -145,36 +145,47 @@ impl Session {
             && self.screen == Screen::Terminal
             && self.seated.is_some()
     }
+    fn pending_call(&self) -> Option<u32> {
+        self.sim
+            .incidents()
+            .values()
+            .filter(|i| i.state == IncidentState::Pending)
+            .min_by_key(|i| (i.parent.is_none(), i.id))
+            .map(|i| i.id)
+    }
+    fn director_ready(&self) -> bool {
+        let secondary = self
+            .pending_call()
+            .is_some_and(|id| self.sim.incidents()[&id].parent.is_some());
+        self.sim
+            .director_policy()
+            .is_none_or(|policy| policy.can_deliver(&self.sim, self.shift, secondary))
+    }
     fn schedule(&mut self) {
-        if self.phase == Phase::Running
-            && self.seated.is_some()
-            && self.ringing.is_none()
-            && self.conversation.is_none()
-            && !self
-                .sim
-                .incidents()
-                .values()
-                .any(|i| i.state == IncidentState::Pending)
-            && self.sim.incidents().len() < 96
+        if self.phase != Phase::Running
+            || self.seated.is_none()
+            || self.ringing.is_some()
+            || self.conversation.is_some()
         {
-            let template = 1 + ((self.rng >> 24) % 6) as u32;
+            return;
+        }
+        if !self.director_ready() {
+            self.next_call_at = None;
+            return;
+        }
+        if self.pending_call().is_none() && self.sim.incidents().len() < 96 {
+            let template = self
+                .sim
+                .director_policy()
+                .map_or(1 + ((self.rng >> 24) % 6) as u32, |p| {
+                    p.template(&self.sim, self.shift, self.rng >> 24)
+                });
             let location = self.sim.incidents()[&template].location;
             self.sim
                 .queue_scenario(template, location)
-                .expect("Validated reusable authored scenario");
+                .expect("Validated authored repeat scenario");
         }
-
-        if self.phase == Phase::Running
-            && self.seated.is_some()
-            && self.ringing.is_none()
-            && self.conversation.is_none()
-            && self.next_call_at.is_none()
-            && self
-                .sim
-                .incidents()
-                .values()
-                .any(|i| i.state == IncidentState::Pending)
-        {
+        if self.next_call_at.is_none() && self.pending_call().is_some() {
             self.rng = self
                 .rng
                 .wrapping_mul(6_364_136_223_846_793_005)
@@ -182,7 +193,15 @@ impl Session {
             let range = if self.visible_ids().next().is_none() {
                 crate::city::config().initial_delay_seconds
             } else {
-                crate::city::config().next_delay_seconds
+                self.sim
+                    .director_policy()
+                    .map_or(crate::city::config().next_delay_seconds, |p| {
+                        p.delay_range(
+                            &self.sim,
+                            self.remaining(),
+                            crate::city::config().next_delay_seconds,
+                        )
+                    })
             };
             self.next_call_at = Some(
                 self.sim.now()
@@ -511,6 +530,9 @@ impl Session {
             .advance(1)
             .expect("Shift clock stays within simulation limits");
         self.dirty = true;
+        if self.phase == Phase::Closing {
+            self.sim.close_unreported();
+        }
         for event in &self.sim.events()[start..] {
             if let EventKind::IncidentEnded {
                 incident,
@@ -520,6 +542,10 @@ impl Session {
             } = &event.kind
             {
                 self.notice = format!("Call {incident}: {reason} ({score_delta:+} points).");
+            } else if let EventKind::IncidentEscalated { incident, .. } = event.kind {
+                self.notice = format!(
+                    "INCIDENT {incident} ESCALATED: structure explosion. Linked medical follow-up queued."
+                );
             }
         }
         self.synchronize_line();
@@ -532,16 +558,12 @@ impl Session {
         if self.phase == Phase::Running {
             self.schedule();
             if self.next_call_at.is_some_and(|at| self.sim.now() >= at) && self.seated.is_some() {
-                if let Some(id) = self
-                    .sim
-                    .incidents()
-                    .values()
-                    .find(|i| i.state == IncidentState::Pending)
-                    .map(|i| i.id)
+                if self.director_ready()
+                    && let Some(id) = self.pending_call()
                 {
                     self.sim
-                        .activate_call(id, crate::city::config().response_window_seconds)
-                        .expect("Queued call has valid scenario data");
+                        .activate_configured_call(id)
+                        .expect("Valid authored call deadline");
                     self.ringing = Some(id);
                     self.call_station = self.seated;
                     self.selected = id;
@@ -799,7 +821,14 @@ mod review_tests {
         let mut g = Session::default();
         g.act(Action::Sit(0));
         g.act(Action::OpenDesk);
-        for _ in 0..6 {
+        for (id, unit) in [
+            (1, Some(3)),
+            (2, None),
+            (3, None),
+            (4, None),
+            (5, Some(2)),
+            (6, Some(1)),
+        ] {
             for _ in 0..15 {
                 if g.ringing.is_some() {
                     break;
@@ -807,7 +836,15 @@ mod review_tests {
                 g.tick(1.0);
             }
             g.act(Action::Answer);
-            g.act(Action::HangUp);
+            if let Some(unit) = unit {
+                while g.sim.units()[&unit].state != UnitState::Available {
+                    g.tick(1.0);
+                }
+                g.act(Action::Unit(unit));
+            } else {
+                g.act(Action::Decline);
+            }
+            assert!(g.conversation.is_none(), "Call {id} should be completed");
         }
         let next = g.next_call_at.unwrap();
         assert!((1..=15).contains(&(next - g.sim.now())));
@@ -829,12 +866,66 @@ mod consequence_tests {
         game.act(Action::Ask("smoke".into()));
         game.act(Action::Decline);
         game.act(Action::EndShift);
-        assert_eq!(game.sim.review().total_damage, 127_500);
-        assert_eq!(game.damage_assessment(), 127);
+        assert_eq!(game.sim.review().total_damage, 137_500);
+        assert_eq!(game.damage_assessment(), 137);
         assert_eq!(game.grant(), 0);
         assert_eq!(game.grade(), "F");
         game.tick(100.0);
         assert_eq!(game.funds, 0);
         assert_eq!(game.sim.review().damage_entries.len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod director_tests {
+    use super::*;
+    #[test]
+    fn unanswered_incident_pressure_stops_delivery_at_the_solo_budget() {
+        let mut g = Session::default();
+        g.act(Action::Sit(0));
+        g.act(Action::OpenDesk);
+        for _ in 0..4 {
+            for _ in 0..15 {
+                if g.ringing.is_some() {
+                    break;
+                }
+                g.tick(1.0);
+            }
+            assert!(g.ringing.is_some());
+            g.act(Action::Answer);
+            g.act(Action::HangUp);
+        }
+        assert!(g.next_call_at.is_none());
+        g.tick(20.0);
+        assert_eq!(g.visible_ids().count(), 4);
+        g.act(Action::Select(1));
+        g.act(Action::Unit(3));
+        g.tick(50.0);
+        assert!(g.visible_ids().count() > 4);
+        assert!(
+            g.sim
+                .incidents()
+                .values()
+                .filter(|i| i.state == IncidentState::Active)
+                .count()
+                <= 4
+        );
+    }
+    #[test]
+    fn secondary_calls_wait_for_the_line_then_precede_normal_queue() {
+        let mut g = Session::default();
+        g.act(Action::Sit(0));
+        g.tick(10.0);
+        g.act(Action::UsePhone);
+        g.act(Action::Decline);
+        g.tick(120.0);
+        let child = g.sim.review().escalations[0].secondary.unwrap();
+        assert_eq!(g.ringing, Some(2));
+        assert_eq!(g.sim.incidents()[&child].state, IncidentState::Pending);
+        g.act(Action::UsePhone);
+        g.act(Action::Decline);
+        g.tick(15.0);
+        assert_eq!(g.ringing, Some(child));
+        assert_eq!(g.sim.incidents()[&child].parent, Some(1));
     }
 }

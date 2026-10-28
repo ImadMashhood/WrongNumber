@@ -1,5 +1,6 @@
 //! M2 solo dispatch office, backed by the renderer-free authority simulation.
 mod city;
+mod city_effects;
 mod environment;
 mod game;
 mod performance;
@@ -49,6 +50,7 @@ fn main() {
                 environment::setup,
                 world::setup,
                 phone::setup,
+                city_effects::setup,
                 performance::configure,
             )
                 .chain(),
@@ -65,6 +67,7 @@ fn main() {
                 tick,
                 world::doors,
                 phone::update,
+                city_effects::update,
                 routes::refresh,
                 wall_map::refresh,
                 ui::draw,

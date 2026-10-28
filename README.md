@@ -107,30 +107,31 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M3 — Escalation, city consequences, and replayable content
 
-- [ ] **Milestone status:** In progress — deterministic monetary consequences and review ledger implemented
+- [ ] **Milestone status:** In progress — paced calls, data-driven rules and bounded fire escalation implemented
 
 **Purpose:** Make the city react to decisions and create memorable, fair outcomes.
 
-**Initial slice delivered**
+**Delivered so far**
 
 - [x] Delayed, bounded monetary damage driven by fixed scenario truth; benign reports cannot generate damage.
 - [x] Appropriate responders stop damage growth on scene; damage events replay and survive save/load.
 - [x] Per-incident damage timeline, funding assessment and grade impact in the review.
+- [x] Data-driven capability deadlines and bounded escalation rules in `assets/scenarios/m3_rules.json`.
+- [x] A solo workload director with active-incident/call budgets, shift difficulty, response availability and late-shift pacing.
+- [x] An untreated real fire can explode once, mark the map urgent, trigger a brief room flash/distant boom and queue one linked medical follow-up. At most two blasts per shift with a 90-second cooldown; follow-ups cannot chain.
+- [x] Radio/patrol upgrade cycles visibly affect the next shift and remain covered by graphical regression checks.
 
 **Remaining deliverables**
 
-- [ ] Data-driven deadlines and bounded escalation rules for incidents.
-- [ ] One authored major event, such as an ignored genuine threat leading to a blast, with synchronized map marker, skyline effect, road closure, office response, and secondary calls.
-- [ ] A director that schedules calls within an explicit difficulty and active-incident budget.
+- [ ] Extend the authored major event with skyline damage and safe runtime road closures; networking synchronization remains M4.
 - [ ] More scenario variations, caller histories, and a complete review timeline with clear evidence for grades and penalties.
-- [ ] One upgrade cycle that changes the next shift in a visible, understandable way.
 
 **Acceptance checks**
 
-- [ ] Every visible consequence traces to a simulation event with a cause and timestamp.
-- [ ] Escalation chains have cooldowns and caps; the director cannot generate unbounded incidents.
-- [ ] A prank cannot create a real blast through dialogue or model improvisation.
-- [ ] Review comments and any replays are based only on recorded events and consent settings.
+- [x] Every currently visible consequence traces to a simulation event with a cause and timestamp.
+- [x] Escalation chains have cooldowns and caps; the director cannot generate unbounded incidents.
+- [x] A prank cannot create a real blast; only fixed emergency/fire truth can trigger the authored event.
+- [x] Current review comments use recorded events only. Voice recordings/replays remain M5 work.
 
 ### M4 — Cooperative multiplayer vertical slice
 
@@ -335,11 +336,11 @@ The M0/M1 and preceding M2 GitHub CI runs passed on Linux and Windows. M2 adds a
 
 ## M2 verification and imported map
 
-- 51 local automated tests pass: 23 simulation rules tests, 6 road/full-response tests, 4 consequence tests and 18 office/shift/input tests.
+- 60 local automated tests pass: 23 simulation rules tests, 6 road/full-response tests, 4 consequence tests, 6 escalation/director tests and 21 office/session/effect tests.
 - Formatting, workspace compilation, and Clippy pass. Both hardware/normal-graphics and software/reduced-graphics graphical playthroughs pass locally.
 - The graphical playthrough on NVIDIA Vulkan verifies targeted seating and monitor focus, six sequential delayed calls, 210 points, the ten-minute shift boundary, review, a radio purchase, and shorter recovery in the next shift. Screenshots are inspected for room geometry and UI readability.
 - The supplied graph has 2,639 nodes, 1,977 roads and 694 disconnected weak components. The playable pilot uses real nodes/roads in its 144-node largest component. No links are invented between components. Road/junction endpoint offsets of at most one pixel per axis are normalized at import. Run `python3 tools/maps/audit_graph.py` after graph edits.
-- The 4 km scale, synthetic names and provisional headquarters remain design choices to review. Pilot node placements, recovery, initial/subsequent delays, response window, responder speeds and reticle colors live in `assets/city/gameplay_config.json`. Run upgrades last until the app closes.
+- The 4 km scale, synthetic names and provisional headquarters remain design choices to review. Pilot node placements, recovery, initial/subsequent delay bounds, responder speeds and reticle colors live in `assets/city/gameplay_config.json`. Incident deadlines, damage/escalation rules and workload budgets live in `assets/scenarios/m3_rules.json`. Run upgrades last until the app closes.
 
 See [the office guide](docs/office.md) for controls, map integration boundaries, and the graphical test command.
 

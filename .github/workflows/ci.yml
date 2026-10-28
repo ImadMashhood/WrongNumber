@@ -37,6 +37,7 @@ jobs:
           export WGPU_BACKEND=vulkan
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --playtest --low-graphics --capture-dir ci-captures
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --consequence-test --low-graphics --capture-dir ci-captures/consequences
+          xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --escalation-test --low-graphics --capture-dir ci-captures/escalation
       - name: Save playthrough screenshots
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v4

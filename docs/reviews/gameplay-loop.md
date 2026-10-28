@@ -44,3 +44,20 @@ Verdict: **PASS for this slice; M3 remains IN PROGRESS**. M2 was reviewed and co
 | 10.3 | The M2 seeded repeating caller loop retains its explicit 96-incident bound. | Adaptive severity/volume budgets by players, resources, city state and remaining time. |
 
 Verification: 51 automated tests pass (18 session/office, 23 original rules, 6 road/full-response and 4 consequence tests); strict Clippy and formatting pass. The rendered consequence scenario records $127,500 from a declined credible fire, 100 decision points, a 127-point damage assessment, grade F and 73 funding, then purchases radios and starts the next shift with 23 funding. The ordinary 210-point/310-funding graphical shift remains a regression check. Damage/review screenshots were inspected for readable evidence and arithmetic. The post-change benchmark averages 58.4 FPS at 1440x900 on the RTX 3080 (p95 17.91 ms, 300 measured frames after 90 warm-up frames). The next M3 work is authored escalation/secondary-call presentation and workload budgets; no M4 transition is approved by this slice alone.
+
+
+## M3 workload and authored escalation - 2026-10-27
+
+Verdict: **PASS for this slice; M3 remains IN PROGRESS**. Continue M3; do not advance to M4 yet.
+
+| Specification | Reviewed behavior and evidence | Remaining work |
+| --- | --- | --- |
+| 6.2, 8.2-8.3 | Validated JSON fixes capability deadlines and consequence profiles before calls. An untreated parentless real fire can emit one structure-explosion event after 120 seconds; benign/fire prank truth never qualifies. Appropriate on-scene fire response prevents it. | More authored severity/scenario variations. |
+| 8.4, 11.2 | The same timestamped event drives an urgent red map pin, an office flash and original spatial boom with distance attenuation. Fast-forwarded/closing history does not replay effects; mute/reduced-effects flags are available. Rendered captures show the office and urgent source marker. | Skyline destruction, runtime road closures and broader city sound/effects. Physical-device audio listening remains manual. |
+| 8.4, 10.1-10.3 | A single fixed-truth medical follow-up links to its source, stays hidden until delivery and waits for line/capacity before taking priority over ordinary calls. Children cannot escalate. Two-event global cap, 90-second cooldown and matching reserved follow-up slots prevent unbounded chains. | More secondary-call types and multiplayer integration. |
+| 10.3 | Solo workload defaults to four active incidents and 32 calls, scaling by shift to six active/64 calls. Delay bounds respond to active incidents, busy responders and late-shift time; seeded template weights consider availability/difficulty while retaining scarcity. The terminal displays the active budget. | Player-count scaling belongs to M4; broader balance still needs human playtesting. |
+| 1, 8 | Review records blast time, source and linked call, with the existing damage ledger/funding arithmetic. Normal shift/review/radio/next-shift regression still passes. | Complete replayable caller histories and more content. |
+
+Verification: 60 automated tests pass (21 office/session/effect, 23 original rules, 6 road/full-response, 4 consequence, 6 escalation/director), with formatting and strict Clippy. New tests cover rule validation/atomicity, configured deadlines in queued and immediately ringing starts, deterministic escalation/save replay, source-child validation, caps/cooldown, prank prevention, director budgets, deferred line delivery and follow-up priority.
+
+All three NVIDIA graphical paths pass: ordinary shift (210 points/310 funding), consequence shift ($137,500 damage including the $10,000 burst, 100 points/63 funding, then radios and 13 funding next shift), and live escalation/flash/map/snapshot. The escalation path also passes on software Vulkan with reduced graphics. Screenshots were inspected for readable source/follow-up evidence. The final normal-graphics benchmark averages 58.4 FPS at 1440x900 on the RTX 3080 (p95 18.73 ms, 300 measured frames after 90 warm-up frames). M3 remains open for the remaining scope listed above.

@@ -97,6 +97,9 @@ pub(super) fn incidents(rng: &mut u64) -> Vec<Incident> {
                     consequence: ConsequenceModel::default(),
                     damage: 0,
                     reported_at: Some(0),
+                    parent: None,
+                    escalated: false,
+                    response_seconds: 300,
                 }
             },
         )

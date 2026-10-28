@@ -180,7 +180,9 @@ fn map(
         }
         for id in game.visible_ids() {
             let view = game.sim.call_view(*id).unwrap();
-            let color = if view.state == IncidentState::Active {
+            let color = if view.escalated {
+                Color::srgb(1.0, 0.15, 0.1)
+            } else if view.state == IncidentState::Active {
                 AMBER
             } else {
                 MUTED
@@ -271,6 +273,8 @@ fn terminal(
         let Ok(view)=game.sim.call_view(game.selected) else {text(p,"Waiting for your first caller",25.0,TEXT);text(p,"Calls arrive 1–10 seconds after sitting. The clock keeps running outside computer focus.",17.0,MUTED);return;};
         text(p,format!("CALL {:02} / {}",game.selected,state_name(view.state)),14.0,AMBER);
         text(p,view.report,25.0,TEXT);
+        if view.escalated{text(p,"ESCALATED: structure explosion",17.0,AMBER);}
+        if let Some(parent)=view.parent{text(p,format!("Follow-up caused by incident {parent}"),15.0,AMBER);}
         text(p,format!("Caller: {} | 555-{:04}",["Alex Morgan","Sam Lee","Jordan Ellis","Casey Park","Riley Jones","Taylor Reed"][((game.selected-1)%6) as usize],100+game.selected),13.0,MUTED);
         text(p,crate::city::address(view.location),13.0,MUTED);
         let duration=game.call_duration(game.selected);text(p,format!("Call duration {:02}:{:02} | {}",duration/60,duration%60,view.facts.first().map_or("Type unconfirmed",|f|match f.id.as_str(){"smoke"=>"Reported fire","breathing"=>"Reported medical emergency","window"=>"Reported police incident",_=>"Reported non-emergency"})),13.0,MUTED);
@@ -297,6 +301,7 @@ fn terminal(
     p.spawn((column(39.0),BackgroundColor(PANEL))).with_children(|p| {
         text(p,"CITY OPERATIONS",14.0,MUTED); map(p, game, image, routes);
         text(p,"SHARED RESPONSE CAPACITY",14.0,MUTED);
+        if let Some(policy)=game.sim.director_policy(){let active=game.sim.incidents().values().filter(|i|i.state==IncidentState::Active).count();let limit=policy.active_limit(game.shift);text(p,format!("Active incidents: {active} / {limit}{}",if active>=limit{" / incoming queue held"}else{""}),13.0,MUTED);}
         text(p,format!("Recorded city damage: ${}",game.sim.review().total_damage),14.0,AMBER);
         for cap in [Capability::Police,Capability::Medical,Capability::Fire] {let total=game.sim.units().values().filter(|u|u.capability==cap).count();let available=game.sim.units().values().filter(|u|u.capability==cap&&u.state==UnitState::Available).count();text(p,format!("{}: {available} / {total} available",cap_name(cap)),14.0,cap_color(cap));}
         text(p,format!("Run funding ${} | Recovery {}s",game.funds,if game.radio {crate::city::config().radio_recovery_seconds} else {crate::city::config().recovery_seconds}),12.0,MUTED);
@@ -311,7 +316,8 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session) {
         text(p,format!("{} resolved | {} refused | {} expired",result.resolved,result.dismissed,result.expired),18.0,AMBER);
         for entry in &result.score_entries {text(p,format!("{:02}:{:02}  Call {}  {:+} pts\n{}",entry.at/60,entry.at%60,entry.incident,entry.points,entry.reason),16.0,TEXT);}
         text(p,format!("City damage: ${} | Funding assessment: {}",result.total_damage,game.damage_assessment()),19.0,AMBER);
-        for entry in &result.damage_entries {text(p,format!("Call {} / ${} damage / {:02}:{:02} to {:02}:{:02} / delayed response",entry.incident,entry.damage,entry.first_at/60,entry.first_at%60,entry.last_at/60,entry.last_at%60),14.0,TEXT);}
+        for entry in &result.escalations {text(p,format!("{:02}:{:02} / Call {} / structure explosion / {}",entry.at/60,entry.at%60,entry.incident,entry.secondary.map_or_else(||"no follow-up queued".into(),|id|format!("linked call {id}"))),15.0,AMBER);}
+        for entry in &result.damage_entries {text(p,format!("Call {} / ${} damage / {:02}:{:02} to {:02}:{:02} / recorded consequences",entry.incident,entry.damage,entry.first_at/60,entry.first_at%60,entry.last_at/60,entry.last_at%60),14.0,TEXT);}
         text(p,format!("Base 100 + score {} - damage assessment {} = {} funding (minimum 0)",result.score,game.damage_assessment(),game.grant()),17.0,AMBER);
         text(p,"Recorded decisions drive this review. Upgrades apply to the next shift in this run.",14.0,MUTED);
     });

@@ -23,3 +23,6 @@
 - `src/routes.rs` caches a transparent route overlay; `src/phone.rs` provides spatial ringing and a physical beacon. The local launcher still selects hardware by default. Linux audio compilation requires ALSA development linkage.
 
 - M3's first slice adds bounded scenario consequence models, authoritative per-tick damage events, and an event-derived review ledger. The UI never reads potential damage/truth to invent an outcome. Full escalation chains and the adaptive director are still pending; this change starts M3 without marking the whole milestone complete.
+
+- M3's next slice stores `ScenarioRules` in authority snapshots and loads authored JSON from `assets/scenarios/m3_rules.json`. A pure `DirectorPolicy` controls solo pressure/budgets; source/child relations and escalation events preserve causal replay.
+- `src/city_effects.rs` consumes new live escalation events for a one-shot office flash and generated spatial boom. It ignores old fast-forwarded/closing events. Map and review views derive urgency and the follow-up link from authority state/events. Runtime road closures and skyline destruction are not yet implemented.

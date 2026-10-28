@@ -125,7 +125,9 @@ pub fn refresh(
                     for id in game.visible_ids() {
                         let call = game.sim.call_view(*id).unwrap();
                         let (x, y) = crate::city::map_percent(call.location);
-                        let color = if call.state == IncidentState::Active {
+                        let color = if call.escalated {
+                            Color::srgb(1.0, 0.12, 0.05)
+                        } else if call.state == IncidentState::Active {
                             Color::srgb(1.0, 0.4, 0.12)
                         } else {
                             Color::srgb(0.25, 0.6, 0.4)
@@ -214,7 +216,11 @@ pub fn refresh(
                     22.0,
                     Color::srgb(0.95, 0.65, 0.25),
                 );
-                for id in game.visible_ids() {
+                for id in game
+                    .visible_ids()
+                    .filter(|id| game.sim.incidents()[id].state == IncidentState::Active)
+                    .take(6)
+                {
                     let call = game.sim.call_view(*id).unwrap();
                     label(
                         p,

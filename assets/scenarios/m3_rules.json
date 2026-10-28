@@ -1,0 +1,45 @@
+{
+  "profiles": [
+    {
+      "capability": "Fire",
+      "response_seconds": 300,
+      "consequence": {
+        "max_damage": 250000,
+        "onset_seconds": 45,
+        "damage_per_second": 500
+      }
+    },
+    {
+      "capability": "Medical",
+      "response_seconds": 300,
+      "consequence": {
+        "max_damage": 25000,
+        "onset_seconds": 75,
+        "damage_per_second": 250
+      }
+    },
+    {
+      "capability": "Police",
+      "response_seconds": 300,
+      "consequence": {
+        "max_damage": 15000,
+        "onset_seconds": 60,
+        "damage_per_second": 100
+      }
+    }
+  ],
+  "escalation": {
+    "fire_after_seconds": 120,
+    "burst_damage": 10000,
+    "max_events": 2,
+    "cooldown_seconds": 90
+  },
+  "director": {
+    "base_active_limit": 4,
+    "max_active_limit": 6,
+    "base_call_budget": 32,
+    "max_call_budget": 64,
+    "late_shift_seconds": 120,
+    "secondary_reserve": 2
+  }
+}

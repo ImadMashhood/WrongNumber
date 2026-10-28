@@ -16,6 +16,7 @@ pub struct LaunchCheck {
     smoke: bool,
     playtest: bool,
     consequence: bool,
+    escalation: bool,
     benchmark: bool,
     frames: u32,
     stage: u8,
@@ -28,10 +29,11 @@ impl LaunchCheck {
         let args: Vec<_> = std::env::args().collect();
         Self {
             smoke: args.iter().any(|a| a == "--smoke-test"),
-            playtest: args
-                .iter()
-                .any(|a| a == "--playtest" || a == "--consequence-test"),
+            playtest: args.iter().any(|a| {
+                a == "--playtest" || a == "--consequence-test" || a == "--escalation-test"
+            }),
             consequence: args.iter().any(|a| a == "--consequence-test"),
+            escalation: args.iter().any(|a| a == "--escalation-test"),
             benchmark: args.iter().any(|a| a == "--benchmark"),
             frames: 0,
             stage: 0,
@@ -140,6 +142,25 @@ pub fn automate(
         check.capture(&mut commands, "m2-live-routes");
         check.route_capture = true;
     }
+    if check.escalation
+        && check.stage == 0
+        && game.sim.incidents()[&1].call == wrong_number_sim::CallState::Declined
+    {
+        if game.sim.review().escalations.is_empty() {
+            game.tick(1.0);
+        } else {
+            let entries = game.sim.review().escalations;
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].incident, 1);
+            let child = entries[0].secondary.unwrap();
+            assert_eq!(game.sim.incidents()[&child].parent, Some(1));
+            queue.0.push(Action::Office);
+            **player = crate::world::overview();
+            check.stage = 40;
+            check.last = check.frames;
+        }
+        return;
+    }
     match check.stage {
         0 => {
             if game.ringing.is_none()
@@ -164,7 +185,9 @@ pub fn automate(
                         "window",
                     ][(id - 1) as usize];
                     click(&mut commands, &buttons, Action::Ask(fact.into()));
-                } else if [2, 3, 4].contains(&id) || (check.consequence && id == 1) {
+                } else if [2, 3, 4].contains(&id)
+                    || ((check.consequence || check.escalation) && id == 1)
+                {
                     click(&mut commands, &buttons, Action::Decline);
                 } else {
                     let unit = match id {
@@ -192,14 +215,37 @@ pub fn automate(
                 check.stage = 1;
             }
         }
+        40 if check.frames - check.last >= 3 => {
+            check.capture(&mut commands, "m3-explosion-flash");
+            check.stage = 41;
+            check.last = check.frames;
+        }
+        41 if check.frames - check.last >= 6 => {
+            queue.0.push(Action::OpenMap);
+            check.stage = 42;
+            check.last = check.frames;
+        }
+        42 if check.frames - check.last >= 6 => {
+            check.capture(&mut commands, "m3-escalated-map");
+            check.stage = 43;
+            check.last = check.frames;
+        }
+        43 if check.frames - check.last >= 12 => {
+            wrong_number_sim::Simulation::load_json(&game.sim.save_json().unwrap())
+                .expect("Valid escalated authority snapshot");
+            info!(
+                "M3 ESCALATION PLAYTEST PASSED: real fire, one linked follow-up, live office flash and urgent map marker"
+            );
+            exit.write(AppExit::Success);
+        }
         1 => {
             assert_eq!(game.phase, Phase::AwaitingReview);
             assert_eq!(game.sim.score(), if check.consequence { 100 } else { 210 });
             assert_eq!(
                 game.sim.review().total_damage,
-                if check.consequence { 127_500 } else { 0 }
+                if check.consequence { 137_500 } else { 0 }
             );
-            assert_eq!(game.funds, if check.consequence { 73 } else { 310 });
+            assert_eq!(game.funds, if check.consequence { 63 } else { 310 });
             wrong_number_sim::Simulation::load_json(&game.sim.save_json().unwrap())
                 .expect("Valid completed shift snapshot");
             click(&mut commands, &buttons, Action::Office);
@@ -244,7 +290,7 @@ pub fn automate(
         }
         7 => {
             assert!(game.radio);
-            assert_eq!(game.funds, if check.consequence { 23 } else { 260 });
+            assert_eq!(game.funds, if check.consequence { 13 } else { 260 });
             click(&mut commands, &buttons, Action::NextShift);
             check.stage = 8;
         }

@@ -14,7 +14,6 @@ pub struct Config {
     pub radio_recovery_seconds: u32,
     pub initial_delay_seconds: [u32; 2],
     pub next_delay_seconds: [u32; 2],
-    pub response_window_seconds: u32,
 }
 #[derive(Deserialize)]
 pub struct ReticleColors {
@@ -28,6 +27,15 @@ pub fn config() -> &'static Config {
     CONFIG.get_or_init(|| {
         serde_json::from_str(include_str!("../assets/city/gameplay_config.json"))
             .expect("Valid authored gameplay configuration")
+    })
+}
+pub fn scenario_rules() -> &'static wrong_number_sim::consequences::ScenarioRules {
+    static RULES: OnceLock<wrong_number_sim::consequences::ScenarioRules> = OnceLock::new();
+    RULES.get_or_init(|| {
+        wrong_number_sim::consequences::ScenarioRules::from_json(include_str!(
+            "../assets/scenarios/m3_rules.json"
+        ))
+        .expect("Valid authored M3 rules")
     })
 }
 pub fn network() -> &'static RoadNetwork {
