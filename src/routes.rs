@@ -63,4 +63,22 @@ pub fn refresh(
             }
         }
     }
+    if let Some(network) = game.sim.network() {
+        for road in network.roads.iter().filter(|r| r.closed) {
+            for p in &road.points {
+                let x = p[0];
+                let y = p[1];
+                for dx in -2..=2 {
+                    for dy in -2..=2 {
+                        let a = x + dx;
+                        let b = y + dy;
+                        if a >= 0 && b >= 0 && a < width as i32 && b < height as i32 {
+                            let offset = ((b as u32 * width + a as u32) * 4) as usize;
+                            pixels[offset..offset + 4].copy_from_slice(&[255, 45, 35, 255]);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

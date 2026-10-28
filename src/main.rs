@@ -68,6 +68,7 @@ fn main() {
                 world::doors,
                 phone::update,
                 city_effects::update,
+                city_effects::damage,
                 routes::refresh,
                 wall_map::refresh,
                 ui::draw,

@@ -184,3 +184,85 @@ fn rerouting_on_roads_preserves_position_and_takes_a_valid_return_branch() {
     assert_eq!(sim.incidents()[&4].state, IncidentState::Resolved);
     assert_eq!(sim.incidents()[&1].state, IncidentState::Active);
 }
+
+#[test]
+fn blast_closures_preserve_connectivity_replan_and_reopen_without_teleporting() {
+    use wrong_number_sim::consequences::ScenarioRules;
+    let mut s = Simulation::new_with_config(
+        42,
+        ShiftConfig {
+            queued_calls: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    s.enable_roads(
+        network(),
+        [Position { x: 0, y: 0 }; 3],
+        [Position { x: 4, y: 4 }; 6],
+    )
+    .unwrap();
+    s.apply_scenario_rules(
+        ScenarioRules::from_json(include_str!("../../../assets/scenarios/m3_rules.json")).unwrap(),
+    )
+    .unwrap();
+    s.activate_configured_call(1).unwrap();
+    s.advance(115).unwrap();
+    s.activate_configured_call(5).unwrap();
+    s.apply(1, Command::AcceptCall { incident: 5 }).unwrap();
+    s.apply(
+        1,
+        Command::Dispatch {
+            unit: 2,
+            incident: 5,
+        },
+    )
+    .unwrap();
+    s.advance(4).unwrap();
+    let position = s.units()[&2].position;
+    s.advance(1).unwrap();
+    assert_eq!(s.units()[&2].position, position);
+    let closed: Vec<_> = s
+        .network()
+        .unwrap()
+        .roads
+        .iter()
+        .filter(|r| r.closed)
+        .map(|r| r.id)
+        .collect();
+    assert_eq!(closed.len(), 1);
+    assert!(
+        s.network()
+            .unwrap()
+            .round_trip_connected(Position { x: 0, y: 0 })
+    );
+    assert!(
+        !s.units()[&2]
+            .journey
+            .as_ref()
+            .unwrap()
+            .points
+            .iter()
+            .any(|p| p.road == Some(closed[0]))
+    );
+    let before = s.clone();
+    let other = s
+        .network()
+        .unwrap()
+        .roads
+        .iter()
+        .find(|r| !r.closed)
+        .unwrap()
+        .id;
+    assert!(s.close_road(1, other, 120).is_err());
+    assert_eq!(s, before);
+    s = Simulation::load_json(&s.save_json().unwrap()).unwrap();
+    s.advance(120).unwrap();
+    assert!(s.network().unwrap().roads.iter().all(|r| !r.closed));
+    assert!(
+        s.events()
+            .iter()
+            .any(|e| matches!(e.kind, EventKind::RoadReopened { .. }))
+    );
+    Simulation::load_json(&s.save_json().unwrap()).unwrap();
+}

@@ -568,3 +568,20 @@ fn repeat_templates_reset_evidence_preserve_truth_and_enforce_a_budget() {
     assert!(sim.queue_scenario(2, location).is_err());
     assert_eq!(before, sim);
 }
+
+#[test]
+fn repeat_variants_keep_caller_history_and_truth_fixed() {
+    let mut s = Simulation::new(42);
+    let original = s.incidents()[&1].clone();
+    let mut reports = std::collections::BTreeSet::new();
+    for _ in 0..3 {
+        let id = s.queue_scenario(1, original.location).unwrap();
+        assert_eq!(s.incidents()[&id].truth, original.truth);
+        assert_eq!(s.incidents()[&id].required, original.required);
+        assert_eq!(s.incidents()[&id].caller_id, original.caller_id);
+        s.activate_call(id, 300).unwrap();
+        reports.insert(s.call_view(id).unwrap().report);
+        assert!(s.call_view(id).unwrap().previous_calls >= 1);
+    }
+    assert_eq!(reports.len(), 3);
+}

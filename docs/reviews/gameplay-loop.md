@@ -61,3 +61,14 @@ Verdict: **PASS for this slice; M3 remains IN PROGRESS**. Continue M3; do not ad
 Verification: 60 automated tests pass (21 office/session/effect, 23 original rules, 6 road/full-response, 4 consequence, 6 escalation/director), with formatting and strict Clippy. New tests cover rule validation/atomicity, configured deadlines in queued and immediately ringing starts, deterministic escalation/save replay, source-child validation, caps/cooldown, prank prevention, director budgets, deferred line delivery and follow-up priority.
 
 All three NVIDIA graphical paths pass: ordinary shift (210 points/310 funding), consequence shift ($137,500 damage including the $10,000 burst, 100 points/63 funding, then radios and 13 funding next shift), and live escalation/flash/map/snapshot. The escalation path also passes on software Vulkan with reduced graphics. Screenshots were inspected for readable source/follow-up evidence. The final normal-graphics benchmark averages 58.4 FPS at 1440x900 on the RTX 3080 (p95 18.73 ms, 300 measured frames after 90 warm-up frames). M3 remains open for the remaining scope listed above.
+
+
+## M3 completion gate - 2026-10-27
+
+Verdict: **PASS for the M3 solo vertical slice; proceed to M4 as requested**.
+
+- Specification 8.4/11: a recorded blast produces low-poly exterior scorch/fire/smoke, office flash, spatial boom, urgent map marker and a causally linked medical call.
+- Specification 4.4/8.4: the authority chooses a nearby non-bridge road, rejects closures that could trap a unit or disconnect the district, preserves positions while recalculating live routes, displays the closure and reopens it after 120 seconds. Source graph data remains intact. Dedicated tests cover atomic rejection, rerouting, connectivity, snapshot restoration and reopening.
+- Specification 6/10: authored repeat variations preserve truth/capability and stable caller identity; the workstation shows caller history. Decision, dispatch, arrival, outcome, closure and reopening entries come from recorded events; repeated damage is grouped in its ledger.
+- Verification: 62 tests, formatting and strict Clippy pass. Normal, consequence and live escalation graphical paths pass. Facade damage and closed-road captures were inspected. RTX 3080 benchmark: 58.5 FPS, p95 17.71 ms at 1440x900, 300 measured frames after 90 warm-up frames.
+- Scope: the styled exterior uses the adjacent urban facades, not a newly simulated 3D city. Live replication, shared seats and simultaneous lines belong to M4; voice/AI and recordings remain M5.

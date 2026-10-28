@@ -1,6 +1,7 @@
 //! Authoritative, renderer-free dispatch rules. Time advances only when requested.
 pub mod consequences;
 pub mod director;
+pub mod road_events;
 pub mod roads;
 use consequences::{
     ConsequenceModel, DamageEntry, DamageReason, EscalationEntry, EscalationKind, ScenarioRules,
@@ -113,6 +114,10 @@ pub struct Incident {
     pub escalated: bool,
     #[serde(default = "default_response_window")]
     pub response_seconds: u32,
+    #[serde(default)]
+    pub caller_id: u32,
+    #[serde(default)]
+    pub variation: u8,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitState {
@@ -173,6 +178,15 @@ fn default_speed() -> u32 {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventKind {
+    RoadClosed {
+        incident: IncidentId,
+        road: u32,
+        reopen_at: u32,
+    },
+    RoadReopened {
+        incident: IncidentId,
+        road: u32,
+    },
     IncidentEscalated {
         incident: IncidentId,
         kind: EscalationKind,
@@ -286,6 +300,8 @@ pub struct CallView {
     pub questions: Vec<(String, String)>,
     pub escalated: bool,
     pub parent: Option<IncidentId>,
+    pub caller_id: u32,
+    pub previous_calls: usize,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ScoreEntry {
@@ -321,6 +337,8 @@ pub struct Simulation {
     network: Option<RoadNetwork>,
     #[serde(default)]
     rules: Option<ScenarioRules>,
+    #[serde(default)]
+    closures: BTreeMap<u32, road_events::Closure>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -335,6 +353,8 @@ struct UncheckedSimulation {
     network: Option<RoadNetwork>,
     #[serde(default)]
     rules: Option<ScenarioRules>,
+    #[serde(default)]
+    closures: BTreeMap<u32, road_events::Closure>,
 }
 impl TryFrom<UncheckedSimulation> for Simulation {
     type Error = Error;
@@ -348,6 +368,7 @@ impl TryFrom<UncheckedSimulation> for Simulation {
             score: raw.score,
             network: raw.network,
             rules: raw.rules,
+            closures: raw.closures,
         };
         sim.validate()?;
         Ok(sim)
@@ -419,6 +440,7 @@ impl Simulation {
             score: 0,
             network: None,
             rules: None,
+            closures: BTreeMap::new(),
         }
     }
     pub fn new_with_config(seed: u64, config: ShiftConfig) -> Result<Self, Error> {
@@ -647,6 +669,7 @@ impl Simulation {
         scenario.reported_at = None;
         scenario.parent = None;
         scenario.escalated = false;
+        scenarios::vary(&mut scenario, self.seed);
         let id = scenario.id;
         self.incidents.insert(id, scenario);
         Ok(id)
@@ -783,6 +806,16 @@ impl Simulation {
         Ok(CallView {
             escalated: i.escalated,
             parent: i.parent,
+            caller_id: i.caller_id,
+            previous_calls: self
+                .incidents
+                .values()
+                .filter(|p| {
+                    p.id < i.id
+                        && p.caller_id == i.caller_id
+                        && !matches!(p.state, IncidentState::Pending | IncidentState::Unreported)
+                })
+                .count(),
             id,
             report: i.report.clone(),
             location: i.location,
@@ -1084,6 +1117,7 @@ impl Simulation {
         if let Some(id) = secondary {
             let child = self.incidents.get_mut(&id).unwrap();
             child.parent = Some(incident);
+            child.caller_id = 100 + incident;
             child.report = "Injuries reported after the structure explosion".into();
             child.facts=vec![Fact{id:"breathing".into(),question:"Is anyone hurt or struggling to breathe?".into(),answer:"A worker is coughing badly after the blast. We moved outside and need an ambulance.".into(),evidence:Evidence::CredibleDanger}];
         }
@@ -1093,6 +1127,7 @@ impl Simulation {
             kind: EscalationKind::StructureExplosion,
             secondary,
         });
+        self.close_near_blast(incident);
         let i = self.incidents.get_mut(&incident).unwrap();
         let amount = policy
             .burst_damage
@@ -1116,6 +1151,7 @@ impl Simulation {
         }
         for _ in 0..seconds {
             self.now += 1;
+            self.reopen_roads();
             let damage:Vec<_>=self.incidents.values().filter(|i|i.state==IncidentState::Active&&i.truth==Truth::Emergency&&self.now.saturating_sub(i.reported_at.unwrap_or(0))>i.consequence.onset_seconds&&i.damage<i.consequence.max_damage&&!self.units.values().any(|u|matches!(u.state,UnitState::OnScene{incident}|UnitState::Resolving{incident,..} if incident==i.id)&&u.capability==i.required)).map(|i|(i.id,i.consequence.damage_per_second.min(i.consequence.max_damage-i.damage))).filter(|(_,amount)|*amount>0).collect();
             for (incident, amount) in damage {
                 let i = self.incidents.get_mut(&incident).unwrap();
@@ -1428,6 +1464,9 @@ impl Simulation {
                 _ => {}
             }
         }
+        for (road, c) in &self.closures {
+            if c.until<=self.now||self.network.as_ref().is_none_or(|n|!n.roads.iter().any(|r|r.id==*road&&r.closed))||!self.events.iter().any(|e|matches!(e.kind,EventKind::RoadClosed{road:r,incident, reopen_at} if r==*road&&incident==c.incident&&reopen_at==c.until)){return Err(invalid());}
+        }
         let mut ended = std::collections::BTreeSet::new();
         let mut escalated = std::collections::BTreeSet::new();
         let mut secondary_calls = std::collections::BTreeSet::new();
@@ -1442,6 +1481,8 @@ impl Simulation {
             last = e.at;
             let valid_player = |player| (1..=6).contains(&player);
             match &e.kind {
+                EventKind::RoadClosed{incident,road,reopen_at}=>{if self.incidents.get(incident).is_none_or(|i|!i.escalated)||self.network.as_ref().is_none_or(|n|!n.roads.iter().any(|r|r.id==*road))||*reopen_at<=e.at||*reopen_at>e.at+600{return Err(invalid());}}
+                EventKind::RoadReopened{incident,road}=>{if !self.events[..index].iter().any(|e|matches!(e.kind,EventKind::RoadClosed{incident:i,road:r,..} if i==*incident&&r==*road)){return Err(invalid());}}
                 EventKind::IncidentEscalated {
                     incident,
                     secondary,

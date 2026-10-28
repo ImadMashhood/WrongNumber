@@ -275,7 +275,8 @@ fn terminal(
         text(p,view.report,25.0,TEXT);
         if view.escalated{text(p,"ESCALATED: structure explosion",17.0,AMBER);}
         if let Some(parent)=view.parent{text(p,format!("Follow-up caused by incident {parent}"),15.0,AMBER);}
-        text(p,format!("Caller: {} | 555-{:04}",["Alex Morgan","Sam Lee","Jordan Ellis","Casey Park","Riley Jones","Taylor Reed"][((game.selected-1)%6) as usize],100+game.selected),13.0,MUTED);
+        text(p,format!("Caller: {} | 555-{:04}",["Alex Morgan","Sam Lee","Jordan Ellis","Casey Park","Riley Jones","Taylor Reed"][((view.caller_id.saturating_sub(1))%6) as usize],100+view.caller_id%100),13.0,MUTED);
+        text(p,format!("Previous calls from this caller: {}",view.previous_calls),13.0,MUTED);
         text(p,crate::city::address(view.location),13.0,MUTED);
         let duration=game.call_duration(game.selected);text(p,format!("Call duration {:02}:{:02} | {}",duration/60,duration%60,view.facts.first().map_or("Type unconfirmed",|f|match f.id.as_str(){"smoke"=>"Reported fire","breathing"=>"Reported medical emergency","window"=>"Reported police incident",_=>"Reported non-emergency"})),13.0,MUTED);
         if game.phase==Phase::AwaitingReview {text(p,"Shift finished. Leave the console and walk through the rear door into the meeting room.",19.0,TEXT);}
@@ -319,6 +320,8 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session) {
         for entry in &result.escalations {text(p,format!("{:02}:{:02} / Call {} / structure explosion / {}",entry.at/60,entry.at%60,entry.incident,entry.secondary.map_or_else(||"no follow-up queued".into(),|id|format!("linked call {id}"))),15.0,AMBER);}
         for entry in &result.damage_entries {text(p,format!("Call {} / ${} damage / {:02}:{:02} to {:02}:{:02} / recorded consequences",entry.incident,entry.damage,entry.first_at/60,entry.first_at%60,entry.last_at/60,entry.last_at%60),14.0,TEXT);}
         text(p,format!("Base 100 + score {} - damage assessment {} = {} funding (minimum 0)",result.score,game.damage_assessment(),game.grant()),17.0,AMBER);
+        text(p,"DECISION AND CITY TIMELINE (damage grouped above)",16.0,AMBER);
+        for event in game.sim.events(){if let Some(line)=timeline_line(&event.kind){text(p,format!("{:02}:{:02}  {line}",event.at/60,event.at%60),13.0,TEXT);}}
         text(p,"Recorded decisions drive this review. Upgrades apply to the next shift in this run.",14.0,MUTED);
     });
     p.spawn((column(33.0), BackgroundColor(PANEL)))
@@ -593,4 +596,61 @@ pub fn scroll_panels(
             memory.insert(key, position.y);
         }
     }
+}
+
+fn timeline_line(event: &wrong_number_sim::EventKind) -> Option<String> {
+    use wrong_number_sim::EventKind::*;
+    Some(match event {
+        CallArrived { incident } => format!("Call {incident} arrived"),
+        CallAccepted { incident, player } => format!("Player {player} answered call {incident}"),
+        FactRevealed {
+            incident,
+            fact,
+            player,
+        } => format!("Player {player} recorded {fact} evidence for call {incident}"),
+        CallEnded { incident, player } => format!("Player {player} ended conversation {incident}"),
+        CallDeclined { incident, player } => {
+            format!("Player {player} declined response {incident}")
+        }
+        DispatchOrdered {
+            unit,
+            incident,
+            player,
+        } => format!("Player {player} sent unit {unit} to incident {incident}"),
+        FullResponseOrdered { incident, player } => {
+            format!("Player {player} requested full response for incident {incident}")
+        }
+        DispatchCancelled { unit, player } => format!("Player {player} cancelled unit {unit}"),
+        IncidentEnded {
+            incident,
+            score_delta,
+            reason,
+            ..
+        } => format!("Incident {incident}: {reason} ({score_delta:+})"),
+        IncidentEscalated {
+            incident,
+            secondary,
+            ..
+        } => format!(
+            "Incident {incident} exploded; follow-up {}",
+            secondary.map_or_else(|| "not queued".into(), |id| id.to_string())
+        ),
+        RoadClosed {
+            incident,
+            road,
+            reopen_at,
+        } => format!("Incident {incident} closed road {road}; reopening at {reopen_at}s"),
+        RoadReopened { incident, road } => {
+            format!("Road {road} reopened after incident {incident}")
+        }
+        UnitChanged {
+            unit,
+            state: UnitState::OnScene { incident },
+        } => format!("Unit {unit} arrived at incident {incident}"),
+        UnitChanged {
+            unit,
+            state: UnitState::Available,
+        } => format!("Unit {unit} is available again"),
+        _ => return None,
+    })
 }

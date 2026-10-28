@@ -104,3 +104,87 @@ mod tests {
         assert!(!live_event(120, 121, true));
     }
 }
+
+#[derive(Component)]
+pub struct CityDamage {
+    shift: u32,
+    incident: u32,
+}
+pub fn damage(
+    mut commands: Commands,
+    game: Res<Session>,
+    roots: Query<(Entity, &CityDamage)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let mut existing = std::collections::BTreeSet::new();
+    for (entity, damage) in &roots {
+        if damage.shift != game.shift {
+            commands.entity(entity).despawn();
+        } else {
+            existing.insert(damage.incident);
+        }
+    }
+    for event in game.sim.events() {
+        if let EventKind::IncidentEscalated { incident, .. } = event.kind
+            && !existing.contains(&incident)
+        {
+            existing.insert(incident);
+            let cube = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+            let soot = materials.add(StandardMaterial {
+                base_color: Color::srgb(0.045, 0.04, 0.035),
+                perceptual_roughness: 1.0,
+                ..default()
+            });
+            let glow = materials.add(StandardMaterial {
+                base_color: Color::srgb(1.0, 0.22, 0.035),
+                unlit: true,
+                ..default()
+            });
+            let location = game.sim.incidents()[&incident].location;
+            let z = ((location.y - game.sim.units()[&1].station.y) as f32 / 30.0).clamp(-4.0, 4.0);
+            commands
+                .spawn((
+                    CityDamage {
+                        shift: game.shift,
+                        incident,
+                    },
+                    Transform::from_xyz(-18.4, 0.0, z),
+                    Visibility::default(),
+                ))
+                .with_children(|p| {
+                    p.spawn((
+                        Mesh3d(cube.clone()),
+                        MeshMaterial3d(soot.clone()),
+                        Transform::from_xyz(0.0, 2.0, 0.0).with_scale(Vec3::new(0.15, 3.0, 2.9)),
+                    ));
+                    for n in 0..7 {
+                        let f = n as f32;
+                        p.spawn((
+                            Mesh3d(cube.clone()),
+                            MeshMaterial3d(soot.clone()),
+                            Transform::from_xyz(
+                                0.7 + f * 0.08,
+                                3.1 + f * 0.35,
+                                (f * 2.0).sin() * 0.3,
+                            )
+                            .with_rotation(Quat::from_rotation_y(f * 0.7))
+                            .with_scale(Vec3::splat(0.65 + f * 0.09)),
+                        ));
+                    }
+                    for n in 0..3 {
+                        p.spawn((
+                            Mesh3d(cube.clone()),
+                            MeshMaterial3d(glow.clone()),
+                            Transform::from_xyz(
+                                0.16,
+                                1.2 + n as f32 * 0.4,
+                                (n as f32 - 1.0) * 0.45,
+                            )
+                            .with_scale(Vec3::new(0.1, 0.45, 0.3)),
+                        ));
+                    }
+                });
+        }
+    }
+}

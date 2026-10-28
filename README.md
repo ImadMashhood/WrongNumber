@@ -107,7 +107,7 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M3 — Escalation, city consequences, and replayable content
 
-- [ ] **Milestone status:** In progress — paced calls, data-driven rules and bounded fire escalation implemented
+- [x] **Milestone status:** Implemented — reviewed solo escalation, safe closures, caller variety and timeline
 
 **Purpose:** Make the city react to decisions and create memorable, fair outcomes.
 
@@ -121,10 +121,10 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 - [x] An untreated real fire can explode once, mark the map urgent, trigger a brief room flash/distant boom and queue one linked medical follow-up. At most two blasts per shift with a 90-second cooldown; follow-ups cannot chain.
 - [x] Radio/patrol upgrade cycles visibly affect the next shift and remain covered by graphical regression checks.
 
-**Remaining deliverables**
+**Completion deliverables**
 
-- [ ] Extend the authored major event with skyline damage and safe runtime road closures; networking synchronization remains M4.
-- [ ] More scenario variations, caller histories, and a complete review timeline with clear evidence for grades and penalties.
+- [x] Blast facade damage/smoke and safe timed road closures, with current-position rerouting and reopening; networking synchronization is M4.
+- [x] Two additional authored variations per caller template, stable caller history, and a recorded decision/city timeline.
 
 **Acceptance checks**
 
@@ -336,7 +336,7 @@ The M0/M1 and preceding M2 GitHub CI runs passed on Linux and Windows. M2 adds a
 
 ## M2 verification and imported map
 
-- 60 local automated tests pass: 23 simulation rules tests, 6 road/full-response tests, 4 consequence tests, 6 escalation/director tests and 21 office/session/effect tests.
+- 62 local automated tests pass: 24 simulation rules tests, 7 road/full-response tests, 4 consequence tests, 6 escalation/director tests and 21 office/session/effect tests.
 - Formatting, workspace compilation, and Clippy pass. Both hardware/normal-graphics and software/reduced-graphics graphical playthroughs pass locally.
 - The graphical playthrough on NVIDIA Vulkan verifies targeted seating and monitor focus, six sequential delayed calls, 210 points, the ten-minute shift boundary, review, a radio purchase, and shorter recovery in the next shift. Screenshots are inspected for room geometry and UI readability.
 - The supplied graph has 2,639 nodes, 1,977 roads and 694 disconnected weak components. The playable pilot uses real nodes/roads in its 144-node largest component. No links are invented between components. Road/junction endpoint offsets of at most one pixel per axis are normalized at import. Run `python3 tools/maps/audit_graph.py` after graph edits.

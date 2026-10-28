@@ -100,8 +100,86 @@ pub(super) fn incidents(rng: &mut u64) -> Vec<Incident> {
                     parent: None,
                     escalated: false,
                     response_seconds: 300,
+                    caller_id: n as u32 + 1,
+                    variation: 0,
                 }
             },
         )
         .collect()
+}
+
+/// Authored repeat variations preserve the template's truth, capability and caller identity.
+pub(super) fn vary(i: &mut Incident, seed: u64) {
+    i.variation = ((seed.wrapping_add(u64::from(i.id) * 7919)) % 3) as u8;
+    if i.variation == 0 {
+        return;
+    }
+    let variants = [
+        [
+            (
+                "Smoke in the boiler room",
+                "Smoke is pouring out of the boiler and people are leaving.",
+            ),
+            (
+                "Sparks from the shop fuse board",
+                "The fuse board is sparking and the wall has caught fire.",
+            ),
+        ],
+        [
+            (
+                "The traffic lights stole my bike",
+                "It's in a phone game. I thought the hotline was part of the tutorial.",
+            ),
+            (
+                "A dragon is blocking my driveway",
+                "A toy dragon. My brother put it there as a joke.",
+            ),
+        ],
+        [
+            (
+                "Can I book a checkup next week?",
+                "No urgent symptoms. I just need a routine appointment.",
+            ),
+            (
+                "A prescription renewal question",
+                "No one is ill. The prescription runs out next month.",
+            ),
+        ],
+        [
+            (
+                "The toaster is launching missiles",
+                "It popped two slices of bread. There is no fire or smoke.",
+            ),
+            (
+                "My car is announcing the apocalypse",
+                "It is the car alarm. Nobody is hurt and nothing is burning.",
+            ),
+        ],
+        [
+            (
+                "My friend is sitting strangely still",
+                "They are unresponsive and only taking occasional gasping breaths.",
+            ),
+            (
+                "A quiet nap after the stairs",
+                "They collapsed, won't wake up, and are barely breathing.",
+            ),
+        ],
+        [
+            (
+                "An unexpected midnight sale",
+                "The shop is closed. They smashed the door and are carrying out the till.",
+            ),
+            (
+                "A van collecting things from the shop",
+                "They broke a window and are loading the register into the van.",
+            ),
+        ],
+    ];
+    let index = (i.caller_id.saturating_sub(1) % 6) as usize;
+    let (report, answer) = variants[index][usize::from(i.variation - 1)];
+    i.report = report.into();
+    if let Some(fact) = i.facts.first_mut() {
+        fact.answer = answer.into();
+    }
 }

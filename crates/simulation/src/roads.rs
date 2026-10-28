@@ -182,6 +182,39 @@ impl RoadNetwork {
                 .collect(),
         }
     }
+    pub fn round_trip_connected(&self, start: Position) -> bool {
+        let Some(root) = self
+            .nodes
+            .iter()
+            .find(|n| n.x == start.x && n.y == start.y)
+            .map(|n| n.id)
+        else {
+            return false;
+        };
+        for reverse in [false, true] {
+            let mut seen = std::collections::BTreeSet::from([root]);
+            let mut q = vec![root];
+            while let Some(node) = q.pop() {
+                for r in self.roads.iter().filter(|r| !r.closed) {
+                    let (a, b) = if reverse {
+                        (r.to_node, r.from_node)
+                    } else {
+                        (r.from_node, r.to_node)
+                    };
+                    if a == node && seen.insert(b) {
+                        q.push(b);
+                    }
+                    if !r.one_way && b == node && seen.insert(a) {
+                        q.push(a);
+                    }
+                }
+            }
+            if seen.len() != self.nodes.len() {
+                return false;
+            }
+        }
+        true
+    }
     pub fn node_position(&self, id: u32) -> Option<Position> {
         self.nodes
             .iter()

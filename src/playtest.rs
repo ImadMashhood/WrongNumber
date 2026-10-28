@@ -221,20 +221,37 @@ pub fn automate(
             check.last = check.frames;
         }
         41 if check.frames - check.last >= 6 => {
-            queue.0.push(Action::OpenMap);
+            **player =
+                Transform::from_xyz(0.0, 1.75, 3.0).looking_at(Vec3::new(-18.4, 3.0, 0.0), Vec3::Y);
             check.stage = 42;
             check.last = check.frames;
         }
         42 if check.frames - check.last >= 6 => {
-            check.capture(&mut commands, "m3-escalated-map");
-            check.stage = 43;
+            check.capture(&mut commands, "m3-damaged-facade");
+            check.stage = 44;
             check.last = check.frames;
         }
-        43 if check.frames - check.last >= 12 => {
+        44 if check.frames - check.last >= 6 => {
+            queue.0.push(Action::OpenMap);
+            check.stage = 45;
+            check.last = check.frames;
+        }
+        45 if check.frames - check.last >= 6 => {
+            check.capture(&mut commands, "m3-escalated-map");
+            check.stage = 46;
+            check.last = check.frames;
+        }
+        46 if check.frames - check.last >= 12 => {
+            assert!(
+                game.sim
+                    .events()
+                    .iter()
+                    .any(|e| matches!(e.kind, wrong_number_sim::EventKind::RoadClosed { .. }))
+            );
             wrong_number_sim::Simulation::load_json(&game.sim.save_json().unwrap())
                 .expect("Valid escalated authority snapshot");
             info!(
-                "M3 ESCALATION PLAYTEST PASSED: real fire, one linked follow-up, live office flash and urgent map marker"
+                "M3 ESCALATION PLAYTEST PASSED: fire, follow-up, facade damage, safe closure, flash and map"
             );
             exit.write(AppExit::Success);
         }
