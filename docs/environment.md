@@ -20,7 +20,7 @@ Mouse movement controls the view automatically while walking or seated in the fo
 
 `src/wall_map.rs` draws a live shared map/status board into one render target. The front board and desk monitors reuse it with different UV crops. The simulation still owns incident truth, response commands, unit state and review outcomes; the new room does not introduce another simulation.
 
-Road routing continues to use the explicit training grid while the imported graph is corrected. The room has six physical seats, but network ownership, six connected characters, proximity voice, dynamic environmental events, and a day/night cycle are separate future work. The current outdoor lighting is a fixed daytime setup.
+Responders now route on actual roads inside the connected pilot district; the remainder of the imported graph still needs connectivity correction. The room has six physical seats, but network ownership, six connected characters, proximity voice, dynamic environmental events, and a day/night cycle are separate future work. The current outdoor lighting is a fixed daytime setup.
 
 ## Verification
 

@@ -48,6 +48,7 @@ pub fn refresh(
     game: Res<Session>,
     display: Res<WallDisplay>,
     map: Res<MapImage>,
+    routes: Res<crate::routes::RouteOverlay>,
     roots: Query<Entity, With<WallUi>>,
     mut previous: Local<Option<(u32, u32, usize, Phase)>>,
     mut cameras: Query<&mut Camera, Without<crate::world::Player>>,
@@ -112,6 +113,15 @@ pub fn refresh(
                             ..default()
                         },
                     ));
+                    p.spawn((
+                        ImageNode::new(routes.0.clone()),
+                        Node {
+                            position_type: PositionType::Absolute,
+                            width: percent(100),
+                            height: percent(100),
+                            ..default()
+                        },
+                    ));
                     for id in game.visible_ids() {
                         let call = game.sim.call_view(*id).unwrap();
                         let (x, y) = crate::city::map_percent(call.location);
@@ -132,6 +142,31 @@ pub fn refresh(
                             BackgroundColor(color),
                         ))
                         .with_children(|p| label(p, id.to_string(), 25.0, Color::BLACK));
+                    }
+                    for u in game.sim.units().values().filter(|u| u.id <= 3) {
+                        let (x, y) = crate::city::map_percent(u.station);
+                        p.spawn((
+                            Node {
+                                position_type: PositionType::Absolute,
+                                left: percent(x),
+                                top: percent(y),
+                                margin: UiRect::top(px(15)),
+                                ..default()
+                            },
+                            BackgroundColor(Color::BLACK),
+                        ))
+                        .with_children(|p| {
+                            label(
+                                p,
+                                match u.capability {
+                                    Capability::Police => "POLICE HQ",
+                                    Capability::Medical => "HOSPITAL",
+                                    Capability::Fire => "FIRE HQ",
+                                },
+                                15.0,
+                                Color::WHITE,
+                            )
+                        });
                     }
                     for u in game.sim.units().values() {
                         let (x, y) = crate::city::map_percent(u.position);
@@ -194,7 +229,7 @@ pub fn refresh(
                 }
                 label(
                     p,
-                    "P Police | M Medical | F Fire\nTRAINING GRID / ROUTING PENDING",
+                    "P Police | M Medical | F Fire\nPILOT DISTRICT / LIVE ROAD ROUTES",
                     18.0,
                     Color::srgb(0.4, 0.6, 0.7),
                 );

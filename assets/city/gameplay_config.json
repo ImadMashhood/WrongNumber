@@ -1,0 +1,56 @@
+{
+  "description": "Pilot district: authored provisional headquarters and calls on the largest supplied connected component. No graph geometry was repaired or connected.",
+  "station_nodes": [
+    966,
+    572,
+    1480
+  ],
+  "incident_nodes": [
+    279,
+    2517,
+    1974,
+    1925,
+    2024,
+    2116
+  ],
+  "map_width_px": 1536,
+  "map_height_px": 1024,
+  "recovery_seconds": 15,
+  "radio_recovery_seconds": 10,
+  "initial_delay_seconds": [
+    1,
+    10
+  ],
+  "next_delay_seconds": [
+    1,
+    15
+  ],
+  "response_window_seconds": 300,
+  "reticle_colors": {
+    "neutral": [
+      0.9,
+      0.94,
+      0.93
+    ],
+    "ready": [
+      0.08,
+      0.65,
+      0.45
+    ],
+    "locked": [
+      1,
+      0.25,
+      0.2
+    ],
+    "conditional": [
+      1,
+      0.7,
+      0.1
+    ]
+  },
+  "unit_speed_milli": [
+    1250,
+    1000,
+    1000
+  ]
+}

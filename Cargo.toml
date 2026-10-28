@@ -14,8 +14,11 @@ bevy = { version = "=0.20.0", default-features = false, features = [
     "std", "async_executor", "bevy_asset", "bevy_log", "bevy_window",
     "bevy_winit", "bevy_pbr", "bevy_core_pipeline", "multi_threaded",
     "x11", "keyboard", "mouse", "png", "ui_bevy_render",
-    "bevy_ui_widgets", "ui_picking", "default_font",
+    "bevy_ui_widgets", "ui_picking", "default_font", "bevy_audio", "wav",
 ] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 wrong-number-sim = { path = "crates/simulation" }
 

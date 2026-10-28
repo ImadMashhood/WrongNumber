@@ -19,6 +19,7 @@ pub struct LaunchCheck {
     frames: u32,
     stage: u8,
     last: u32,
+    route_capture: bool,
     capture_dir: Option<String>,
 }
 impl LaunchCheck {
@@ -31,6 +32,7 @@ impl LaunchCheck {
             frames: 0,
             stage: 0,
             last: 0,
+            route_capture: false,
             capture_dir: args
                 .iter()
                 .position(|a| a == "--capture-dir")
@@ -130,6 +132,10 @@ pub fn automate(
     if check.frames < 80 || !check.frames.is_multiple_of(3) {
         return;
     }
+    if !check.route_capture && game.sim.units().values().any(|u| u.journey.is_some()) {
+        check.capture(&mut commands, "m2-live-routes");
+        check.route_capture = true;
+    }
     match check.stage {
         0 => {
             if game.ringing.is_none()
@@ -164,9 +170,17 @@ pub fn automate(
                         _ => unreachable!(),
                     };
                     if game.sim.units()[&unit].state == UnitState::Available {
-                        click(&mut commands, &buttons, Action::Unit(unit));
+                        click(
+                            &mut commands,
+                            &buttons,
+                            if id == 1 {
+                                Action::FullResponse
+                            } else {
+                                Action::Unit(unit)
+                            },
+                        );
                     } else {
-                        click(&mut commands, &buttons, Action::HangUp);
+                        game.tick(1.0);
                     }
                 }
             } else if game.visible_ids().count() == 6 {
@@ -223,7 +237,7 @@ pub fn automate(
             assert_eq!(game.phase, Phase::Running);
             assert_eq!(game.shift, 2);
             assert!(game.seated.is_none());
-            assert!(game.sim.units().values().all(|u| u.recovery_seconds == 2));
+            assert!(game.sim.units().values().all(|u| u.recovery_seconds == 10));
             check.capture(&mut commands, "m2-next-shift");
             check.stage = 9;
             check.last = check.frames;

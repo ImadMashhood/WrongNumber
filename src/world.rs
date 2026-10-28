@@ -41,6 +41,7 @@ pub fn setup(mut commands: Commands, graphics: Res<crate::performance::Graphics>
         Player,
         IsDefaultUiCamera,
         Camera3d::default(),
+        SpatialListener::new(0.3),
         Tonemapping::Reinhard,
         Exposure::INDOOR,
         Projection::Perspective(PerspectiveProjection {
@@ -129,10 +130,16 @@ pub fn aimed_action(pose: &Transform, game: &Session) -> Option<Action> {
                 Vec3::new(x - 0.77, 1.04, 0.2),
                 Vec3::splat(0.45),
                 2.0,
-                Action::OpenDesk,
+                Action::UsePhone,
             );
         }
     }
+    add(
+        Vec3::new(9.0, 1.5, 2.05),
+        Vec3::new(0.3, 2.0, 0.2),
+        1.8,
+        Action::BreakDoor,
+    );
     add(
         Vec3::new(0.0, 2.8, -6.6),
         Vec3::new(11.0, 2.9, 0.3),
@@ -232,6 +239,7 @@ pub fn look_enabled(screen: Screen, focused: bool) -> bool {
 pub fn controls(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     motion: Res<AccumulatedMouseMotion>,
     game: Res<Session>,
     check: Res<crate::playtest::LaunchCheck>,
@@ -270,7 +278,7 @@ pub fn controls(
     if keys.just_pressed(KeyCode::Space) && game.seated.is_some() {
         actions.0.push(Action::Stand);
     }
-    if keys.just_pressed(KeyCode::KeyE)
+    if (keys.just_pressed(KeyCode::KeyE) || mouse.just_pressed(MouseButton::Left))
         && let Some(action) = aimed_action(&player, &game)
     {
         actions.0.push(action);
@@ -353,6 +361,14 @@ pub fn hud_text(game: &Session, pose: &Transform) -> String {
     let prompt = match aimed_action(pose, game) {
         Some(Action::Sit(_)) => "[E] Sit at workstation",
         Some(Action::OpenDesk) => "[E] Focus dispatch computer",
+        Some(Action::UsePhone) => {
+            if game.ringing.is_some() {
+                "[E] Answer telephone"
+            } else {
+                "[E] Use telephone / dispatch"
+            }
+        }
+        Some(Action::BreakDoor) => "Break room doorway open",
         Some(Action::OpenMap) => "[E] View city map",
         Some(Action::Door) => {
             if review_unlocked(game.phase) {

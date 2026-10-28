@@ -549,3 +549,22 @@ fn undelivered_calls_close_without_penalties_and_sixth_player_is_valid() {
         sim
     );
 }
+
+#[test]
+fn repeat_templates_reset_evidence_preserve_truth_and_enforce_a_budget() {
+    let mut sim = Simulation::new(42);
+    investigate(&mut sim, 2);
+    sim.apply(1, Command::Decline { incident: 2 }).unwrap();
+    let truth = sim.incidents()[&2].truth;
+    let location = sim.incidents()[&2].location;
+    let id = sim.queue_scenario(2, location).unwrap();
+    assert_eq!(sim.incidents()[&id].truth, truth);
+    assert!(sim.incidents()[&id].revealed.is_empty());
+    assert!(sim.call_view(id).is_err());
+    while sim.incidents().len() < 96 {
+        sim.queue_scenario(2, location).unwrap();
+    }
+    let before = sim.clone();
+    assert!(sim.queue_scenario(2, location).is_err());
+    assert_eq!(before, sim);
+}

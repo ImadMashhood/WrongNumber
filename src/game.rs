@@ -24,6 +24,8 @@ pub enum Action {
     Sit(usize),
     Stand,
     OpenDesk,
+    UsePhone,
+    BreakDoor,
     OpenMap,
     OpenReview,
     Door,
@@ -37,6 +39,7 @@ pub enum Action {
     Decline,
     HangUp,
     Unit(u32),
+    FullResponse,
     EndShift,
     BuyRadio,
     BuyPolice,
@@ -93,17 +96,29 @@ impl Default for Session {
 }
 impl Session {
     fn make_sim(shift: u32, radio: bool, extra_police: bool) -> Simulation {
-        Simulation::new_with_config(
+        let config = crate::city::config();
+        let mut sim = Simulation::new_with_config(
             41 + u64::from(shift),
             ShiftConfig {
-                recovery_seconds: if radio { 2 } else { 5 },
+                recovery_seconds: if radio {
+                    config.radio_recovery_seconds
+                } else {
+                    config.recovery_seconds
+                },
                 extra_police,
-                stations: crate::city::STATIONS,
-                incident_locations: Some(crate::city::CALLS),
                 queued_calls: true,
+                ..Default::default()
             },
         )
-        .expect("Built-in shift configuration must be valid")
+        .expect("Valid shift configuration");
+        crate::city::install(&mut sim);
+        sim
+    }
+    pub fn call_duration(&self, id: u32) -> u32 {
+        let start = self.sim.events().iter().find_map(|e| {
+            matches!(e.kind,EventKind::CallAccepted{incident,..} if incident==id).then_some(e.at)
+        });
+        start.map_or(0,|start|self.sim.events().iter().find_map(|e|matches!(e.kind,EventKind::CallEnded{incident,..}|EventKind::CallDeclined{incident,..}|EventKind::IncidentEnded{incident,..} if incident==id).then_some(e.at)).unwrap_or(self.sim.now()).saturating_sub(start))
     }
     pub fn remaining(&self) -> u32 {
         SHIFT_SECONDS.saturating_sub(self.sim.now())
@@ -133,6 +148,24 @@ impl Session {
             && self.seated.is_some()
             && self.ringing.is_none()
             && self.conversation.is_none()
+            && !self
+                .sim
+                .incidents()
+                .values()
+                .any(|i| i.state == IncidentState::Pending)
+            && self.sim.incidents().len() < 96
+        {
+            let template = 1 + ((self.rng >> 24) % 6) as u32;
+            let location = self.sim.incidents()[&template].location;
+            self.sim
+                .queue_scenario(template, location)
+                .expect("Validated reusable authored scenario");
+        }
+
+        if self.phase == Phase::Running
+            && self.seated.is_some()
+            && self.ringing.is_none()
+            && self.conversation.is_none()
             && self.next_call_at.is_none()
             && self
                 .sim
@@ -144,7 +177,16 @@ impl Session {
                 .rng
                 .wrapping_mul(6_364_136_223_846_793_005)
                 .wrapping_add(1_442_695_040_888_963_407);
-            self.next_call_at = Some(self.sim.now() + 1 + ((self.rng >> 32) % 10) as u32);
+            let range = if self.visible_ids().next().is_none() {
+                crate::city::config().initial_delay_seconds
+            } else {
+                crate::city::config().next_delay_seconds
+            };
+            self.next_call_at = Some(
+                self.sim.now()
+                    + range[0]
+                    + ((self.rng >> 32) % u64::from(range[1] - range[0] + 1)) as u32,
+            );
         }
     }
     fn synchronize_line(&mut self) {
@@ -176,6 +218,18 @@ impl Session {
                 self.screen = Screen::Office;
                 self.next_call_at = None;
                 self.notice = "Standing. The shift clock and any active call continue.".into();
+            }
+            Action::UsePhone if self.seated.is_some() => {
+                self.act(Action::OpenDesk);
+                if let Some(id) = self.ringing
+                    && self.call_station == self.seated
+                {
+                    self.selected = id;
+                    self.act(Action::Answer);
+                }
+            }
+            Action::BreakDoor => {
+                self.notice = "Break room doorway is open. You can walk through.".into();
             }
             Action::OpenDesk if self.seated.is_some() => {
                 self.screen = Screen::Terminal;
@@ -251,7 +305,7 @@ impl Session {
                         fact,
                     },
                     "Caller response added to the case notes.",
-                )
+                );
             }
             Action::Decline
                 if self.can_dispatch()
@@ -263,7 +317,7 @@ impl Session {
                         incident: self.selected,
                     },
                     "Response declined; the incident will conclude according to its scenario.",
-                )
+                );
             }
             Action::HangUp if self.can_dispatch() && self.call_station == self.seated => {
                 if let Some(incident) = self.conversation {
@@ -271,6 +325,16 @@ impl Session {
                         Command::EndCall { incident },
                         "Conversation ended. Responders and incidents continue running.",
                     );
+                }
+            }
+            Action::FullResponse if self.can_dispatch() => {
+                if self.command(
+                    Command::FullResponse {
+                        incident: self.selected,
+                    },
+                    "Full response assigned. Conversation ended.",
+                ) {
+                    self.end_decision();
                 }
             }
             Action::Unit(id) if self.can_dispatch() => {
@@ -283,7 +347,7 @@ impl Session {
                             unit: id,
                             incident: self.selected,
                         },
-                        "Unit assigned. End the call when you are ready for the next caller.",
+                        "Unit assigned. Conversation ended; the next caller will arrive shortly.",
                     ),
                     UnitState::Assigned { incident } | UnitState::EnRoute { incident, .. }
                         if *incident == self.selected =>
@@ -305,13 +369,20 @@ impl Session {
                         return;
                     }
                 };
-                self.command(command, message);
+                let dispatch =
+                    matches!(command, Command::Dispatch { .. } | Command::Reroute { .. });
+                if self.command(command, message) && dispatch {
+                    self.end_decision();
+                }
             }
             Action::EndShift if self.can_dispatch() => {
+                self.phase = Phase::Closing;
+                self.next_call_at = None;
+                self.sim.close_unreported();
                 while matches!(self.phase, Phase::Running | Phase::Closing) {
                     self.advance_one();
                     assert!(
-                        self.sim.now() < 1200,
+                        self.sim.now() < 3600,
                         "Shift closure exceeded its time budget"
                     );
                 }
@@ -341,8 +412,20 @@ impl Session {
         }
         self.synchronize_line();
     }
-    fn command(&mut self, command: Command, success: &str) {
-        self.notice = match self.sim.apply(1, command) {
+    fn end_decision(&mut self) {
+        if self.conversation == Some(self.selected) {
+            let _ = self.sim.apply(
+                1,
+                Command::EndCall {
+                    incident: self.selected,
+                },
+            );
+        }
+    }
+    fn command(&mut self, command: Command, success: &str) -> bool {
+        let result = self.sim.apply(1, command);
+        let succeeded = result.is_ok();
+        self.notice = match result {
             Ok(()) => {
                 if let Some(event) = self.sim.events().last()
                     && let EventKind::IncidentEnded {
@@ -364,6 +447,8 @@ impl Session {
                     "That responder type cannot handle this incident. Choose another team."
                 }
                 Error::UnitBusy => "That team is already assigned or recovering.",
+                Error::NoRoute=>"No open road route reaches that destination.",
+                Error::InsufficientResources=>"Full response requires available Police, Fire and Medical teams. No units were reserved.",
                 Error::IncidentAlreadyAssigned => {
                     "A team is assigned. Cancel or reroute it before refusing the call."
                 }
@@ -375,6 +460,7 @@ impl Session {
             }
             .into(),
         };
+        succeeded
     }
     fn buy(&mut self, radio: bool) {
         let cost = if radio { 50 } else { 90 };
@@ -401,7 +487,7 @@ impl Session {
             self.extra_police = true;
         }
         self.notice = if radio {
-            "Radios purchased: recovery drops from 5s to 2s next shift."
+            "Radios purchased: recovery drops from 15s to 10s next shift."
         } else {
             "Additional patrol purchased: a second police unit is available next shift."
         }
@@ -452,7 +538,7 @@ impl Session {
                     .map(|i| i.id)
                 {
                     self.sim
-                        .activate_call(id, 120)
+                        .activate_call(id, crate::city::config().response_window_seconds)
                         .expect("Queued call has valid scenario data");
                     self.ringing = Some(id);
                     self.call_station = self.seated;
@@ -473,7 +559,7 @@ impl Session {
                 .units()
                 .values()
                 .all(|u| u.state == UnitState::Available);
-        if self.phase == Phase::Closing && settled {
+        if self.phase == Phase::Closing && settled && self.sim.now() >= SHIFT_SECONDS {
             self.phase = Phase::AwaitingReview;
             self.funds += self.grant();
             self.notice = "Shift complete. The rear meeting-room door is unlocked.".into();
@@ -517,7 +603,7 @@ mod tests {
             (5, "breathing", Some(2)),
             (6, "window", Some(1)),
         ] {
-            for _ in 0..15 {
+            for _ in 0..16 {
                 if game.ringing == Some(id) {
                     break;
                 }
@@ -570,7 +656,7 @@ mod tests {
         assert!(g.next_call_at.is_none());
         g.act(Action::HangUp);
         let next = g.next_call_at.unwrap();
-        assert!((1..=10).contains(&(next - g.sim.now())));
+        assert!((1..=15).contains(&(next - g.sim.now())));
     }
     #[test]
     fn seated_free_look_and_focus_do_not_release_the_chair() {
@@ -606,7 +692,7 @@ mod tests {
         assert!(g.seated.is_none());
         assert_eq!(g.funds, 260);
         assert_eq!(g.remaining(), 600);
-        assert!(g.sim.units().values().all(|u| u.recovery_seconds == 2));
+        assert!(g.sim.units().values().all(|u| u.recovery_seconds == 10));
     }
     #[test]
     fn one_station_cannot_answer_a_different_stations_ringing_phone() {
@@ -647,10 +733,81 @@ mod tests {
         g.act(Action::Ask("smoke".into()));
         g.act(Action::Unit(3));
         g.act(Action::HangUp);
-        g.tick(100.0);
+        g.tick(500.0);
         assert_eq!(g.phase, Phase::AwaitingReview);
         assert_eq!(g.sim.review().resolved, 1);
         assert_eq!(g.sim.score(), 50);
         assert!(g.next_call_at.is_none());
+    }
+}
+
+#[cfg(test)]
+mod review_tests {
+    use super::*;
+    fn answered() -> Session {
+        let mut g = Session::default();
+        g.act(Action::Sit(0));
+        g.act(Action::OpenDesk);
+        g.tick(10.0);
+        g.act(Action::Answer);
+        g
+    }
+    #[test]
+    fn final_dispatch_closes_call_and_failed_dispatch_keeps_it_open() {
+        let mut g = answered();
+        g.act(Action::Unit(1));
+        assert_eq!(g.conversation, Some(1));
+        g.act(Action::Ask("smoke".into()));
+        g.act(Action::Unit(3));
+        assert!(g.conversation.is_none());
+        assert!(g.next_call_at.is_some());
+        assert_eq!(g.sim.incidents()[&1].call, CallState::Closed);
+        assert_eq!(g.sim.incidents()[&1].state, IncidentState::Active);
+    }
+    #[test]
+    fn full_response_ends_conversation_and_reserves_all_three_teams() {
+        let mut g = answered();
+        g.act(Action::FullResponse);
+        assert!(g.conversation.is_none());
+        assert!(
+            g.sim
+                .units()
+                .values()
+                .all(|u| u.state.assignment() == Some(1))
+        );
+    }
+    #[test]
+    fn phone_interaction_answers_and_duration_freezes_when_dispatch_ends_call() {
+        let mut g = Session::default();
+        g.act(Action::Sit(0));
+        g.tick(10.0);
+        g.act(Action::UsePhone);
+        assert_eq!(g.conversation, Some(1));
+        g.tick(7.0);
+        assert_eq!(g.call_duration(1), 7);
+        g.act(Action::Unit(3));
+        g.tick(5.0);
+        assert_eq!(g.call_duration(1), 7);
+    }
+    #[test]
+    fn authored_calls_repeat_after_six_within_configured_delay() {
+        let mut g = Session::default();
+        g.act(Action::Sit(0));
+        g.act(Action::OpenDesk);
+        for _ in 0..6 {
+            for _ in 0..15 {
+                if g.ringing.is_some() {
+                    break;
+                }
+                g.tick(1.0);
+            }
+            g.act(Action::Answer);
+            g.act(Action::HangUp);
+        }
+        let next = g.next_call_at.unwrap();
+        assert!((1..=15).contains(&(next - g.sim.now())));
+        g.tick((next - g.sim.now()) as f32);
+        assert_eq!(g.ringing, Some(7));
+        assert!(g.visible_ids().count() > 6);
     }
 }

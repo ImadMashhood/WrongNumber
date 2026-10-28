@@ -3,7 +3,9 @@ mod city;
 mod environment;
 mod game;
 mod performance;
+mod phone;
 mod playtest;
+mod routes;
 mod ui;
 mod wall_map;
 mod world;
@@ -43,8 +45,10 @@ fn main() {
             (
                 ui::load_map,
                 wall_map::setup,
+                routes::setup,
                 environment::setup,
                 world::setup,
+                phone::setup,
                 performance::configure,
             )
                 .chain(),
@@ -60,8 +64,11 @@ fn main() {
                 world::seat_camera,
                 tick,
                 world::doors,
+                phone::update,
+                routes::refresh,
                 wall_map::refresh,
                 ui::draw,
+                ui::scroll_panels,
                 ui::update_hud,
                 ui::hover,
             )

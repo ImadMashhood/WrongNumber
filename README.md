@@ -10,7 +10,7 @@ This repository is the project home. The first goal is a small, complete, playab
 
 ## Project status
 
-**M2 implemented.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. The imported road graph is being prepared for real routing; M2 travel uses an explicit training grid. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
+**M2 implemented.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
 
 ## Design pillars
 
@@ -93,7 +93,9 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 - [x] Clear text and visual feedback for action results, incident status, and why score changed.
 - [x] Mouse look while standing or seated; E targets a chair, then the monitor; Escape leaves focus without standing, Space stands.
 - [x] Circular aim reticle with interaction prompts and locked-door feedback.
-- [x] Seeded 1–10 second call arrival delays, one active conversation per occupied solo workstation, and explicit hang-up.
+- [x] Seeded 1–10 second initial / 1–15 second subsequent call delays, one active conversation per occupied solo workstation, and explicit hang-up.
+- [x] Automatic conversation completion after dispatch/refusal; atomic Full Response; caller details/duration, category availability counts, spatial phone ringing and a visual beacon.
+- [x] Actual outbound/return road paths with configurable unit speed and 15-second recovery (radio upgrade: 10 seconds).
 - [x] Hardware rendering by default, explicit reduced-graphics/software options, F3 frame display, and a reproducible benchmark.
 
 **Acceptance checks**
@@ -253,13 +255,13 @@ Install [Rust through rustup](https://rustup.rs/). The repository selects Rust 1
 On Fedora, install native build/window dependencies:
 
 ```bash
-sudo dnf install gcc-c++ pkgconf-pkg-config libX11-devel libxkbcommon-devel libxkbcommon-x11-devel
+sudo dnf install gcc-c++ pkgconf-pkg-config alsa-lib-devel libX11-devel libxkbcommon-devel libxkbcommon-x11-devel
 ```
 
 On Ubuntu/Debian:
 
 ```bash
-sudo apt-get install build-essential pkg-config libx11-dev libxkbcommon-dev libxkbcommon-x11-dev
+sudo apt-get install build-essential pkg-config libasound2-dev libx11-dev libxkbcommon-dev libxkbcommon-x11-dev
 ```
 
 On Windows, install Visual Studio Build Tools with the **Desktop development with C++** workload. A working graphics driver is required on both platforms. Linux currently uses X11 or XWayland.
@@ -327,11 +329,11 @@ The M0 and M1 GitHub CI runs passed on Linux and Windows. M2 adds a Linux softwa
 
 ## M2 verification and imported map
 
-- 35 local automated tests pass: 22 simulation tests and 13 office/shift, seating, movement, door, and input tests.
+- 46 local automated tests pass: 23 simulation rules tests, 6 road/full-response tests and 17 office/shift/input tests.
 - Formatting, workspace compilation, and Clippy pass. Both hardware/normal-graphics and software/reduced-graphics graphical playthroughs pass locally.
 - The graphical playthrough on NVIDIA Vulkan verifies targeted seating and monitor focus, six sequential delayed calls, 210 points, the ten-minute shift boundary, review, a radio purchase, and shorter recovery in the next shift. Screenshots are inspected for room geometry and UI readability.
-- The imported road-map starter has 2,639 nodes and 1,977 roads but 694 disconnected weak components. The supplied image is displayed; the graph does not yet drive travel. Run `python3 tools/maps/audit_graph.py` after editing the graph.
-- The map's 4 km width, synthetic street names/addresses, connections, and training station placements need confirmation before road routing. Run upgrades currently last only until the app closes.
+- The supplied graph has 2,639 nodes, 1,977 roads and 694 disconnected weak components. The playable pilot uses real nodes/roads in its 144-node largest component. No links are invented between components. Road/junction endpoint offsets of at most one pixel per axis are normalized at import. Run `python3 tools/maps/audit_graph.py` after graph edits.
+- The 4 km scale, synthetic names and provisional headquarters remain design choices to review. Pilot node placements, recovery, initial/subsequent delays, response window, responder speeds and reticle colors live in `assets/city/gameplay_config.json`. Run upgrades last until the app closes.
 
 See [the office guide](docs/office.md) for controls, map integration boundaries, and the graphical test command.
 
@@ -341,8 +343,10 @@ The office now follows the supplied environment reference: a deeper brick indust
 
 Mouse look works while walking and seated. Aim at a chair and press E to sit, then aim at the monitor and press E to use dispatch. Escape returns to seated free-look; Space stands. The rear meeting-room door stays locked during the shift and opens when review becomes available. The wall map and desktop monitors share a live render target driven by the existing simulation.
 
-The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. This is a solo environment refinement; networked characters, proximity voice and road-graph routing remain in their planned milestones. The launcher no longer forces CPU rendering. The same 1440×900 room benchmark measured 58.5 FPS on the RTX 3080 versus 3.0 FPS on CPU llvmpipe (300 measured frames after 90 warm-up frames, normal graphics, VSync). This is a single-machine scene measurement. See [the environment guide](docs/environment.md).
+The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. This is a solo environment refinement; networked characters and proximity voice remain in later milestones. Road routes now drive the pilot district. The launcher no longer forces CPU rendering. The same 1440×900 room benchmark measured 58.5 FPS on the RTX 3080 versus 3.0 FPS on CPU llvmpipe (300 measured frames after 90 warm-up frames, normal graphics, VSync). This is a single-machine scene measurement. See [the environment guide](docs/environment.md).
 
 ## Source brief
+
+The current [gameplay specification PDF](docs/design/gameplay-loop.pdf) and its [exact supplied source](docs/design/gameplay-loop-source.txt) are checked into this repo. [The review log](docs/reviews/gameplay-loop.md) records the M2 mismatch and corrections, and must be updated after each milestone and gameplay-changing commit (see `AGENTS.md`). Explicit user directions override the brief: unnumbered chairs, pop-in E seating, daylight, low-poly graphics.
 
 The detailed concept and initial requirements are captured in *Wrong Number: Complete Game Design and Technical Specification* (October 2026). This README turns that proposed specification into an implementation sequence; the specification is a design brief, not a record of completed work.

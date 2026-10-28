@@ -6,36 +6,38 @@ Run `cargo run --locked`, or on Linux `bash scripts/run.sh`. You spawn standing 
 
 - WASD walks; Shift moves faster. Mouse movement looks around while standing or seated; arrow keys are a fallback.
 - Aim at a chair and press **E** to sit. Chairs remain unnumbered.
-- Aim at your monitor or telephone and press **E** to focus the dispatch interface.
+- Aim at your monitor and press **E** to focus dispatch. E on a ringing telephone opens dispatch and answers. Left-click also interacts during room view.
 - **Escape** leaves computer focus without standing. In room view, Escape opens the solo pause menu and releases the cursor. Escape again resumes.
 - **Space** stands up from seated room view, restoring your previous standing position.
 - **E** also targets the wall map, coffee machine, review door and conference table. The circular reticle turns green for usable targets, red for the locked review door.
 - **F3** toggles FPS and graphics-adapter information.
 
-Sitting schedules a caller after a seeded random delay of 1–10 seconds. Only one ringing/active conversation is delivered at a time. Undelivered calls and their locations remain hidden. A call stays attached to its original workstation if you stand up; return to that seat to answer it. Leaving computer focus does not stop calls or the timer. The phone currently has a visual/text notification; audible spatial ringing and microphone/AI conversation are future audio work.
+Sitting schedules a caller after a seeded random delay of 1–10 seconds. Only one ringing/active conversation is delivered at a time. Undelivered calls and their locations remain hidden. A call stays attached to its original workstation if you stand up; return to that seat to answer it. Leaving computer focus does not stop calls or the timer. The phone rings spatially and flashes a beacon. `--mute` suppresses sound; a missing audio device retains visual/text playability. Microphone/AI conversations remain M5 work.
 
-Answer, ask the scripted question, then assign a responder or decline. **End conversation** frees the line for the next caller while the incident and any dispatched unit continue. Questions and refusals require your active conversation; previously investigated open incidents can still receive responders after hang-up. Police, medical and fire teams have distinct capabilities. Assigned/en-route units can be cancelled or rerouted; on-scene, returning and recovering units cannot be reused.
+Answer, ask the scripted question, then assign a responder or decline. Successful dispatch/refusal automatically ends the conversation. Failed dispatch keeps it open. **Send Full Response** atomically reserves one Police, Medical and Fire unit, or reserves none; the UI lists unavailable categories. **End conversation** remains an optional hang-up without a final decision. Questions and refusals require your active conversation; previously investigated open incidents can still receive responders after hang-up. Police, medical and fire teams have distinct capabilities. Assigned/en-route units can be cancelled or rerouted; on-scene, returning and recovering units cannot be reused.
 
-The timer keeps running throughout room movement and all computer/map screens. Only explicit solo pause stops it. **Finish shift early / skip remaining time** is a playtest convenience: it advances the remaining time with normal deadlines and penalties. At 10 minutes, no more calls are delivered; existing incidents and responder returns finish before the rear door unlocks. Calls never delivered are recorded without a penalty and do not appear as received cases.
+After each conversation ends, another authored caller arrives in 1–15 seconds. Authored scenarios repeat beyond the initial six, within a 96-incident prototype bound. Caller name/identifier, reported street/junction, reported incident type, call duration, notes, status and resource counts appear in dispatch. Scroll individual panels with the mouse wheel.
+
+The timer keeps running throughout room movement and all computer/map screens. Only explicit solo pause stops it. **Finish shift early / skip remaining time** is a playtest convenience: it first closes delivery, then advances the remaining time with normal deadlines and penalties for received calls. At 10 minutes, no more calls are delivered; existing incidents and responder returns finish before the rear door unlocks. Calls never delivered are recorded without a penalty and do not appear as received cases.
 
 Enter the unlocked rear meeting room and aim at the conference table to review the grade, score explanations and funding. Funding is `max(0, 100 + score)`, credited once. A shift with no handled calls receives grade F.
 
 Buy at most one upgrade per review, or continue without buying:
 
-- **Improved radios ($50):** responder recovery falls from 5 seconds to 2 seconds next shift.
+- **Improved radios ($50):** responder recovery falls from 15 seconds to 10 seconds next shift.
 - **Additional patrol ($90):** adds a fourth response unit (second police team) next shift.
 
-Next shift keeps funding and purchased upgrades for this run, resets the score, and reuses the authored training incident positions. Closing the app ends the run; persistent progression is M6 work. Scenarios are currently the same six authored reports, at the authored training positions.
+Next shift keeps funding and purchased upgrades for this run, resets the score, and reuses the authored training incident positions. Closing the app ends the run; persistent progression is M6 work. Scenarios repeat from six authored reports at provisional connected road nodes.
 
 ## Map and station integration
 
-The M2 screen uses `assets/city/map.png` from the supplied road-map starter. It overlays authored training incidents and distinct police, hospital, and fire station pins, with live responder squares. `src/city.rs` holds those temporary placements. M2 still uses integer-grid X-then-Y travel at one cell per second; roads do not drive the responder paths yet.
+The supplied coastal image remains unchanged. Headquarters/hospital and call positions are actual road nodes selected in `assets/city/gameplay_config.json`. They lie in the largest supplied connected component (144 nodes); the full import has 2,639 nodes, 1,977 roads and 694 weak components. Other components are not silently joined or dispatched into.
 
-The imported graph has **2,639 nodes, 1,977 roads, and 694 disconnected weak components**; its largest component has 144 nodes. Endpoint references are valid, but geometry and connections are not ready for citywide routing. The package explicitly marks its road tracing, synthetic addresses/names, 4 km width, and jurisdiction as placeholders. Station placements are training choices, not confirmed headquarters locations.
+`crates/simulation/src/roads.rs` expands each road polyline into directed edges and uses Dijkstra with estimated road length, speed limit, closed status and configurable responder speed. A multiplier of 1000 means 1x; police default to 1250 (1.25x). The same authority path drives outbound movement, cancellation/rerouting from the current road position, and return travel. Colored route overlays share one cached transparent image. Headquarters pins remain visible when units leave.
 
-Run `python3 tools/maps/audit_graph.py` to repeat the connectivity and field audit after editing the data. The original tracing script and its README are under `tools/maps`; its correction manifest is not automatically applied by that script. The PNG can be replaced at the same path; restart the game to reload it. Next shifts currently reuse these authored training locations and six scenarios; a varied director remains M3 work.
+The tracer's declared junctions can differ from their polyline endpoints by one pixel per axis. Import explicitly joins only these declared endpoints within that tolerance; larger errors are rejected. No links across disconnected components are generated. Raw graph/image data is preserved. Road scale, names, addresses and headquarters placements remain provisional art/design choices; inspect them before expanding citywide dispatch.
 
-For that integration, agree on map scale and station locations first. A proposed road-data format should contain stable node/road IDs, named edges, road geometry, length in meters, permitted direction, and station/incident connections to reachable nodes. That schema and pathfinding implementation remain future work.
+Configurable recovery starts after actual return travel: 15 seconds by default, 10 with radios. Travel and scene handling add to total unavailability. `python3 tools/maps/audit_graph.py` repeats the raw graph audit. A unit with no route is rejected before reservation.
 
 ## Verification
 
@@ -47,7 +49,7 @@ The graphical playthrough tours the main room, arched windows, break room and re
 cargo run --locked -- --playtest --capture-dir /absolute/path/to/screenshots
 ```
 
-It investigates six calls, handles them correctly, verifies 210 points, enters the review area, buys radios, starts the next shift, and verifies 2-second recovery. It validates that the map asset loaded, saves room-tour, terminal, meeting-room, review, and next-shift screenshots, then exits. The automated window is hidden and ignores physical input so the test does not interfere with work on the desktop. `--smoke-test` remains a shorter 60-frame office startup check.
+It investigates six calls, handles them correctly, verifies 210 points, enters the review area, buys radios, starts the next shift, and verifies 10-second recovery. It validates that the map asset loaded, saves room-tour, terminal, meeting-room, review, and next-shift screenshots, then exits. The automated window is hidden and ignores physical input so the test does not interfere with work on the desktop. `--smoke-test` remains a shorter 60-frame office startup check.
 
 The Linux launcher uses hardware rendering by default. The old launcher forced Mesa llvmpipe, rendering on the CPU and causing very low FPS. Use `--low-graphics` for 960×600 and no shadows; reserve `--software` for diagnosing a GPU problem.
 

@@ -1,4 +1,6 @@
 //! Authoritative, renderer-free dispatch rules. Time advances only when requested.
+pub mod roads;
+use roads::{Journey, RoadNetwork};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt};
 
@@ -6,7 +8,7 @@ pub type IncidentId = u32;
 pub type UnitId = u32;
 pub type PlayerId = u8;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Position {
     pub x: i32,
@@ -141,9 +143,20 @@ pub struct Unit {
     pub position: Position,
     pub recovery_seconds: u32,
     pub state: UnitState,
+    #[serde(default = "default_speed")]
+    pub speed_milli: u32,
+    #[serde(default)]
+    pub journey: Option<Journey>,
+}
+fn default_speed() -> u32 {
+    1000
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventKind {
+    FullResponseOrdered {
+        incident: IncidentId,
+        player: PlayerId,
+    },
     CallArrived {
         incident: IncidentId,
     },
@@ -198,12 +211,15 @@ pub enum Command {
     AcceptCall { incident: IncidentId },
     Ask { incident: IncidentId, fact: String },
     Dispatch { unit: UnitId, incident: IncidentId },
+    FullResponse { incident: IncidentId },
     Cancel { unit: UnitId },
     Reroute { unit: UnitId, incident: IncidentId },
     Decline { incident: IncidentId },
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
+    NoRoute,
+    InsufficientResources,
     InvalidPlayer,
     UnknownIncident,
     UnknownUnit,
@@ -265,6 +281,8 @@ pub struct Simulation {
     units: BTreeMap<UnitId, Unit>,
     events: Vec<Event>,
     score: i32,
+    #[serde(default)]
+    network: Option<RoadNetwork>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -275,6 +293,8 @@ struct UncheckedSimulation {
     units: BTreeMap<UnitId, Unit>,
     events: Vec<Event>,
     score: i32,
+    #[serde(default)]
+    network: Option<RoadNetwork>,
 }
 impl TryFrom<UncheckedSimulation> for Simulation {
     type Error = Error;
@@ -286,6 +306,7 @@ impl TryFrom<UncheckedSimulation> for Simulation {
             units: raw.units,
             events: raw.events,
             score: raw.score,
+            network: raw.network,
         };
         sim.validate()?;
         Ok(sim)
@@ -342,6 +363,8 @@ impl Simulation {
                     position: Position { x: 0, y: 0 },
                     recovery_seconds: 5,
                     state: UnitState::Available,
+                    speed_milli: 1000,
+                    journey: None,
                 },
             )
         })
@@ -353,6 +376,7 @@ impl Simulation {
             units,
             events: vec![],
             score: 0,
+            network: None,
         }
     }
     pub fn new_with_config(seed: u64, config: ShiftConfig) -> Result<Self, Error> {
@@ -393,6 +417,132 @@ impl Simulation {
             sim.units.insert(4, unit);
         }
         Ok(sim)
+    }
+    pub fn enable_roads(
+        &mut self,
+        network: RoadNetwork,
+        stations: [Position; 3],
+        locations: [Position; 6],
+    ) -> Result<(), Error> {
+        if self.now != 0 || !self.events.is_empty() {
+            return Err(Error::InvalidTransition);
+        }
+        network.validate()?;
+        for from in stations {
+            for to in locations {
+                network.route(from, to, 1000, None)?;
+                network.route(to, from, 1000, None)?;
+            }
+        }
+        for (i, p) in self.incidents.values_mut().zip(locations) {
+            i.location = p;
+        }
+        for u in self.units.values_mut() {
+            let index = match u.capability {
+                Capability::Police => 0,
+                Capability::Medical => 1,
+                Capability::Fire => 2,
+            };
+            u.station = stations[index];
+            u.position = u.station;
+            u.speed_milli = if index == 0 { 1250 } else { 1000 };
+        }
+        self.network = Some(network);
+        Ok(())
+    }
+    pub fn set_response_speeds(&mut self, speeds: [u32; 3]) -> Result<(), Error> {
+        if self.now != 0
+            || !self.events.is_empty()
+            || speeds.iter().any(|s| !(100..=10_000).contains(s))
+        {
+            return Err(Error::InvalidTransition);
+        }
+        for unit in self.units.values_mut() {
+            unit.speed_milli = speeds[match unit.capability {
+                Capability::Police => 0,
+                Capability::Medical => 1,
+                Capability::Fire => 2,
+            }];
+        }
+        Ok(())
+    }
+    pub fn network(&self) -> Option<&RoadNetwork> {
+        self.network.as_ref()
+    }
+    fn plan(&self, unit: UnitId, to: Position) -> Result<Option<Journey>, Error> {
+        let u = self.unit(unit)?;
+        let elapsed = match u.state {
+            UnitState::EnRoute { depart_at, .. } | UnitState::Returning { depart_at, .. } => {
+                self.now.saturating_sub(depart_at)
+            }
+            _ => 0,
+        };
+        self.network
+            .as_ref()
+            .map(|network| {
+                network.route(
+                    u.position,
+                    to,
+                    u.speed_milli,
+                    u.journey.as_ref().and_then(|j| j.road_at(elapsed)),
+                )
+            })
+            .transpose()
+    }
+    pub fn full_response_available(&self, id: IncidentId) -> Result<Vec<UnitId>, Error> {
+        let i = self.incident(id)?;
+        if i.state != IncidentState::Active {
+            return Err(Error::IncidentClosed);
+        }
+        if !matches!(i.call, CallState::Answered { .. } | CallState::Closed) {
+            return Err(Error::CallUnavailable);
+        }
+        if self
+            .units
+            .values()
+            .any(|u| u.state.assignment() == Some(id))
+        {
+            return Err(Error::IncidentAlreadyAssigned);
+        }
+        [Capability::Police, Capability::Medical, Capability::Fire]
+            .into_iter()
+            .map(|cap| {
+                let u = self
+                    .units
+                    .values()
+                    .find(|u| u.capability == cap && u.state == UnitState::Available)
+                    .ok_or(Error::InsufficientResources)?;
+                self.plan(u.id, i.location)?;
+                Ok(u.id)
+            })
+            .collect()
+    }
+    pub fn queue_scenario(
+        &mut self,
+        template: IncidentId,
+        location: Position,
+    ) -> Result<IncidentId, Error> {
+        if self.incidents.len() >= 96 {
+            return Err(Error::InvalidTransition);
+        }
+        let bound = if self.network.is_some() { 10_000 } else { 100 };
+        if location.x.abs_diff(0) > bound || location.y.abs_diff(0) > bound {
+            return Err(Error::NoRoute);
+        }
+        let mut scenario = self.incident(template)?.clone();
+        if let Some(network) = &self.network {
+            for u in self.units.values() {
+                network.route(u.station, location, u.speed_milli, None)?;
+            }
+        }
+        scenario.id = self.incidents.keys().next_back().copied().unwrap_or(0) + 1;
+        scenario.location = location;
+        scenario.state = IncidentState::Pending;
+        scenario.call = CallState::Queued;
+        scenario.revealed.clear();
+        let id = scenario.id;
+        self.incidents.insert(id, scenario);
+        Ok(id)
     }
     pub fn activate_call(&mut self, id: IncidentId, window: u32) -> Result<(), Error> {
         let incident = self.incident(id)?;
@@ -520,6 +670,12 @@ impl Simulation {
         });
     }
     fn change_unit(&mut self, id: UnitId, state: UnitState) {
+        if !matches!(
+            state,
+            UnitState::EnRoute { .. } | UnitState::Returning { .. }
+        ) {
+            self.units.get_mut(&id).unwrap().journey = None;
+        }
         self.units.get_mut(&id).unwrap().state = state.clone();
         self.emit(EventKind::UnitChanged { unit: id, state });
     }
@@ -555,6 +711,15 @@ impl Simulation {
             score_delta,
             reason: reason.into(),
         });
+        let assigned: Vec<_> = self
+            .units
+            .values()
+            .filter(|u| u.state.assignment() == Some(id))
+            .map(|u| u.id)
+            .collect();
+        for unit in assigned {
+            self.return_unit(unit);
+        }
     }
     fn validate_dispatch(&self, unit: UnitId, incident: IncidentId) -> Result<(), Error> {
         let u = self.unit(unit)?;
@@ -575,6 +740,7 @@ impl Simulation {
         {
             return Err(Error::IncidentAlreadyAssigned);
         }
+        self.plan(unit, i.location)?;
         Ok(())
     }
     /// Decode a bounded command payload, then apply the same authority checks.
@@ -651,6 +817,18 @@ impl Simulation {
                     player,
                 });
             }
+            Command::FullResponse { incident } => {
+                let ids = self.full_response_available(incident)?;
+                self.emit(EventKind::FullResponseOrdered { incident, player });
+                for unit in ids {
+                    self.change_unit(unit, UnitState::Assigned { incident });
+                    self.emit(EventKind::DispatchOrdered {
+                        unit,
+                        incident,
+                        player,
+                    });
+                }
+            }
             Command::Cancel { unit } => {
                 if !matches!(
                     self.unit(unit)?.state,
@@ -671,7 +849,9 @@ impl Simulation {
                     return Err(Error::InvalidTransition);
                 }
                 self.validate_dispatch(unit, incident)?;
+                let journey = self.plan(unit, self.incidents[&incident].location)?;
                 self.change_unit(unit, UnitState::Assigned { incident });
+                self.units.get_mut(&unit).unwrap().journey = journey;
                 self.emit(EventKind::DispatchOrdered {
                     unit,
                     incident,
@@ -715,12 +895,19 @@ impl Simulation {
     }
     fn return_unit(&mut self, id: UnitId) {
         let u = &self.units[&id];
+        let from = u.position;
+        let duration = u.position.distance(u.station);
+        let journey = self
+            .plan(id, u.station)
+            .expect("Validated reachable return path");
+        let seconds = journey.as_ref().map_or(duration, Journey::seconds);
+        self.units.get_mut(&id).unwrap().journey = journey;
         self.change_unit(
             id,
             UnitState::Returning {
-                from: u.position,
+                from,
                 depart_at: self.now,
-                arrive_at: self.now + u.position.distance(u.station),
+                arrive_at: self.now + seconds,
             },
         );
     }
@@ -766,6 +953,13 @@ impl Simulation {
                     UnitState::Available => {}
                     UnitState::Assigned { incident } => {
                         let to = self.incidents[&incident].location;
+                        let journey = self
+                            .plan(id, to)
+                            .expect("Dispatch route validated before assignment");
+                        let seconds = journey
+                            .as_ref()
+                            .map_or(u.position.distance(to), Journey::seconds);
+                        self.units.get_mut(&id).unwrap().journey = journey;
                         self.change_unit(
                             id,
                             UnitState::EnRoute {
@@ -773,7 +967,7 @@ impl Simulation {
                                 from: u.position,
                                 to,
                                 depart_at: self.now,
-                                arrive_at: self.now + u.position.distance(to),
+                                arrive_at: self.now + seconds,
                             },
                         );
                     }
@@ -784,8 +978,10 @@ impl Simulation {
                         depart_at,
                         arrive_at,
                     } => {
-                        self.units.get_mut(&id).unwrap().position =
-                            from.along(to, self.now - depart_at);
+                        self.units.get_mut(&id).unwrap().position = u.journey.as_ref().map_or_else(
+                            || from.along(to, self.now - depart_at),
+                            |j| j.position(self.now - depart_at),
+                        );
                         if self.now >= arrive_at {
                             self.change_unit(id, UnitState::OnScene { incident });
                         }
@@ -804,6 +1000,10 @@ impl Simulation {
                         complete_at,
                     } => {
                         if self.now >= complete_at {
+                            if u.capability != self.incidents[&incident].required {
+                                self.return_unit(id);
+                                continue;
+                            }
                             if self.incidents[&incident].truth == Truth::Emergency {
                                 self.end_incident(
                                     incident,
@@ -819,7 +1019,6 @@ impl Simulation {
                                     "Response capacity spent on a benign report",
                                 );
                             }
-                            self.return_unit(id);
                         }
                     }
                     UnitState::Returning {
@@ -827,8 +1026,10 @@ impl Simulation {
                         depart_at,
                         arrive_at,
                     } => {
-                        self.units.get_mut(&id).unwrap().position =
-                            from.along(u.station, self.now - depart_at);
+                        self.units.get_mut(&id).unwrap().position = u.journey.as_ref().map_or_else(
+                            || from.along(u.station, self.now - depart_at),
+                            |j| j.position(self.now - depart_at),
+                        );
                         if self.now >= arrive_at {
                             self.change_unit(
                                 id,
@@ -857,8 +1058,8 @@ impl Simulation {
         .map_err(|e| Error::InvalidSave(e.to_string()))
     }
     pub fn load_json(json: &str) -> Result<Self, Error> {
-        if json.len() > 1_048_576 {
-            return Err(Error::InvalidSave("Snapshot exceeds 1 MiB".into()));
+        if json.len() > 8_388_608 {
+            return Err(Error::InvalidSave("Snapshot exceeds 8 MiB".into()));
         }
         let save: Save =
             serde_json::from_str(json).map_err(|e| Error::InvalidSave(e.to_string()))?;
@@ -870,7 +1071,11 @@ impl Simulation {
     }
     fn validate(&self) -> Result<(), Error> {
         let invalid = || Error::InvalidSave("Snapshot violates simulation invariants".into());
-        let valid_position = |p: Position| p.x.abs_diff(0) <= 100 && p.y.abs_diff(0) <= 100;
+        let bound = if self.network.is_some() { 10_000 } else { 100 };
+        let valid_position = |p: Position| p.x.abs_diff(0) <= bound && p.y.abs_diff(0) <= bound;
+        if let Some(network) = &self.network {
+            network.validate()?;
+        }
         if self.now > 86_400
             || self.incidents.is_empty()
             || self.incidents.len() > 100
@@ -915,8 +1120,8 @@ impl Simulation {
             if let Some(i) = u.state.assignment() {
                 let incident = self.incidents.get(&i).ok_or_else(invalid)?;
                 if incident.state != IncidentState::Active
-                    || incident.required != u.capability
-                    || !assigned.insert(i)
+                    || (incident.required!=u.capability&&!self.events.iter().any(|e|matches!(e.kind,EventKind::FullResponseOrdered{incident:id,..} if id==i)))
+                    || !assigned.insert((i,match u.capability{Capability::Police=>0,Capability::Medical=>1,Capability::Fire=>2}))
                 {
                     return Err(invalid());
                 }
@@ -934,8 +1139,19 @@ impl Simulation {
                     && depart <= self.now
                     && arrive >= self.now
                     && arrive <= 90_000
-                    && arrive == depart + from.distance(to)
-                    && u.position == from.along(to, self.now - depart)
+                    && if let Some(journey) = &u.journey {
+                        self.network
+                            .as_ref()
+                            .is_some_and(|network| network.valid_journey(journey, u.speed_milli))
+                            && journey.points.first().is_some_and(|p| p.position == from)
+                            && journey.points.last().is_some_and(|p| p.position == to)
+                            && arrive == depart + journey.seconds()
+                            && u.position == journey.position(self.now - depart)
+                    } else {
+                        self.network.is_none()
+                            && arrive == depart + from.distance(to)
+                            && u.position == from.along(to, self.now - depart)
+                    }
             };
             match u.state {
                 UnitState::EnRoute {
@@ -991,7 +1207,8 @@ impl Simulation {
                         return Err(invalid());
                     }
                 }
-                EventKind::CallEnded { incident, player }
+                EventKind::FullResponseOrdered { incident, player }
+                | EventKind::CallEnded { incident, player }
                 | EventKind::CallAccepted { incident, player }
                 | EventKind::CallDeclined { incident, player } => {
                     if !self.incidents.contains_key(incident) || !valid_player(*player) {

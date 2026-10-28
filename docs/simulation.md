@@ -17,7 +17,7 @@ Commands:
 {"Decline":{"incident":2}}
 ```
 
-Accept before investigating, dispatching, or declining. Only the answering player can investigate or decline; a teammate can dispatch. Transfer/ownership UI is future work. A unit must be available and capable of handling that incident. A scenario accepts one active responder in M1. Cancel and reroute work only before arrival. Declining an assigned incident is rejected until the responder is cancelled. A declined genuine emergency keeps running toward its deadline; it does not become benign.
+Accept before investigating, dispatching, or declining. Only the answering player can investigate or decline; a teammate can dispatch. Transfer/ownership UI is future work. A unit must be available and capable of handling that incident. Ordinary dispatch accepts one appropriate responder; Full Response atomically reserves one unit of each capability. Support assignments are recorded explicitly. Cancel and reroute work only before arrival. Declining an assigned incident is rejected until the responder is cancelled. A declined genuine emergency keeps running toward its deadline; it does not become benign.
 
 The authority serializes commands in order. This prevents two requests from acquiring the same unit. M1 tests this rule with competing player commands; it does not implement network concurrency or transport.
 
@@ -26,9 +26,9 @@ The authority serializes commands in order. This prevents two requests from acqu
 ## Clock and responder lifecycle
 
 - Integer seconds; each advance accepts 1–3600 seconds, with a current prototype clock limit of 86,400 seconds.
-- Calls begin together at t=0. A paced director is M3 work.
+- Calls begin together at t=0. M2 queues/delivers calls and repeats authored templates; adaptive workload is M3 work.
 - Seeded scenario locations and ordered maps give repeatable results; splitting an advance into smaller advances does not change the result.
-- Travel follows a Manhattan grid at one cell per second, X then Y. It is deliberately simple, with no road graph, traffic, or costs yet.
+- M1 defaults to Manhattan-grid travel for compatibility. M2 enables a validated `RoadNetwork`: directed Dijkstra routes follow actual polyline vertices with distance, road-speed, closure and responder-multiplier costs. Outbound/return journeys and timings are stored in snapshots.
 - Lifecycle: available → assigned → en route → on scene → resolving → returning → recovering → available.
 - Assignment starts travel on the next tick. Arrival spends a tick on scene, then starts service. Return and recovery consume real simulation time, including after cancellation.
 - A rerouted unit keeps its current grid position. The old incident remains active.
@@ -52,7 +52,7 @@ The lower penalty for undiscovered danger limits hindsight-only punishment. Thes
 
 ## Saves
 
-`save_json()` writes schema version 1, including the clock, seed, incidents, facts, unit states, score, and event history. `load_json()` rejects unknown versions, oversized input (1 MiB), malformed data, invalid references, duplicate assignments, inconsistent travel/state data, invalid event sequences, and inconsistent outcome/score totals. Deserializing `Simulation` directly also runs invariant checks.
+`save_json()` writes schema version 1, including the clock, seed, incidents, facts, unit states, score, and event history. `load_json()` rejects unknown versions, oversized input (8 MiB), malformed data, invalid references, duplicate assignments, inconsistent travel/state data, invalid event sequences, and inconsistent outcome/score totals. Deserializing `Simulation` directly also runs invariant checks.
 
 Snapshots belong to the trusted simulation authority. They are not signed, cheat-proof saves or a client import format. Malicious replacement of otherwise coherent scenario facts is outside this local snapshot format's guarantees. Mod importing and network messages require their own boundaries in later milestones.
 
@@ -62,4 +62,6 @@ The automated suite exercises determinism, hidden information, malformed command
 
 `Simulation::new` keeps the immediate six-call setup used by the M1 demo. `new_with_config` with `queued_calls: true` starts scenarios in Pending/Queued state. `activate_call(id, response_window)` makes a call visible and gives it a fresh deadline measured from delivery. Pending incidents do not expire or expose a public call view. `close_unreported()` records undelivered scenarios at shift closure with zero points.
 
-`EndCall { incident }` closes only the owned conversation. The incident and any assigned response continue; the caller cannot be accepted again. Dispatch remains available for an investigated open incident after hang-up. Delivery, conversation closure and incident completion have distinct events, and snapshots preserve all three. The solo Bevy session owns the 600-second dispatch period, station eligibility and 1–10 second seeded delivery delay; the pure simulation does not generate conversations independently.
+`EndCall { incident }` closes only the owned conversation. The incident and any assigned response continue; the caller cannot be accepted again. Dispatch remains available for an investigated open incident after hang-up. Delivery, conversation closure and incident completion have distinct events, and snapshots preserve all three. The solo Bevy session owns the 600-second dispatch period, station eligibility and 1–10 second initial and 1–15 second subsequent seeded delivery delays; the pure simulation does not generate conversations independently.
+
+`FullResponse { incident }` checks availability and every road route before reserving any unit. Failure leaves the authority unchanged. `queue_scenario` clones an authored scenario into a fresh pending incident without carrying revealed facts or changing its truth, under a 96-incident bound. The Bevy session closes a conversation automatically after a successful dispatch; standalone M1 commands retain their existing conversation semantics.

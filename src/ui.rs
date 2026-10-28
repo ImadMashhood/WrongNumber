@@ -30,6 +30,10 @@ const TEAL: Color = Color::srgb(0.08, 0.52, 0.48);
 const AMBER: Color = Color::srgb(0.92, 0.6, 0.22);
 fn text(p: &mut ChildSpawnerCommands, value: impl Into<String>, size: f32, color: Color) {
     p.spawn((
+        Node {
+            flex_shrink: 0.0,
+            ..default()
+        },
         Text::new(value),
         TextFont {
             font_size: FontSize::Px(size),
@@ -43,6 +47,7 @@ fn button(p: &mut ChildSpawnerCommands, label: impl Into<String>, action: Action
         Node {
             width: percent(100),
             min_height: px(34),
+            flex_shrink: 0.0,
             padding: UiRect::axes(px(10), px(8)),
             margin: UiRect::bottom(px(6)),
             border_radius: BorderRadius::all(px(4)),
@@ -65,6 +70,9 @@ fn button(p: &mut ChildSpawnerCommands, label: impl Into<String>, action: Action
 fn column(width: f32) -> Node {
     Node {
         width: percent(width),
+        min_height: px(0),
+        height: percent(100),
+        overflow: Overflow::scroll_y(),
         min_width: px(0),
         flex_direction: FlexDirection::Column,
         padding: UiRect::all(px(16)),
@@ -120,7 +128,12 @@ fn cap_color(cap: Capability) -> Color {
         Capability::Fire => Color::srgb(1.0, 0.4, 0.25),
     }
 }
-fn map(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
+fn map(
+    p: &mut ChildSpawnerCommands,
+    game: &Session,
+    image: &MapImage,
+    routes: &crate::routes::RouteOverlay,
+) {
     p.spawn((
         Node {
             width: percent(100),
@@ -135,6 +148,15 @@ fn map(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
     .with_children(|p| {
         p.spawn((
             ImageNode::new(image.0.clone()),
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                ..default()
+            },
+        ));
+        p.spawn((
+            ImageNode::new(routes.0.clone()),
             Node {
                 position_type: PositionType::Absolute,
                 width: percent(100),
@@ -207,9 +229,14 @@ fn map(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
         12.0,
         MUTED,
     );
-    text(p, "TRAINING GRID / ROAD ROUTING PENDING", 11.0, AMBER);
+    text(p, "PILOT DISTRICT / LIVE ROAD ROUTES", 11.0, AMBER);
 }
-fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
+fn terminal(
+    p: &mut ChildSpawnerCommands,
+    game: &Session,
+    image: &MapImage,
+    routes: &crate::routes::RouteOverlay,
+) {
     let running = matches!(game.phase, Phase::Running | Phase::Closing);
     p.spawn((column(23.0), BackgroundColor(PANEL)))
         .with_children(|p| {
@@ -236,12 +263,7 @@ fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
                 );
             }
             if running {
-                button(
-                    p,
-                    "Finish shift early / skip remaining time",
-                    Action::EndShift,
-                    true,
-                );
+                button(p, "Finish shift early", Action::EndShift, true);
             }
             button(p, "Leave console [Esc]", Action::Office, true);
         });
@@ -249,7 +271,9 @@ fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
         let Ok(view)=game.sim.call_view(game.selected) else {text(p,"Waiting for your first caller",25.0,TEXT);text(p,"Calls arrive 1–10 seconds after sitting. The clock keeps running outside computer focus.",17.0,MUTED);return;};
         text(p,format!("CALL {:02} / {}",game.selected,state_name(view.state)),14.0,AMBER);
         text(p,view.report,25.0,TEXT);
-        text(p,format!("Grid {}, {}",view.location.x,view.location.y),13.0,MUTED);
+        text(p,format!("Caller: {} | 555-{:04}",["Alex Morgan","Sam Lee","Jordan Ellis","Casey Park","Riley Jones","Taylor Reed"][((game.selected-1)%6) as usize],100+game.selected),13.0,MUTED);
+        text(p,crate::city::address(view.location),13.0,MUTED);
+        let duration=game.call_duration(game.selected);text(p,format!("Call duration {:02}:{:02} | {}",duration/60,duration%60,view.facts.first().map_or("Type unconfirmed",|f|match f.id.as_str(){"smoke"=>"Reported fire","breathing"=>"Reported medical emergency","window"=>"Reported police incident",_=>"Reported non-emergency"})),13.0,MUTED);
         if game.phase==Phase::AwaitingReview {text(p,"Shift finished. Leave the console and walk through the rear door into the meeting room.",19.0,TEXT);}
         else {
             if view.state==IncidentState::Active {text(p,format!("Response window: {}s",game.sim.incidents()[&game.selected].deadline.saturating_sub(game.sim.now())),13.0,MUTED);}
@@ -261,6 +285,9 @@ fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
         }
         button(p,"End conversation",Action::HangUp,game.conversation.is_some()&&game.call_station==game.seated);
         text(p,"ASSIGN / CANCEL / REROUTE",13.0,MUTED);
+        let missing:Vec<_>=[Capability::Police,Capability::Medical,Capability::Fire].into_iter().filter(|cap|!game.sim.units().values().any(|u|u.capability==*cap&&u.state==UnitState::Available)).map(cap_name).collect();
+        let label=if missing.is_empty(){"Send Full Response".into()}else{format!("Full Response unavailable: {}",missing.join(", "))};
+        button(p,label,Action::FullResponse,running&&game.selected_call_answered()&&missing.is_empty()&&!game.sim.units().values().any(|u|u.state.assignment()==Some(game.selected)));
         for unit in game.sim.units().values() {
             let verb=match unit.state {UnitState::Available=>"Send",UnitState::Assigned {incident} | UnitState::EnRoute {incident,..} if incident==game.selected=>"Cancel",UnitState::Assigned {..} | UnitState::EnRoute {..}=>"Reroute",_=>"Busy"};
             let enabled=running&&game.selected_call_answered()&&matches!(unit.state,UnitState::Available|UnitState::Assigned {..}|UnitState::EnRoute {..});
@@ -268,9 +295,10 @@ fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
         }
     });
     p.spawn((column(39.0),BackgroundColor(PANEL))).with_children(|p| {
-        text(p,"CITY OPERATIONS",14.0,MUTED); map(p, game, image);
+        text(p,"CITY OPERATIONS",14.0,MUTED); map(p, game, image, routes);
         text(p,"SHARED RESPONSE CAPACITY",14.0,MUTED);
-        text(p,format!("Run funding ${} | Recovery {}s",game.funds,if game.radio {2} else {5}),12.0,MUTED);
+        for cap in [Capability::Police,Capability::Medical,Capability::Fire] {let total=game.sim.units().values().filter(|u|u.capability==cap).count();let available=game.sim.units().values().filter(|u|u.capability==cap&&u.state==UnitState::Available).count();text(p,format!("{}: {available} / {total} available",cap_name(cap)),14.0,cap_color(cap));}
+        text(p,format!("Run funding ${} | Recovery {}s",game.funds,if game.radio {crate::city::config().radio_recovery_seconds} else {crate::city::config().recovery_seconds}),12.0,MUTED);
         for u in game.sim.units().values() {text(p,format!("{} {}: {}",cap_name(u.capability),u.id,unit_label(&u.state,game.sim.now())),13.0,cap_color(u.capability));}
         text(p,"Gather evidence. Appropriate refusals earn funding; unnecessary deployments occupy real capacity.",15.0,TEXT);
     });
@@ -293,7 +321,7 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session) {
                 if game.radio {
                     "Radios installed"
                 } else {
-                    "$50 / Improved radios\nRecovery: 5 seconds -> 2 seconds"
+                    "$50 / Improved radios\nRecovery: 15 seconds -> 10 seconds"
                 },
                 Action::BuyRadio,
                 !game.radio && !game.bought_this_review && game.funds >= 50,
@@ -317,6 +345,7 @@ pub fn draw(
     roots: Query<Entity, With<UiRoot>>,
     mut game: ResMut<Session>,
     image: Res<MapImage>,
+    routes: Res<crate::routes::RouteOverlay>,
     player: Single<&Transform, With<Player>>,
 ) {
     if !game.dirty {
@@ -413,11 +442,11 @@ pub fn draw(
                     ..default()
                 })
                 .with_children(|p| match screen {
-                    Screen::Terminal => terminal(p, &game, &image),
+                    Screen::Terminal => terminal(p, &game, &image, &routes),
                     Screen::CityMap => {
                         p.spawn((column(70.0), BackgroundColor(PANEL)))
                             .with_children(|p| {
-                                map(p, &game, &image);
+                                map(p, &game, &image, &routes);
                                 button(p, "Return to room", Action::Office, true);
                             });
                     }
@@ -456,15 +485,18 @@ pub fn update_hud(
 ) {
     for mut color in &mut reticle {
         let target = crate::world::aimed_action(&player, &game);
-        let next = BorderColor::all(match target {
+        let colors = &crate::city::config().reticle_colors;
+        let rgb = match target {
             Some(Action::Door | Action::OpenReview)
                 if !crate::world::review_unlocked(game.phase) =>
             {
-                Color::srgb(1.0, 0.25, 0.2)
+                colors.locked
             }
-            Some(_) => TEAL,
-            None => TEXT.with_alpha(0.6),
-        });
+            Some(Action::UsePhone) if game.ringing.is_none() => colors.conditional,
+            Some(_) => colors.ready,
+            None => colors.neutral,
+        };
+        let next = BorderColor::all(Color::srgb(rgb[0], rgb[1], rgb[2]));
         if *color != next {
             *color = next;
         }
@@ -498,5 +530,58 @@ pub fn scale(window: Single<&Window>, mut scale: ResMut<UiScale>) {
         .clamp(0.65, 1.25);
     if (scale.0 - value).abs() > 0.001 {
         scale.0 = value;
+    }
+}
+
+/// Scroll only the panel under the pointer; preserve its offset across clock redraws.
+pub fn scroll_panels(
+    game: Res<Session>,
+    window: Single<&Window>,
+    mut wheel: MessageReader<bevy::input::mouse::MouseWheel>,
+    mut panels: Query<(
+        Ref<Node>,
+        &ComputedNode,
+        &UiGlobalTransform,
+        &mut ScrollPosition,
+    )>,
+    mut memory: Local<std::collections::BTreeMap<(u8, u32), f32>>,
+) {
+    use bevy::input::mouse::MouseScrollUnit;
+    let delta: f32 = wheel
+        .read()
+        .map(|e| {
+            -e.y * if e.unit == MouseScrollUnit::Line {
+                40.0
+            } else {
+                1.0
+            }
+        })
+        .sum();
+    let cursor = window.cursor_position().map(|p| p * window.scale_factor());
+    for (node, computed, transform, mut position) in &mut panels {
+        if node.overflow.y != OverflowAxis::Scroll {
+            continue;
+        }
+        let Val::Percent(width) = node.width else {
+            continue;
+        };
+        let key = (game.screen as u8, width as u32);
+        if node.is_added() {
+            position.y = *memory.get(&key).unwrap_or(&0.0);
+        }
+        if delta != 0.0
+            && cursor.is_some_and(|p| {
+                transform.try_inverse().is_some_and(|inverse| {
+                    let local = inverse.transform_point2(p);
+                    local.abs().cmple(computed.size() / 2.0).all()
+                })
+            })
+        {
+            let max = ((computed.content_size().y - computed.size().y)
+                * computed.inverse_scale_factor())
+            .max(0.0);
+            position.y = (position.y + delta).clamp(0.0, max);
+            memory.insert(key, position.y);
+        }
     }
 }
