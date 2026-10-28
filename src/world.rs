@@ -35,10 +35,7 @@ impl Seating {
     }
 }
 pub const SEATS: [f32; 6] = [-5.25, -3.15, -1.05, 1.05, 3.15, 5.25];
-pub const MAP: Vec2 = Vec2::new(0.0, -5.8);
-pub const REVIEW: Vec2 = Vec2::new(5.7, 10.7);
-pub const DOOR: Vec2 = Vec2::new(6.0, 7.0);
-pub fn setup(mut commands: Commands) {
+pub fn setup(mut commands: Commands, graphics: Res<crate::performance::Graphics>) {
     commands.init_resource::<Seating>();
     commands.spawn((
         Player,
@@ -50,29 +47,134 @@ pub fn setup(mut commands: Commands) {
             fov: 65_f32.to_radians(),
             ..default()
         }),
-        Transform::from_xyz(0.0, 1.65, 6.35).looking_at(Vec3::new(0.0, 0.45, -3.0), Vec3::Y),
+        if graphics.benchmark {
+            overview()
+        } else {
+            break_spawn()
+        },
     ));
+}
+pub fn overview() -> Transform {
+    Transform::from_xyz(0.0, 1.65, 6.35).looking_at(Vec3::new(0.0, 0.45, -3.0), Vec3::Y)
+}
+fn break_spawn() -> Transform {
+    Transform::from_xyz(10.0, 1.65, 3.8).looking_at(Vec3::new(8.0, 1.65, 0.5), Vec3::Y)
+}
+pub fn seat_camera(
+    game: Res<Session>,
+    mut seating: ResMut<Seating>,
+    mut player: Single<&mut Transform, With<Player>>,
+    mut shift: Local<u32>,
+) {
+    if *shift != game.shift {
+        if *shift != 0 {
+            seating.stand(&mut player);
+            **player = break_spawn();
+        }
+        *shift = game.shift;
+    }
+    if seating.station != game.seated {
+        seating.stand(&mut player);
+        if let Some(station) = game.seated {
+            seating.sit(&mut player, station);
+        }
+    }
+}
+/// Slab intersection shared by all room interaction proxies. Returns distance along a unit ray.
+fn ray_box(origin: Vec3, direction: Vec3, min: Vec3, max: Vec3) -> Option<f32> {
+    let mut near = 0.0_f32;
+    let mut far = f32::INFINITY;
+    for axis in 0..3 {
+        if direction[axis].abs() < 1e-6 {
+            if origin[axis] < min[axis] || origin[axis] > max[axis] {
+                return None;
+            }
+        } else {
+            let a = (min[axis] - origin[axis]) / direction[axis];
+            let b = (max[axis] - origin[axis]) / direction[axis];
+            near = near.max(a.min(b));
+            far = far.min(a.max(b));
+        }
+    }
+    (far >= near).then_some(near)
+}
+pub fn aimed_action(pose: &Transform, game: &Session) -> Option<Action> {
+    let origin = pose.translation;
+    let direction = *pose.forward();
+    let mut hits = Vec::new();
+    let mut add = |center: Vec3, size: Vec3, range: f32, action: Action| {
+        if let Some(d) = ray_box(origin, direction, center - size / 2.0, center + size / 2.0)
+            && d <= range
+        {
+            hits.push((d, action));
+        }
+    };
+    for (n, &x) in SEATS.iter().enumerate() {
+        if game.seated.is_none() {
+            add(
+                Vec3::new(x, 0.85, 1.7),
+                Vec3::new(0.85, 1.5, 0.9),
+                2.5,
+                Action::Sit(n),
+            );
+        }
+        if game.seated == Some(n) {
+            add(
+                Vec3::new(x, 1.4, -0.39),
+                Vec3::new(1.13, 0.74, 0.15),
+                2.5,
+                Action::OpenDesk,
+            );
+            add(
+                Vec3::new(x - 0.77, 1.04, 0.2),
+                Vec3::splat(0.45),
+                2.0,
+                Action::OpenDesk,
+            );
+        }
+    }
+    add(
+        Vec3::new(0.0, 2.8, -6.6),
+        Vec3::new(11.0, 2.9, 0.3),
+        5.0,
+        Action::OpenMap,
+    );
+    add(
+        Vec3::new(6.0, 1.3, 7.0),
+        Vec3::new(1.6, 2.6, 0.3),
+        2.0,
+        Action::Door,
+    );
+    add(
+        Vec3::new(5.7, 1.4, 10.7),
+        Vec3::new(3.5, 1.8, 2.0),
+        3.0,
+        Action::OpenReview,
+    );
+    add(
+        Vec3::new(11.0, 1.2, -4.0),
+        Vec3::new(0.65, 0.9, 0.8),
+        2.0,
+        Action::Coffee,
+    );
+    // Interior partitions block reaching through glass, walls or the locked rear door.
+    let blockers = [
+        (Vec3::new(9.0, 2.0, -4.05), Vec3::new(0.3, 4.0, 5.9)),
+        (Vec3::new(9.0, 2.0, 4.65), Vec3::new(0.3, 4.0, 5.0)),
+        (Vec3::new(2.6, 2.0, 10.7), Vec3::new(0.3, 4.0, 7.4)),
+    ];
+    hits.into_iter()
+        .filter(|(distance, _)| {
+            !blockers.iter().any(|(c, size)| {
+                ray_box(origin, direction, *c - *size / 2.0, *c + *size / 2.0)
+                    .is_some_and(|d| d < *distance)
+            })
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, a)| a)
 }
 pub fn desk_approach(station: usize) -> Vec3 {
     Vec3::new(SEATS[station], 1.65, 3.0)
-}
-pub fn station_at(position: Vec3) -> Option<usize> {
-    let p = Vec2::new(position.x, position.z);
-    SEATS
-        .iter()
-        .position(|&x| p.distance(Vec2::new(x, 1.7)) < 1.55)
-}
-pub fn interaction(position: Vec3) -> Option<Action> {
-    let p = Vec2::new(position.x, position.z);
-    if station_at(position).is_some() || p.distance(MAP) < 2.0 {
-        Some(Action::OpenDesk)
-    } else if p.distance(DOOR) < 1.8 {
-        Some(Action::Door)
-    } else if p.distance(REVIEW) < 2.5 {
-        Some(Action::OpenReview)
-    } else {
-        None
-    }
 }
 pub fn review_unlocked(phase: Phase) -> bool {
     matches!(phase, Phase::AwaitingReview | Phase::Review)
@@ -137,14 +239,11 @@ pub fn controls(
     mut player: Single<&mut Transform, With<Player>>,
     mut cursor: Single<&mut CursorOptions>,
     mut actions: ResMut<Actions>,
-    mut seating: ResMut<Seating>,
+    seating: Res<Seating>,
     mut was_looking: Local<bool>,
 ) {
     if check.automated() {
         return;
-    }
-    if game.screen == Screen::Office {
-        seating.stand(&mut player);
     }
     let looking = look_enabled(game.screen, window.focused);
     cursor.visible = !looking;
@@ -168,14 +267,12 @@ pub fn controls(
         *was_looking = false;
         return;
     }
+    if keys.just_pressed(KeyCode::Space) && game.seated.is_some() {
+        actions.0.push(Action::Stand);
+    }
     if keys.just_pressed(KeyCode::KeyE)
-        && let Some(action) = interaction(player.translation)
+        && let Some(action) = aimed_action(&player, &game)
     {
-        if action == Action::OpenDesk
-            && let Some(station) = station_at(player.translation)
-        {
-            seating.sit(&mut player, station);
-        }
         actions.0.push(action);
     }
     let dt = time.delta_secs().min(0.1);
@@ -233,58 +330,115 @@ pub fn doors(
     let unlocked = review_unlocked(game.phase);
     let rotation = Quat::from_rotation_y(if unlocked { -FRAC_PI_2 } else { 0.0 });
     for mut door in &mut doors {
-        door.rotation = door
-            .rotation
-            .slerp(rotation, (time.delta_secs() * 5.0).min(1.0));
+        if door.rotation.angle_between(rotation) > 0.0001 {
+            door.rotation = door
+                .rotation
+                .slerp(rotation, (time.delta_secs() * 5.0).min(1.0));
+        } else if door.rotation != rotation {
+            door.rotation = rotation;
+        }
     }
     for mut lamp in &mut lamps {
-        lamp.0 = if unlocked {
-            materials.unlocked.clone()
+        let next = if unlocked {
+            &materials.unlocked
         } else {
-            materials.locked.clone()
+            &materials.locked
         };
+        if lamp.0 != *next {
+            lamp.0 = next.clone();
+        }
     }
 }
-pub fn hud_text(game: &Session, position: Vec3) -> String {
-    let prompt: String = if station_at(position).is_some() {
-        "[E] Sit and use dispatch computer".into()
-    } else {
-        match interaction(position) {
-            Some(Action::OpenDesk) => "[E] Open wall map / dispatch".into(),
-            Some(Action::Door) => if review_unlocked(game.phase) {
-                "Rear review door UNLOCKED - enter the meeting room"
+pub fn hud_text(game: &Session, pose: &Transform) -> String {
+    let prompt = match aimed_action(pose, game) {
+        Some(Action::Sit(_)) => "[E] Sit at workstation",
+        Some(Action::OpenDesk) => "[E] Focus dispatch computer",
+        Some(Action::OpenMap) => "[E] View city map",
+        Some(Action::Door) => {
+            if review_unlocked(game.phase) {
+                "Review door unlocked"
             } else {
-                "Rear review door LOCKED until shift ends"
+                "Review door locked during shift"
             }
-            .into(),
-            Some(Action::OpenReview) => "[E] Open performance review".into(),
-            _ => if review_unlocked(game.phase) {
-                "Review room: through the rear door"
+        }
+        Some(Action::OpenReview) => "[E] Open shift review",
+        Some(Action::Coffee) => "[E] Get coffee",
+        _ => {
+            if game.seated.is_some() {
+                "Aim at your monitor to use dispatch | Space stand"
             } else {
-                "Walk to any dispatch chair and press E to sit"
+                "Find a workstation and aim at a chair"
             }
-            .into(),
         }
     };
     format!(
-        "WRONG NUMBER | SHIFT {} | {} | {:02}:{:02}\n{prompt}\n{}\nWASD move | Mouse look | E use | Shift hurry | Esc release/pause",
+        "WRONG NUMBER | SHIFT {} | {} | {:02}:{:02} remaining\n{}\n{}\nWASD move | Mouse look | E use | Space stand | Esc back/pause | F3 FPS",
         game.shift,
         game.status(),
-        game.sim.now() / 60,
-        game.sim.now() % 60,
+        game.remaining() / 60,
+        game.remaining() % 60,
+        prompt,
         game.notice
     )
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ray_boxes_reject_misses_and_targets_behind_the_camera() {
+        use super::*;
+        assert_eq!(
+            ray_box(
+                Vec3::ZERO,
+                Vec3::NEG_Z,
+                Vec3::new(-1.0, -1.0, -3.0),
+                Vec3::new(1.0, 1.0, -2.0)
+            ),
+            Some(2.0)
+        );
+        assert!(
+            ray_box(
+                Vec3::ZERO,
+                Vec3::Z,
+                Vec3::new(-1.0, -1.0, -3.0),
+                Vec3::new(1.0, 1.0, -2.0)
+            )
+            .is_none()
+        );
+        assert!(
+            ray_box(
+                Vec3::new(2.0, 0.0, 0.0),
+                Vec3::NEG_Z,
+                Vec3::splat(-1.0),
+                Vec3::ONE
+            )
+            .is_none()
+        );
+    }
+
     use super::*;
     #[test]
+    fn targeting_enforces_range_and_the_review_room_partition() {
+        let game = Session::default();
+        let far = Transform::from_xyz(SEATS[2], 1.65, 6.35)
+            .looking_at(Vec3::new(SEATS[2], 0.9, 1.7), Vec3::Y);
+        assert_eq!(aimed_action(&far, &game), None);
+        let blocked =
+            Transform::from_xyz(2.0, 1.65, 10.7).looking_at(Vec3::new(5.7, 1.4, 10.7), Vec3::Y);
+        assert_eq!(aimed_action(&blocked, &game), None);
+        let clear =
+            Transform::from_xyz(5.7, 1.65, 9.0).looking_at(Vec3::new(5.7, 1.4, 10.7), Vec3::Y);
+        assert_eq!(aimed_action(&clear, &game), Some(Action::OpenReview));
+    }
+    #[test]
     fn all_six_station_approaches_and_break_room_are_accessible() {
-        for n in 0..6 {
+        for (n, &x) in SEATS.iter().enumerate() {
             let p = desk_approach(n);
             assert!(walkable(Vec2::new(p.x, p.z), Phase::Running));
-            assert_eq!(station_at(p), Some(n));
-            assert_eq!(interaction(p), Some(Action::OpenDesk));
+            let pose = Transform::from_translation(p).looking_at(Vec3::new(x, 0.9, 1.7), Vec3::Y);
+            assert_eq!(
+                aimed_action(&pose, &Session::default()),
+                Some(Action::Sit(n))
+            );
         }
         for p in [
             Vec2::new(8.5, 0.0),
@@ -299,7 +453,7 @@ mod tests {
     }
     #[test]
     fn review_door_and_room_remain_locked_during_the_shift() {
-        for phase in [Phase::Preparation, Phase::Running] {
+        for phase in [Phase::Closing, Phase::Running] {
             assert!(!walkable(Vec2::new(6.0, 7.0), phase));
             assert!(!walkable(Vec2::new(6.0, 8.0), phase));
         }
@@ -308,10 +462,6 @@ mod tests {
             assert!(walkable(Vec2::new(6.0, 8.0), phase));
             assert!(walkable(Vec2::new(5.7, 9.0), phase));
         }
-        assert_eq!(
-            interaction(Vec3::new(5.7, 1.65, 9.0)),
-            Some(Action::OpenReview)
-        );
     }
     #[test]
     fn mouse_capture_only_runs_while_walking_in_a_focused_window() {

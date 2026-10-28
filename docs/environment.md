@@ -8,11 +8,11 @@ The room uses the supplied dispatch-center image and description as a design ref
 - Six unnumbered chairs/workstations face one large front city board. Each station has a primary map monitor, secondary status monitor, keyboard, mouse, telephone/handset, headset, task lamp, mug, drawers and papers.
 - Four tall arched left windows and two front windows show nearby brick facades, fire escapes, window air conditioners, and selective rooftop equipment. The exterior is lit for daytime, with a blue sky background and no open skyline.
 - The right-hand break room is physically accessible through the glass partition. It contains a refrigerator, microwave, coffee machine, cabinets, sink, table/chairs, noticeboard and trash can.
-- The secured rear door leads to a separate meeting room with a six-seat table, presentation screen, and projector prop. Its visual state and collision gate derive from the same solo shift phase. It remains locked through preparation/live dispatch and unlocks for the review.
+- The secured rear door leads to a separate meeting room with a six-seat table, presentation screen, and projector prop. Its visual state and collision gate derive from the same solo shift phase. It remains locked through live dispatch and response closure and unlocks for the review.
 
-Walk behind a dispatch chair and press **E** to pop into its seated camera position and use the computer. Leaving the terminal restores the previous standing pose. No chair numbers or seating-selection menu are needed. The wall map can also open dispatch controls when approached.
+Aim at a dispatch chair and press **E** to pop into its seated camera position. Seated mouse look stays active. Aim at the monitor and press **E** again for computer focus; Escape returns to seated view and Space restores the previous standing pose. Chairs are unnumbered. The wall map opens a read-only overview.
 
-Mouse movement controls the view automatically while walking in the focused window. Escape opens pause or leaves a terminal; UI screens release the mouse cursor. Returning to walking recaptures it and discards the first mouse delta to avoid a view jump. Focus loss releases capture. Arrow keys remain a fallback.
+Mouse movement controls the view automatically while walking or seated in the focused window. Escape opens pause or leaves a terminal; UI screens release the mouse cursor. Returning to walking recaptures it and discards the first mouse delta to avoid a view jump. Focus loss releases capture. Arrow keys remain a fallback.
 
 ## Implementation and visual budget
 
@@ -28,4 +28,4 @@ The workspace tests cover all six chair approaches, entering the break room, fur
 
 The `--playtest --capture-dir ...` path additionally captures a tour of the dispatch hall, windows, break room, rear door, and unlocked meeting room, then completes the live six-call terminal flow, purchases radios and verifies the next shift. It renders in a hidden window so desktop input cannot disturb the test. Screenshot inspection checks geometry, lighting and readability.
 
-Local graphical validation uses software Vulkan because of the existing NVIDIA initialization problem. This proves the rendered flow works; it does not establish 60 FPS on target gaming hardware.
+Hardware Vulkan now works on the development RTX 3080. The launcher defaults to hardware, F3 shows frame rate, and `--benchmark` measures the room. The shared board caches its rendered texture between updates; HUD and hover components update only when their values change. Reduced graphics disable shadow maps and use a smaller window.

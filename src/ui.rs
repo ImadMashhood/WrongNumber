@@ -74,6 +74,8 @@ fn column(width: f32) -> Node {
 }
 fn state_name(state: IncidentState) -> &'static str {
     match state {
+        IncidentState::Pending => "QUEUED",
+        IncidentState::Unreported => "UNREPORTED",
         IncidentState::Active => "OPEN",
         IncidentState::Resolved => "RESOLVED",
         IncidentState::Expired => "EXPIRED",
@@ -154,7 +156,7 @@ fn map(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
             })
             .with_children(|p| text(p, format!("H{}", unit.id), 13.0, cap_color(unit.capability)));
         }
-        for id in game.sim.incidents().keys() {
+        for id in game.visible_ids() {
             let view = game.sim.call_view(*id).unwrap();
             let color = if view.state == IncidentState::Active {
                 AMBER
@@ -208,16 +210,17 @@ fn map(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
     text(p, "TRAINING GRID / ROAD ROUTING PENDING", 11.0, AMBER);
 }
 fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
-    let running = game.phase == Phase::Running;
+    let running = matches!(game.phase, Phase::Running | Phase::Closing);
     p.spawn((column(23.0), BackgroundColor(PANEL)))
         .with_children(|p| {
             text(p, "INCOMING / CASE QUEUE", 14.0, MUTED);
-            for id in game.sim.incidents().keys() {
+            for id in game.visible_ids() {
                 let v = game.sim.call_view(*id).unwrap();
                 let tag = if v.state != IncidentState::Active {
                     state_name(v.state)
                 } else {
                     match v.call {
+                        CallState::Queued => "QUEUED",
                         CallState::Ringing => "RINGING",
                         CallState::Answered { .. } => "ON LINE",
                         CallState::Declined => "DECLINED",
@@ -232,35 +235,31 @@ fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
                     true,
                 );
             }
-            if game.phase == Phase::Preparation {
-                button(p, "BEGIN SHIFT", Action::Begin, true);
-            }
             if running {
                 button(
                     p,
-                    format!("CLOCK SPEED / {}x", game.speed),
-                    Action::Speed,
+                    "Finish shift early / skip remaining time",
+                    Action::EndShift,
                     true,
                 );
-                button(p, "Advance to shift end", Action::EndShift, true);
             }
             button(p, "Leave console [Esc]", Action::Office, true);
         });
     p.spawn((column(36.0),BackgroundColor(PANEL))).with_children(|p| {
-        let view=game.sim.call_view(game.selected).unwrap();
+        let Ok(view)=game.sim.call_view(game.selected) else {text(p,"Waiting for your first caller",25.0,TEXT);text(p,"Calls arrive 1–10 seconds after sitting. The clock keeps running outside computer focus.",17.0,MUTED);return;};
         text(p,format!("CALL {:02} / {}",game.selected,state_name(view.state)),14.0,AMBER);
         text(p,view.report,25.0,TEXT);
         text(p,format!("Grid {}, {}",view.location.x,view.location.y),13.0,MUTED);
-        if game.phase==Phase::Preparation {text(p,"Begin the shift when you are ready. Calls and timers are held during preparation.",17.0,TEXT);}
-        else if game.phase==Phase::AwaitingReview {text(p,"Shift finished. Leave the console and walk through the rear door into the meeting room.",19.0,TEXT);}
+        if game.phase==Phase::AwaitingReview {text(p,"Shift finished. Leave the console and walk through the rear door into the meeting room.",19.0,TEXT);}
         else {
             if view.state==IncidentState::Active {text(p,format!("Response window: {}s",game.sim.incidents()[&game.selected].deadline.saturating_sub(game.sim.now())),13.0,MUTED);}
-            if view.call==CallState::Ringing {button(p,"ANSWER CALL",Action::Answer,running);}
+            if view.call==CallState::Ringing {button(p,"ANSWER CALL",Action::Answer,running&&game.call_station==game.seated&&game.conversation.is_none());}
             if view.facts.is_empty() {text(p,"No evidence collected yet. Ask questions before committing limited teams.",15.0,MUTED);}
             for fact in view.facts {text(p,format!("YOU: {}",fact.question),13.0,MUTED); text(p,format!("CALLER: {}",fact.answer),17.0,TEXT);}
-            for (id,question) in view.questions {button(p,format!("Ask: {question}"),Action::Ask(id),running&&game.selected_call_answered());}
-            if view.state==IncidentState::Active {button(p,"Decline response",Action::Decline,running&&game.selected_call_answered());}
+            for (id,question) in view.questions {button(p,format!("Ask: {question}"),Action::Ask(id),running&&game.conversation==Some(game.selected)&&game.call_station==game.seated);}
+            if view.state==IncidentState::Active {button(p,"Decline response",Action::Decline,running&&game.conversation==Some(game.selected)&&game.call_station==game.seated);}
         }
+        button(p,"End conversation",Action::HangUp,game.conversation.is_some()&&game.call_station==game.seated);
         text(p,"ASSIGN / CANCEL / REROUTE",13.0,MUTED);
         for unit in game.sim.units().values() {
             let verb=match unit.state {UnitState::Available=>"Send",UnitState::Assigned {incident} | UnitState::EnRoute {incident,..} if incident==game.selected=>"Cancel",UnitState::Assigned {..} | UnitState::EnRoute {..}=>"Reroute",_=>"Busy"};
@@ -279,7 +278,7 @@ fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
 fn review(p: &mut ChildSpawnerCommands, game: &Session) {
     let result = game.sim.review();
     p.spawn((column(66.0),BackgroundColor(PANEL))).with_children(|p| {
-        text(p,"SHIFT REVIEW / RECORDED OUTCOMES",24.0,TEXT);
+        text(p,format!("SHIFT REVIEW / GRADE {}",game.grade()),24.0,TEXT);
         text(p,format!("{} resolved | {} refused | {} expired",result.resolved,result.dismissed,result.expired),18.0,AMBER);
         for entry in &result.score_entries {text(p,format!("{:02}:{:02}  Call {}  {:+} pts\n{}",entry.at/60,entry.at%60,entry.incident,entry.points,entry.reason),16.0,TEXT);}
         text(p,format!("Score {}  /  Base grant 100 + score = {} funding (minimum 0)",result.score,game.grant()),17.0,AMBER);
@@ -352,7 +351,7 @@ pub fn draw(
             if screen == Screen::Office {
                 p.spawn((
                     Hud,
-                    Text::new(hud_text(&game, player.translation)),
+                    Text::new(hud_text(&game, &player)),
                     TextFont {
                         font_size: FontSize::Px(14.0),
                         ..default()
@@ -370,23 +369,19 @@ pub fn draw(
                     BackgroundColor(INK.with_alpha(0.72)),
                 ));
                 p.spawn((
-                    Text::new("+"),
-                    TextFont {
-                        font_size: FontSize::Px(17.0),
-                        ..default()
-                    },
-                    TextColor(TEXT.with_alpha(0.6)),
+                    Reticle,
                     Node {
                         position_type: PositionType::Absolute,
                         left: percent(50),
                         top: percent(50),
-                        margin: UiRect {
-                            left: px(-5),
-                            top: px(-10),
-                            ..default()
-                        },
+                        width: px(10),
+                        height: px(10),
+                        margin: UiRect::all(px(-5)),
+                        border: UiRect::all(px(2)),
+                        border_radius: BorderRadius::MAX,
                         ..default()
                     },
+                    BorderColor::all(TEXT.with_alpha(0.6)),
                 ));
             } else {
                 p.spawn(Node {
@@ -403,8 +398,8 @@ pub fn draw(
                             "SHIFT {}  |  {}  |  {:02}:{:02}  |  SCORE {}",
                             game.shift,
                             game.status(),
-                            game.sim.now() / 60,
-                            game.sim.now() % 60,
+                            game.remaining() / 60,
+                            game.remaining() % 60,
                             game.sim.score()
                         ),
                         16.0,
@@ -419,6 +414,13 @@ pub fn draw(
                 })
                 .with_children(|p| match screen {
                     Screen::Terminal => terminal(p, &game, &image),
+                    Screen::CityMap => {
+                        p.spawn((column(70.0), BackgroundColor(PANEL)))
+                            .with_children(|p| {
+                                map(p, &game, &image);
+                                button(p, "Return to room", Action::Office, true);
+                            });
+                    }
                     Screen::Review => review(p, &game),
                     Screen::Pause => {
                         p.spawn((column(50.0), BackgroundColor(PANEL)))
@@ -443,22 +445,50 @@ pub fn draw(
             }
         });
 }
+#[derive(Component)]
+pub struct Reticle;
 pub fn update_hud(
     game: Res<Session>,
     player: Single<&Transform, With<Player>>,
+    stats: Res<crate::performance::Frames>,
+    mut reticle: Query<&mut BorderColor, With<Reticle>>,
     mut hud: Query<&mut Text, With<Hud>>,
 ) {
+    for mut color in &mut reticle {
+        let target = crate::world::aimed_action(&player, &game);
+        let next = BorderColor::all(match target {
+            Some(Action::Door | Action::OpenReview)
+                if !crate::world::review_unlocked(game.phase) =>
+            {
+                Color::srgb(1.0, 0.25, 0.2)
+            }
+            Some(_) => TEAL,
+            None => TEXT.with_alpha(0.6),
+        });
+        if *color != next {
+            *color = next;
+        }
+    }
     for mut text in &mut hud {
-        text.0 = hud_text(&game, player.translation);
+        let mut value = hud_text(&game, &player);
+        if stats.show {
+            value.push_str(&format!("\n{:.0} FPS | {}", stats.fps, stats.gpu));
+        }
+        if text.0 != value {
+            text.0 = value;
+        }
     }
 }
 pub fn hover(mut buttons: Query<(&Hovered, &mut BackgroundColor), With<Button>>) {
     for (hovered, mut color) in &mut buttons {
-        *color = BackgroundColor(if hovered.get() {
+        let next = BackgroundColor(if hovered.get() {
             TEAL
         } else {
             Color::srgb(0.12, 0.23, 0.26)
         });
+        if *color != next {
+            *color = next;
+        }
     }
 }
 

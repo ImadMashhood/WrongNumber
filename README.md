@@ -1,6 +1,6 @@
 # Wrong Number
 
-**A 1–4 player cooperative emergency-dispatch comedy game built with Rust and Bevy.**
+**A 1–6 player cooperative emergency-dispatch comedy game built with Rust and Bevy.**
 
 Players work a shift in a busy dispatch office, investigate calls from unreliable callers, and decide when to send scarce response teams. The city remembers those choices: incidents resolve, responders stay occupied, new calls can emerge, and the team reviews its performance before buying upgrades.
 
@@ -89,8 +89,12 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 - [x] Interactions for answering, asking scripted questions, reading clues, dispatching or declining, and checking unit availability.
 - [x] Three response types—police, ambulance, and fire—with distinct capabilities and visible busy/available states.
 - [x] A compact city with several districts, locations, simple travel times, incident markers, and a stylized skyline.
-- [x] A complete short shift: preparation, incoming calls, incident outcomes, performance review, and one upgrade choice.
+- [x] A ten-minute shift starting in the break room: delayed incoming calls, incident outcomes, performance grade/review, and one upgrade choice.
 - [x] Clear text and visual feedback for action results, incident status, and why score changed.
+- [x] Mouse look while standing or seated; E targets a chair, then the monitor; Escape leaves focus without standing, Space stands.
+- [x] Circular aim reticle with interaction prompts and locked-door feedback.
+- [x] Seeded 1–10 second call arrival delays, one active conversation per occupied solo workstation, and explicit hang-up.
+- [x] Hardware rendering by default, explicit reduced-graphics/software options, F3 frame display, and a reproducible benchmark.
 
 **Acceptance checks**
 
@@ -128,7 +132,7 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 **Deliverables**
 
-- [ ] Host and client sessions for two players, followed by a test at the four-player target.
+- [ ] Host and client sessions for two players, followed by a test at the six-player target.
 - [ ] Shared calls and responder pools, call ownership and transfer, player presence, reconnect handling, and clear host authority.
 - [ ] Reliable network commands for dispatch, decline, transfer, upgrades, and other critical decisions; presentation updates can use suitable lower-priority replication.
 - [ ] Lobby setup and a simple way to start and end a cooperative shift.
@@ -266,7 +270,9 @@ From the repository directory:
 cargo run --locked
 ```
 
-The M2 build opens the dispatch office. Walk up behind any dispatch chair and press **E** to sit and use the computer, then **Begin shift**. Use WASD to walk and move the mouse to look; Escape leaves a terminal or pauses and releases the cursor. After the shift, enter the unlocked rear meeting room for your review and upgrades. See [the office guide](docs/office.md) for the full controls and flow.
+The shift starts immediately in the break room. Walk behind a dispatch chair, aim at it and press **E** to sit. Look at your monitor and press **E** again to focus dispatch. Calls arrive after 1–10 seconds. **Escape** leaves computer focus while you stay seated; **Space** stands up. Use **F3** for FPS. See [the office guide](docs/office.md) for the complete flow.
+
+On Linux, `bash scripts/run.sh` uses normal hardware rendering and selects the NVIDIA Vulkan driver when available. `bash scripts/run.sh --low-graphics` reduces resolution and disables shadows. `--software` explicitly selects Mesa CPU rendering with reduced graphics; it is a slow diagnostic fallback.
 
 To check startup and exit automatically after 60 updates (requires a display and graphics device):
 
@@ -285,7 +291,7 @@ cargo test --locked --workspace
 
 The first compilation downloads and builds the engine and can take several minutes. Logs print to the terminal; set `RUST_LOG=info` for normal startup diagnostics or `RUST_LOG=debug` for more detail. No API credentials or downloaded assets are needed for M0.
 
-See [the architecture decision](docs/architecture.md) for boundaries and pending networking decisions, and [asset provenance](assets/README.md) before adding external content. The two-platform CI workflow checks formatting, compilation, Clippy, and test targets; graphics launch checks currently run locally.
+See [the architecture decision](docs/architecture.md) for boundaries and pending networking decisions, and [asset provenance](assets/README.md) before adding external content. The two-platform CI workflow checks formatting, compilation, Clippy, and test targets; Linux CI also runs the graphical shift under Xvfb with software Vulkan.
 
 ## Run the M1 simulation demo
 
@@ -310,7 +316,7 @@ See [simulation rules and API](docs/simulation.md) for command examples, scoring
 - Fedora 44: `cargo build`, formatting, `cargo check --all-targets`, and Clippy passed with the pinned toolchain and lockfile.
 - The M0 build initially had no gameplay tests. M1 adds a dedicated simulation test suite.
 - The graphical launch check passed on Mesa llvmpipe (software Vulkan), opening the window and exiting normally after 60 updates.
-- The NVIDIA hardware driver on the development machine failed with `NVVM compilation failed` / device lost. Hardware rendering and Windows launch remain unverified.
+- The original M0 NVIDIA launch failed with `NVVM compilation failed` / device lost. The current M2 build now launches and completes a shift on the RTX 3080 using Vulkan. Windows graphical launch remains unverified.
 - Where Mesa's software Vulkan driver is installed, this diagnostic fallback can be used on Fedora (it is slower than hardware rendering):
 
 ```bash
@@ -321,9 +327,9 @@ The M0 and M1 GitHub CI runs passed on Linux and Windows. M2 adds a Linux softwa
 
 ## M2 verification and imported map
 
-- 29 local automated tests pass: 19 simulation tests and 10 office/shift, seating, movement, door, and input tests.
-- Formatting, workspace compilation, and Clippy pass.
-- A graphical playthrough using Mesa software Vulkan loaded the map, investigated six calls, earned 210 points, opened the review, bought radios, and verified shorter recovery in the next shift. Screenshots were inspected for readability.
+- 35 local automated tests pass: 22 simulation tests and 13 office/shift, seating, movement, door, and input tests.
+- Formatting, workspace compilation, and Clippy pass. Both hardware/normal-graphics and software/reduced-graphics graphical playthroughs pass locally.
+- The graphical playthrough on NVIDIA Vulkan verifies targeted seating and monitor focus, six sequential delayed calls, 210 points, the ten-minute shift boundary, review, a radio purchase, and shorter recovery in the next shift. Screenshots are inspected for room geometry and UI readability.
 - The imported road-map starter has 2,639 nodes and 1,977 roads but 694 disconnected weak components. The supplied image is displayed; the graph does not yet drive travel. Run `python3 tools/maps/audit_graph.py` after editing the graph.
 - The map's 4 km width, synthetic street names/addresses, connections, and training station placements need confirmation before road routing. Run upgrades currently last only until the app closes.
 
@@ -333,9 +339,9 @@ See [the office guide](docs/office.md) for controls, map integration boundaries,
 
 The office now follows the supplied environment reference: a deeper brick industrial room, tall arched windows looking onto close neighboring buildings in daylight, six unnumbered workstations with simple recognizable equipment, a large live city board, a glass-fronted break room, and a separate rear meeting room. Shared low-poly meshes and small repeating brick/floor textures keep the detail restrained.
 
-Mouse look is automatic while walking. Press E at a chair to sit and use its computer; leaving the terminal restores the standing position. The rear meeting-room door stays locked during the shift and opens when review becomes available. The wall map and desktop monitors share a live render target driven by the existing simulation.
+Mouse look works while walking and seated. Aim at a chair and press E to sit, then aim at the monitor and press E to use dispatch. Escape returns to seated free-look; Space stands. The rear meeting-room door stays locked during the shift and opens when review becomes available. The wall map and desktop monitors share a live render target driven by the existing simulation.
 
-The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. This is a solo environment refinement; networked characters, proximity voice and road-graph routing remain in their planned milestones. Hardware performance still needs measurement; local graphical validation uses the Mesa fallback described above. See [the environment guide](docs/environment.md).
+The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. This is a solo environment refinement; networked characters, proximity voice and road-graph routing remain in their planned milestones. The launcher no longer forces CPU rendering. The same 1440×900 room benchmark measured 58.5 FPS on the RTX 3080 versus 3.0 FPS on CPU llvmpipe (300 measured frames after 90 warm-up frames, normal graphics, VSync). This is a single-machine scene measurement. See [the environment guide](docs/environment.md).
 
 ## Source brief
 

@@ -14,3 +14,7 @@
 
 - `src/wall_map.rs` renders a shared live situational board into one image target. The wall display and monitor surfaces reuse that image; fullscreen terminal details continue to use the public call views. The main 3D camera is the explicit default UI camera, keeping the offscreen board separate from player menus.
 - The environment uses a daytime exterior, warm pendant/task lighting, two shadowed interior spots and one limited-resolution sun shadow cascade. It uses shared primitive meshes and procedural tiled materials; no photoreal assets or new dependencies were introduced.
+
+- `Session` starts a 600-second solo shift immediately, schedules eligible calls after seeded 1–10 second delays, owns workstation/line state, and closes dispatch before waiting for active responses. Pending scenarios remain hidden from call views; simulation events record delivery and hang-up independently of incident resolution. Player IDs now validate 1–6 for the future co-op target, but network sessions and shared chair claims are not implemented.
+- Room interactions use camera-ray/AABB proxies with distance checks and partition occlusion. Seating and computer focus are independent states; the seated camera remains free to look around.
+- `src/performance.rs` owns optional frame statistics, reduced shadow settings and a fixed-camera benchmark. The Linux script selects hardware rendering normally; software Vulkan is opt-in.

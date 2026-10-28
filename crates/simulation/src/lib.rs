@@ -61,6 +61,8 @@ pub struct Fact {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IncidentState {
+    Pending,
+    Unreported,
     Active,
     Resolved,
     Expired,
@@ -68,6 +70,7 @@ pub enum IncidentState {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CallState {
+    Queued,
     Ringing,
     Answered { by: PlayerId },
     Declined,
@@ -141,6 +144,13 @@ pub struct Unit {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventKind {
+    CallArrived {
+        incident: IncidentId,
+    },
+    CallEnded {
+        incident: IncidentId,
+        player: PlayerId,
+    },
     CallAccepted {
         incident: IncidentId,
         player: PlayerId,
@@ -184,6 +194,7 @@ pub struct Event {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum Command {
+    EndCall { incident: IncidentId },
     AcceptCall { incident: IncidentId },
     Ask { incident: IncidentId, fact: String },
     Dispatch { unit: UnitId, incident: IncidentId },
@@ -294,6 +305,7 @@ pub struct ShiftConfig {
     pub extra_police: bool,
     pub stations: [Position; 3],
     pub incident_locations: Option<[Position; 6]>,
+    pub queued_calls: bool,
 }
 impl Default for ShiftConfig {
     fn default() -> Self {
@@ -302,6 +314,7 @@ impl Default for ShiftConfig {
             extra_police: false,
             stations: [Position { x: 0, y: 0 }; 3],
             incident_locations: None,
+            queued_calls: false,
         }
     }
 }
@@ -363,6 +376,12 @@ impl Simulation {
                 incident.location = location;
             }
         }
+        if config.queued_calls {
+            for incident in sim.incidents.values_mut() {
+                incident.state = IncidentState::Pending;
+                incident.call = CallState::Queued;
+            }
+        }
         for (unit, station) in sim.units.values_mut().zip(config.stations) {
             unit.station = station;
             unit.position = station;
@@ -374,6 +393,38 @@ impl Simulation {
             sim.units.insert(4, unit);
         }
         Ok(sim)
+    }
+    pub fn activate_call(&mut self, id: IncidentId, window: u32) -> Result<(), Error> {
+        let incident = self.incident(id)?;
+        if incident.state != IncidentState::Pending
+            || window == 0
+            || window > 3600
+            || self.now + window > 86400
+        {
+            return Err(Error::InvalidTransition);
+        }
+        let incident = self.incidents.get_mut(&id).unwrap();
+        incident.state = IncidentState::Active;
+        incident.call = CallState::Ringing;
+        incident.deadline = self.now + window;
+        self.emit(EventKind::CallArrived { incident: id });
+        Ok(())
+    }
+    pub fn close_unreported(&mut self) {
+        let ids: Vec<_> = self
+            .incidents
+            .values()
+            .filter(|i| i.state == IncidentState::Pending)
+            .map(|i| i.id)
+            .collect();
+        for id in ids {
+            self.end_incident(
+                id,
+                IncidentState::Unreported,
+                0,
+                "No call was delivered before the shift ended",
+            );
+        }
     }
     pub fn now(&self) -> u32 {
         self.now
@@ -428,6 +479,9 @@ impl Simulation {
     }
     pub fn call_view(&self, id: IncidentId) -> Result<CallView, Error> {
         let i = self.incident(id)?;
+        if matches!(i.state, IncidentState::Pending | IncidentState::Unreported) {
+            return Err(Error::CallUnavailable);
+        }
         let answered = !matches!(i.call, CallState::Ringing);
         Ok(CallView {
             id,
@@ -508,7 +562,7 @@ impl Simulation {
         if i.state != IncidentState::Active {
             return Err(Error::IncidentClosed);
         }
-        if !matches!(i.call, CallState::Answered { .. }) {
+        if !matches!(i.call, CallState::Answered { .. } | CallState::Closed) {
             return Err(Error::CallUnavailable);
         }
         if u.capability != i.required {
@@ -532,12 +586,20 @@ impl Simulation {
             serde_json::from_str(json).map_err(|e| Error::InvalidCommand(e.to_string()))?;
         self.apply(player, command)
     }
-    /// Rejected commands have no side effects. Player IDs are 1 through 4.
+    /// Rejected commands have no side effects. Player IDs are 1 through 6.
     pub fn apply(&mut self, player: PlayerId, command: Command) -> Result<(), Error> {
-        if !(1..=4).contains(&player) {
+        if !(1..=6).contains(&player) {
             return Err(Error::InvalidPlayer);
         }
         match command {
+            Command::EndCall { incident } => {
+                let i = self.incident(incident)?;
+                if !matches!(i.call,CallState::Answered{by} if by==player) {
+                    return Err(Error::CallUnavailable);
+                }
+                self.incidents.get_mut(&incident).unwrap().call = CallState::Closed;
+                self.emit(EventKind::CallEnded { incident, player });
+            }
             Command::AcceptCall { incident } => {
                 let i = self.incident(incident)?;
                 if i.state != IncidentState::Active {
@@ -826,8 +888,11 @@ impl Simulation {
                 || i.service_seconds == 0
                 || i.service_seconds > 3600
                 || (i.state == IncidentState::Active && i.deadline <= self.now)
-                || (i.state != IncidentState::Active && i.call != CallState::Closed)
-                || matches!(i.call, CallState::Answered {by} if !(1..=4).contains(&by))
+                || (!matches!(i.state, IncidentState::Active | IncidentState::Pending)
+                    && i.call != CallState::Closed)
+                || (i.state == IncidentState::Pending && i.call != CallState::Queued)
+                || (i.state != IncidentState::Pending && i.call == CallState::Queued)
+                || matches!(i.call, CallState::Answered {by} if !(1..=6).contains(&by))
                 || i.facts
                     .iter()
                     .any(|f| f.id.is_empty() || !facts.insert(&f.id))
@@ -919,9 +984,15 @@ impl Simulation {
                 return Err(invalid());
             }
             last = e.at;
-            let valid_player = |player| (1..=4).contains(&player);
+            let valid_player = |player| (1..=6).contains(&player);
             match &e.kind {
-                EventKind::CallAccepted { incident, player }
+                EventKind::CallArrived { incident } => {
+                    if !self.incidents.contains_key(incident) {
+                        return Err(invalid());
+                    }
+                }
+                EventKind::CallEnded { incident, player }
+                | EventKind::CallAccepted { incident, player }
                 | EventKind::CallDeclined { incident, player } => {
                     if !self.incidents.contains_key(incident) || !valid_player(*player) {
                         return Err(invalid());
@@ -970,7 +1041,7 @@ impl Simulation {
                     ..
                 } => {
                     let i = self.incidents.get(incident).ok_or_else(invalid)?;
-                    if *state == IncidentState::Active
+                    if matches!(*state, IncidentState::Active | IncidentState::Pending)
                         || *state != i.state
                         || !ended.insert(incident)
                     {
@@ -980,11 +1051,10 @@ impl Simulation {
                 }
             }
         }
-        if self
-            .incidents
-            .values()
-            .any(|i| (i.state != IncidentState::Active) != ended.contains(&i.id))
-        {
+        if self.incidents.values().any(|i| {
+            (!matches!(i.state, IncidentState::Active | IncidentState::Pending))
+                != ended.contains(&i.id)
+        }) {
             return Err(invalid());
         }
         if total != i64::from(self.score) {

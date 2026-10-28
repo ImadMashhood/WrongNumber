@@ -2,20 +2,23 @@
 
 ## Play a shift
 
-Run `cargo run --locked` from the repository. The app starts in the office in preparation mode; timers wait until you begin the shift.
+Run `cargo run --locked`, or on Linux `bash scripts/run.sh`. You spawn standing in the break room and the 10-minute countdown starts immediately.
 
-- WASD: walk. Hold Shift to move faster.
-- Mouse movement looks around automatically while walking; arrow keys remain a fallback. The cursor releases at terminals, reviews, pause menus, or when the window loses focus.
-- E: interact with the nearby dispatch desk, wall map, or review table.
-- Escape: leave a terminal; in the office it opens the pause menu. Escape again resumes. Closing the window or the pause menu's Quit button exits.
+- WASD walks; Shift moves faster. Mouse movement looks around while standing or seated; arrow keys are a fallback.
+- Aim at a chair and press **E** to sit. Chairs remain unnumbered.
+- Aim at your monitor or telephone and press **E** to focus the dispatch interface.
+- **Escape** leaves computer focus without standing. In room view, Escape opens the solo pause menu and releases the cursor. Escape again resumes.
+- **Space** stands up from seated room view, restoring your previous standing position.
+- **E** also targets the wall map, coffee machine, review door and conference table. The circular reticle turns green for usable targets, red for the locked review door.
+- **F3** toggles FPS and graphics-adapter information.
 
-Walk up behind any dispatch chair and press E to sit at that workstation and use its computer. Leaving the console restores your standing position. Then select **Begin shift**. Select a numbered call, answer it, ask the available question, and choose a responder or decline. Revealed answers stay in the case notes. All controls go through the M1 authority command validation.
+Sitting schedules a caller after a seeded random delay of 1–10 seconds. Only one ringing/active conversation is delivered at a time. Undelivered calls and their locations remain hidden. A call stays attached to its original workstation if you stand up; return to that seat to answer it. Leaving computer focus does not stop calls or the timer. The phone currently has a visual/text notification; audible spatial ringing and microphone/AI conversation are future audio work.
 
-Police, medical, and fire teams have distinct capabilities. A unit already assigned/en route can be cancelled when its call is selected, or rerouted when another answered call is selected. A busy on-scene, returning, or recovering unit cannot be reused. The map and roster display its status and ETA.
+Answer, ask the scripted question, then assign a responder or decline. **End conversation** frees the line for the next caller while the incident and any dispatched unit continue. Questions and refusals require your active conversation; previously investigated open incidents can still receive responders after hang-up. Police, medical and fire teams have distinct capabilities. Assigned/en-route units can be cancelled or rerouted; on-scene, returning and recovering units cannot be reused.
 
-Time continues while using the terminal and walking around. The pause menu freezes it. A 3x clock option helps playtesting. **Advance to shift end** runs all remaining deadlines and recovery time using the same simulation rules; it is a deliberate shortcut with normal missed-emergency penalties.
+The timer keeps running throughout room movement and all computer/map screens. Only explicit solo pause stops it. **Finish shift early / skip remaining time** is a playtest convenience: it advances the remaining time with normal deadlines and penalties. At 10 minutes, no more calls are delivered; existing incidents and responder returns finish before the rear door unlocks. Calls never delivered are recorded without a penalty and do not appear as received cases.
 
-When all incidents have concluded and responders have recovered, or the 330-second maximum shift window expires, return to the office. Enter the rear meeting room after its secured door unlocks. Press E to see recorded outcomes, score explanations, and funding. Funding is `max(0, 100 + shift score)` and is credited once per shift.
+Enter the unlocked rear meeting room and aim at the conference table to review the grade, score explanations and funding. Funding is `max(0, 100 + score)`, credited once. A shift with no handled calls receives grade F.
 
 Buy at most one upgrade per review, or continue without buying:
 
@@ -36,7 +39,7 @@ For that integration, agree on map scale and station locations first. A proposed
 
 ## Verification
 
-`cargo test --locked --workspace` checks simulation rules and the solo shift lifecycle, including preparation/pause, complete review/purchase/next-shift flow, additional patrol, gated purchases, early finishing, and collision boundaries.
+`cargo test --locked --workspace` checks simulation rules and the solo shift lifecycle, including automatic countdown/pause, seeded arrival delays, single-call delivery, complete review/purchase/next-shift flow, additional patrol, gated purchases, early finishing, and collision boundaries.
 
 The graphical playthrough tours the main room, arched windows, break room and rear door, then drives the same enabled button observers used by the terminal:
 
@@ -46,6 +49,8 @@ cargo run --locked -- --playtest --capture-dir /absolute/path/to/screenshots
 
 It investigates six calls, handles them correctly, verifies 210 points, enters the review area, buys radios, starts the next shift, and verifies 2-second recovery. It validates that the map asset loaded, saves room-tour, terminal, meeting-room, review, and next-shift screenshots, then exits. The automated window is hidden and ignores physical input so the test does not interfere with work on the desktop. `--smoke-test` remains a shorter 60-frame office startup check.
 
-On the development machine, use the Mesa Vulkan fallback documented in the README to bypass the NVIDIA initialization failure. Software rendering is intended for validation; performance on a working hardware driver must still be checked.
+The Linux launcher uses hardware rendering by default. The old launcher forced Mesa llvmpipe, rendering on the CPU and causing very low FPS. Use `--low-graphics` for 960×600 and no shadows; reserve `--software` for diagnosing a GPU problem.
+
+`cargo run --locked -- --benchmark` renders the same room overview, skips 90 warm-up frames, measures 300 frames, prints average FPS and 95th-percentile frame time, then exits. Normal graphics use 1440×900 and the default VSync presentation mode. This is a reproducible scene sample, not a guarantee for every view, GPU or multiplayer session.
 
 When running the compiled binary directly from a source checkout, set `BEVY_ASSET_ROOT` to the repository directory. `cargo run` already supplies the source asset root. Packaged builds must put `assets/` beside the executable (release packaging is future work).

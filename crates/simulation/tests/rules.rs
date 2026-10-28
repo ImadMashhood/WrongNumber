@@ -131,7 +131,7 @@ fn validates_player_ids_resources_capabilities_and_transitions() {
         Err(Error::InvalidPlayer)
     );
     assert_eq!(
-        sim.apply(5, Command::AcceptCall { incident: 1 }),
+        sim.apply(7, Command::AcceptCall { incident: 1 }),
         Err(Error::InvalidPlayer)
     );
     assert_eq!(
@@ -483,5 +483,69 @@ fn shift_configuration_changes_stations_recovery_and_capacity() {
             }
         )
         .is_err()
+    );
+}
+
+#[test]
+fn queued_calls_stay_hidden_and_get_a_fresh_deadline_on_delivery() {
+    let mut sim = Simulation::new_with_config(
+        42,
+        ShiftConfig {
+            queued_calls: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    sim.advance(500).unwrap();
+    assert!(sim.call_view(1).is_err());
+    assert_eq!(sim.incidents()[&1].state, IncidentState::Pending);
+    let restored = Simulation::load_json(&sim.save_json().unwrap()).unwrap();
+    assert_eq!(sim, restored);
+    sim.activate_call(1, 120).unwrap();
+    assert_eq!(sim.incidents()[&1].deadline, 620);
+    let before = sim.clone();
+    assert!(sim.activate_call(1, 120).is_err());
+    assert_eq!(before, sim);
+    sim.advance(120).unwrap();
+    assert_eq!(sim.incidents()[&1].state, IncidentState::Expired);
+    assert_eq!(sim.incidents()[&2].state, IncidentState::Pending);
+}
+#[test]
+fn ending_a_conversation_preserves_response_work_and_rejects_other_owners() {
+    let mut sim = dispatched();
+    let before = sim.clone();
+    assert!(sim.apply(2, Command::EndCall { incident: 1 }).is_err());
+    assert_eq!(before, sim);
+    sim.apply(1, Command::EndCall { incident: 1 }).unwrap();
+    assert_eq!(sim.call_view(1).unwrap().call, CallState::Closed);
+    assert_eq!(sim.incidents()[&1].state, IncidentState::Active);
+    assert!(sim.apply(1, Command::AcceptCall { incident: 1 }).is_err());
+    sim.advance(90).unwrap();
+    assert_eq!(sim.incidents()[&1].state, IncidentState::Resolved);
+    assert_eq!(
+        Simulation::load_json(&sim.save_json().unwrap()).unwrap(),
+        sim
+    );
+}
+#[test]
+fn undelivered_calls_close_without_penalties_and_sixth_player_is_valid() {
+    let mut sim = Simulation::new_with_config(
+        42,
+        ShiftConfig {
+            queued_calls: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    sim.activate_call(2, 120).unwrap();
+    sim.apply(6, Command::AcceptCall { incident: 2 }).unwrap();
+    sim.apply(6, Command::EndCall { incident: 2 }).unwrap();
+    sim.close_unreported();
+    assert_eq!(sim.score(), 0);
+    assert_eq!(sim.incidents()[&1].state, IncidentState::Unreported);
+    assert_eq!(sim.incidents()[&2].state, IncidentState::Active);
+    assert_eq!(
+        Simulation::load_json(&sim.save_json().unwrap()).unwrap(),
+        sim
     );
 }

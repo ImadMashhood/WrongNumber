@@ -2,6 +2,7 @@
 mod city;
 mod environment;
 mod game;
+mod performance;
 mod playtest;
 mod ui;
 mod wall_map;
@@ -13,18 +14,26 @@ use ui::Actions;
 fn main() {
     let check = playtest::LaunchCheck::from_args();
     let automated = check.automated();
+    let graphics = performance::Graphics::from_args();
+    let resolution = if graphics.low {
+        (960, 600)
+    } else {
+        (1440, 900)
+    };
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.48, 0.64, 0.78)))
         .init_resource::<Session>()
         .init_resource::<Actions>()
         .insert_resource(check)
+        .insert_resource(graphics)
+        .init_resource::<performance::Frames>()
         .insert_resource(bevy::winit::WinitSettings::continuous())
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Wrong Number - Dispatch Office".into(),
                 visible: !automated,
                 focused: !automated,
-                resolution: (1440, 900).into(),
+                resolution: resolution.into(),
                 ..default()
             }),
             ..default()
@@ -36,16 +45,19 @@ fn main() {
                 wall_map::setup,
                 environment::setup,
                 world::setup,
+                performance::configure,
             )
                 .chain(),
         )
         .add_systems(
             Update,
             (
+                performance::measure,
                 ui::scale,
                 world::controls,
                 playtest::automate,
                 apply_actions,
+                world::seat_camera,
                 tick,
                 world::doors,
                 wall_map::refresh,
@@ -70,6 +82,6 @@ fn apply_actions(
         }
     }
 }
-fn tick(time: Res<Time>, mut game: ResMut<Session>) {
-    game.tick(time.delta_secs().min(0.25));
+fn tick(time: Res<Time<Real>>, mut game: ResMut<Session>) {
+    game.tick(time.delta_secs());
 }

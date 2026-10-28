@@ -4,7 +4,7 @@
 
 ## Authority and commands
 
-Create a shift with `Simulation::new(seed)`. Only explicit calls to `advance(seconds)` advance the clock. Use `apply(player_id, command)` for typed commands or `apply_json(player_id, json)` for a bounded JSON payload. Valid player IDs are 1–4. Rejected commands leave time, score, units, facts, and event history unchanged.
+Create a shift with `Simulation::new(seed)`. Only explicit calls to `advance(seconds)` advance the clock. Use `apply(player_id, command)` for typed commands or `apply_json(player_id, json)` for a bounded JSON payload. Valid player IDs are 1–6. Rejected commands leave time, score, units, facts, and event history unchanged.
 
 Commands:
 
@@ -57,3 +57,9 @@ The lower penalty for undiscovered danger limits hindsight-only punishment. Thes
 Snapshots belong to the trusted simulation authority. They are not signed, cheat-proof saves or a client import format. Malicious replacement of otherwise coherent scenario facts is outside this local snapshot format's guarantees. Mod importing and network messages require their own boundaries in later milestones.
 
 The automated suite exercises determinism, hidden information, malformed commands, dispatch contention, lifecycle transitions, cancel/reroute, deadlines, scoring, event references, and save/load at every tick of a running response.
+
+## M2 queued delivery and conversation lifecycle
+
+`Simulation::new` keeps the immediate six-call setup used by the M1 demo. `new_with_config` with `queued_calls: true` starts scenarios in Pending/Queued state. `activate_call(id, response_window)` makes a call visible and gives it a fresh deadline measured from delivery. Pending incidents do not expire or expose a public call view. `close_unreported()` records undelivered scenarios at shift closure with zero points.
+
+`EndCall { incident }` closes only the owned conversation. The incident and any assigned response continue; the caller cannot be accepted again. Dispatch remains available for an investigated open incident after hang-up. Delivery, conversation closure and incident completion have distinct events, and snapshots preserve all three. The solo Bevy session owns the 600-second dispatch period, station eligibility and 1–10 second seeded delivery delay; the pure simulation does not generate conversations independently.

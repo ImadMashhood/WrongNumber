@@ -42,6 +42,7 @@ fn label(p: &mut ChildSpawnerCommands, value: impl Into<String>, size: f32, colo
         TextColor(color),
     ));
 }
+#[allow(clippy::too_many_arguments)]
 pub fn refresh(
     mut commands: Commands,
     game: Res<Session>,
@@ -49,6 +50,9 @@ pub fn refresh(
     map: Res<MapImage>,
     roots: Query<Entity, With<WallUi>>,
     mut previous: Local<Option<(u32, u32, usize, Phase)>>,
+    mut cameras: Query<&mut Camera, Without<crate::world::Player>>,
+    mut frames: Local<u32>,
+    mut warm: Local<u8>,
 ) {
     let key = (
         game.shift,
@@ -56,9 +60,18 @@ pub fn refresh(
         game.sim.events().len(),
         game.phase,
     );
+    *frames += 1;
+    if *previous != Some(key) {
+        *warm = 6;
+    }
+    if let Ok(mut camera) = cameras.get_mut(display.camera) {
+        camera.is_active = *frames < 120 || *warm > 0;
+    }
+    *warm = warm.saturating_sub(1);
     if *previous == Some(key) {
         return;
     }
+
     *previous = Some(key);
     for e in &roots {
         commands.entity(e).despawn();
@@ -99,7 +112,7 @@ pub fn refresh(
                             ..default()
                         },
                     ));
-                    for id in game.sim.incidents().keys() {
+                    for id in game.visible_ids() {
                         let call = game.sim.call_view(*id).unwrap();
                         let (x, y) = crate::city::map_percent(call.location);
                         let color = if call.state == IncidentState::Active {
@@ -160,13 +173,13 @@ pub fn refresh(
                     format!(
                         "{}  |  {:02}:{:02}",
                         game.status(),
-                        game.sim.now() / 60,
-                        game.sim.now() % 60
+                        game.remaining() / 60,
+                        game.remaining() % 60
                     ),
                     22.0,
                     Color::srgb(0.95, 0.65, 0.25),
                 );
-                for id in game.sim.incidents().keys() {
+                for id in game.visible_ids() {
                     let call = game.sim.call_view(*id).unwrap();
                     label(
                         p,
