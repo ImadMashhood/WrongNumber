@@ -6,11 +6,11 @@ Players work a shift in a busy dispatch office, investigate calls from unreliabl
 
 The central challenge is sound triage. A refusal can be the right call, while a credible emergency left unanswered can become much worse. Humor comes from callers, player arguments, limited resources, and consequences the game can show and explain.
 
-This repository is the project home. The offline solo shift and direct-connect co-op prototype are playable; delayed consequences, explosions and safe road closures affect the city. M5 adds constrained caller conversation, optional local speech and a separate trusted provider service. Character creation and Steam Workshop support remain future work.
+This repository is the project home. Solo and direct-connect co-op prototypes are playable; delayed consequences, explosions and safe road closures affect the city. M5 adds constrained caller conversation, optional local speech and a separate trusted provider service. Character creation and Steam Workshop support remain future work.
 
 ## Project status
 
-**M3/M4 implemented; M5 caller and speech prototype implemented and locally verified.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Typed caller conversation works offline; optional OpenRouter-compatible dialogue and local STT/TTS use bounded adapters. See [caller and speech setup](docs/callers.md). M4 has passed real multi-process and rendered host/client shifts; the two-physical-PC LAN check remains pending. See [multiplayer setup and verification](docs/multiplayer.md). Milestone checkboxes distinguish delivered work from remaining acceptance checks. Scope and technical choices may change as prototypes and playtests provide evidence.
+**M3/M4 implemented; M5 caller and speech prototype implemented and locally verified.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Live caller conversation requires the configured AI service; provider failure drops the conversation. OpenRouter-compatible dialogue and local STT/TTS use bounded adapters. See [caller and speech setup](docs/callers.md). M4 has passed real multi-process and rendered host/client shifts; the two-physical-PC LAN check remains pending. See [multiplayer setup and verification](docs/multiplayer.md). Milestone checkboxes distinguish delivered work from remaining acceptance checks. Scope and technical choices may change as prototypes and playtests provide evidence.
 
 ## Design pillars
 
@@ -18,7 +18,7 @@ This repository is the project home. The offline solo shift and direct-connect c
 2. **The simulation owns the truth.** Caller dialogue can be mistaken or deceptive, but it cannot change an incident's established facts.
 3. **Consequences are visible and traceable.** Important simulation events appear in the map, the city, and the shift review.
 4. **Coordination matters.** Players share calls and limited response units; simultaneous actions must resolve consistently.
-5. **The core loop works offline.** Scripted callers keep the game playable when AI, speech, or network services are unavailable.
+5. **Disconnections stay real.** Lost players leave the room; failed AI connections end the caller conversation without bot or scripted substitution.
 
 ## Proposed technical direction
 
@@ -154,15 +154,15 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 - [x] Disconnecting a client does not corrupt the host simulation; reconnect behavior is documented and tested.
 - [ ] A whole shift can be completed by two players on separate physical machines (manual LAN check pending; separate OS processes and two rendered clients pass locally).
 
-### M5 — Caller AI and audio, with robust fallbacks
+### M5 — Caller AI and audio, with explicit disconnect handling
 
-- [x] **Milestone status:** Implemented constrained prototype — offline, provider-fixture and local speech verified; live paid-provider/microphone listening checks pending
+- [x] **Milestone status:** Implemented constrained prototype — provider-fixture, one live GPT-4o call and local speech verified; microphone listening check pending
 
 **Purpose:** Add flexible conversation while keeping game authority and playability deterministic.
 
 **Deliverables**
 
-- [x] Text conversation first, with a provider-neutral server-side adapter and a scripted fallback.
+- [x] Text conversation first, with a provider-neutral server-side adapter and explicit call disconnection on failure.
 - [x] A structured response format for spoken text, emotion, proposed player-visible action, fact references, and call completion.
 - [x] Strict validation against caller knowledge and allowed actions; rate, token, timeout, cancellation, and cost controls.
 - [x] Optional speech-to-text and text-to-speech behind replaceable adapters, with subtitles and text input available.
@@ -171,10 +171,10 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 **Acceptance checks**
 
-- [x] Invalid or unavailable AI output falls back to a scripted or text response without blocking the shift.
+- [x] Invalid or unavailable AI output drops the caller conversation without blocking the shift.
 - [x] AI output cannot alter hidden truth, dispatch units, spend money, create incidents, or reveal facts the caller does not know.
 - [x] Requests time out and can be cancelled; the rendering and simulation loops stay responsive.
-- [x] A player can complete the core loop with no microphone and no external AI service.
+- [x] Typed input works without a microphone; live caller conversation requires the AI service (updated user requirement).
 
 ### M6 — Progression, accessibility, and repeat play
 
@@ -298,17 +298,17 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 ```
 
-The first compilation downloads and builds the engine and can take several minutes. Logs print to the terminal; set `RUST_LOG=info` for normal startup diagnostics or `RUST_LOG=debug` for more detail. No API credentials are needed for offline solo or M4 multiplayer.
+The first compilation downloads and builds the engine and can take several minutes. Logs print to the terminal; set `RUST_LOG=info` for normal startup diagnostics or `RUST_LOG=debug` for more detail. Provider credentials belong only in the trusted caller server; clients do not need them.
 
 See [the architecture decision](docs/architecture.md) for boundaries and networking decisions, and [asset provenance](assets/README.md) before adding external content. The two-platform CI workflow checks formatting, compilation, Clippy, and test targets; Linux CI also runs the graphical shift under Xvfb with software Vulkan.
 
 ## Caller conversation and optional voice (M5)
 
-Answer a call, click **Type a question...**, type and press **Enter**. Caller replies, subtitles and evidence use the same authority rules in solo/co-op. Authored question buttons remain available. Offline dialogue needs no key or service. The current model adapter selects approved authored replies; it does not improvise new facts.
+Answer a call, click **Type a question...**, type and press **Enter**. Caller replies, subtitles and evidence use the same authority rules in solo/co-op. Authored question buttons remain available. Live dialogue requires the configured service; it never falls back to scripted replies. The current model adapter selects approved authored replies; it does not improvise new facts.
 
 Optional caller speech uses local `espeak-ng` or a replaceable TTS adapter. With a configured local STT adapter, enable the microphone in Audio settings and hold **V** while your call is open. Release, review/edit the transcription, then press Enter. Microphone access and saved audio are **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
 
-For OpenRouter or another compatible provider, start `cargo run --locked -p wrong-number-caller-server` with a locally configured key and explicit model, then pass `--caller-service 127.0.0.1:47005` to the solo/co-op host. Clients need no key. See [setup, limits, privacy and verification](docs/callers.md); paid live calls and physical microphone/listening quality still need user setup/playtesting.
+For OpenRouter or another compatible provider, start `cargo run --locked -p wrong-number-caller-server` with a locally configured key and explicit model, then pass `--caller-service 127.0.0.1:47005` to the solo/co-op host. Clients need no key. See [setup, limits, privacy and verification](docs/callers.md); a live GPT-4o request is verified; physical microphone/listening quality still needs playtesting.
 
 ## Run co-op (M4)
 

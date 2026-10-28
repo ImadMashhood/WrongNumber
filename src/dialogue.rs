@@ -43,6 +43,7 @@ struct Completed {
 pub struct Dialogue {
     pub conversations: BTreeMap<u32, Conversation>,
     pub service: Option<SocketAddr>,
+    pub fixture: bool,
     pending: BTreeMap<u32, Pending>,
     serial: u64,
     tx: mpsc::SyncSender<Completed>,
@@ -56,6 +57,19 @@ impl Default for Dialogue {
         Self {
             conversations: BTreeMap::new(),
             service: None,
+            fixture: cfg!(test)
+                || std::env::args().any(|a| {
+                    matches!(
+                        a.as_str(),
+                        "--playtest"
+                            | "--consequence-test"
+                            | "--escalation-test"
+                            | "--conversation-test"
+                            | "--network-playtest"
+                            | "--one-shift"
+                            | "--bot"
+                    )
+                }),
             pending: BTreeMap::new(),
             serial: 0,
             tx,
@@ -206,16 +220,18 @@ impl Session {
                 });
                 workers.fetch_sub(1, Ordering::Relaxed);
             });
-        } else {
+        } else if self.dialogue.fixture && address.is_none() {
             let response = Ok(ServiceReply {
-                reply: wrong_number_caller::scripted(&context),
-                source: "scripted".into(),
+                reply: wrong_number_caller::fixture_reply(&context),
+                source: "test fixture".into(),
             });
             let _ = self.dialogue.tx.try_send(Completed {
                 incident: id,
                 serial,
                 response,
             });
+        } else {
+            self.finish_dialogue(id, Err("AI service unavailable".into()));
         }
         Ok(())
     }
@@ -270,11 +286,21 @@ impl Session {
         }
         let elapsed = p.started.elapsed().as_millis();
         let (reply, source) = match response {
-            Ok(r) if wrong_number_caller::validate(&p.context, &r.reply) => (r.reply, r.source),
-            _ => (
-                wrong_number_caller::scripted(&p.context),
-                "scripted fallback".into(),
-            ),
+            Ok(r)
+                if wrong_number_caller::validate(&p.context, &r.reply)
+                    && (r.source == "provider"
+                        || self.dialogue.fixture && r.source == "test fixture") =>
+            {
+                (r.reply, r.source)
+            }
+            _ => {
+                self.drop_caller(
+                    id,
+                    p.player,
+                    "AI service disconnected, timed out, or returned an invalid response.",
+                );
+                return;
+            }
         };
         self.apply_reply(id, p.player, &p.context, &reply);
         let c = self.dialogue.conversations.entry(id).or_default();
@@ -296,6 +322,34 @@ impl Session {
             } else {
                 self.desks.insert(p.player, desk);
             }
+        }
+        self.dirty = true;
+    }
+    pub fn drop_caller(&mut self, id: u32, player: u8, reason: &str) {
+        self.dialogue.cancel(player, id);
+        if self
+            .sim
+            .incidents()
+            .get(&id)
+            .is_some_and(|i| i.call == CallState::Answered { by: player })
+        {
+            let _ = self.sim.apply(player, Command::EndCall { incident: id });
+        }
+        let diagnostic = format!("Caller disconnected: {reason}");
+        self.dialogue
+            .conversations
+            .entry(id)
+            .or_default()
+            .diagnostic = diagnostic.clone();
+        let mut desk = self.desk(player);
+        desk.conversation = None;
+        desk.ringing = None;
+        desk.call_station = None;
+        desk.notice = diagnostic;
+        if player == self.local_player {
+            self.load_desk(player, desk);
+        } else {
+            self.desks.insert(player, desk);
         }
         self.dirty = true;
     }
@@ -375,7 +429,7 @@ mod tests {
         assert!(s.sim.call_view(1).unwrap().facts.is_empty());
     }
     #[test]
-    fn unavailable_service_falls_back_and_does_not_block_the_clock() {
+    fn unavailable_service_drops_the_caller_and_does_not_block_the_clock() {
         let mut s = answered();
         s.dialogue.service = Some("127.0.0.1:1".parse().unwrap());
         let at = Instant::now();
@@ -385,11 +439,16 @@ mod tests {
         s.tick(1.0);
         assert_eq!(s.sim.now(), now + 1);
         settle(&mut s);
-        assert_eq!(s.sim.call_view(1).unwrap().facts.len(), 1);
-        assert!(s.dialogue.conversations[&1].diagnostic.contains("fallback"));
+        assert!(s.sim.call_view(1).unwrap().facts.is_empty());
+        assert!(
+            s.dialogue.conversations[&1]
+                .diagnostic
+                .contains("disconnected")
+        );
+        assert_eq!(s.conversation, None);
     }
     #[test]
-    fn hung_response_uses_deadline_fallback_and_limits_are_enforced() {
+    fn hung_response_drops_the_caller_and_limits_are_enforced() {
         let mut s = answered();
         assert!(s.talk(2, "what happened".into()).is_err());
         assert!(s.talk(1, "x".repeat(257)).is_err());
@@ -400,7 +459,48 @@ mod tests {
         let empty: Vec<_> = s.dialogue.rx.lock().unwrap().try_iter().collect();
         assert!(!empty.is_empty());
         s.poll_dialogue();
-        assert_eq!(s.sim.call_view(1).unwrap().facts.len(), 1);
-        assert!(s.dialogue.conversations[&1].diagnostic.contains("fallback"));
+        assert!(s.sim.call_view(1).unwrap().facts.is_empty());
+        assert!(
+            s.dialogue.conversations[&1]
+                .diagnostic
+                .contains("disconnected")
+        );
+        assert_eq!(s.conversation, None);
+    }
+}
+#[cfg(test)]
+mod required_service_tests {
+    use super::*;
+    use crate::game::Action;
+    #[test]
+    fn normal_call_without_ai_disconnects_and_preserves_the_incident() {
+        let mut s = Session::default();
+        s.dialogue.fixture = false;
+        s.act(Action::Sit(0));
+        s.tick(10.0);
+        s.act(Action::OpenDesk);
+        s.act(Action::Answer);
+        assert_eq!(s.conversation, None);
+        assert_eq!(s.sim.call_view(1).unwrap().call, CallState::Closed);
+        assert!(s.sim.call_view(1).unwrap().facts.is_empty());
+        assert_eq!(
+            s.sim.incidents()[&1].state,
+            wrong_number_sim::IncidentState::Active
+        );
+        assert!(s.notice.contains("disconnected"));
+        assert_eq!(s.sim.score(), 0);
+    }
+    #[test]
+    fn question_button_does_not_bypass_the_ai_service() {
+        let mut s = Session::default();
+        s.act(Action::Sit(0));
+        s.tick(10.0);
+        s.act(Action::OpenDesk);
+        s.act(Action::Answer);
+        s.dialogue.fixture = false;
+        s.act(Action::Ask("smoke".into()));
+        assert!(s.sim.call_view(1).unwrap().facts.is_empty());
+        assert_eq!(s.conversation, None);
+        assert_eq!(s.dialogue.conversations[&1].turns.len(), 1);
     }
 }

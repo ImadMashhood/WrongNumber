@@ -406,6 +406,13 @@ impl Session {
                     );
                     self.conversation = Some(self.selected);
                     self.ringing = None;
+                    if self.dialogue.service.is_none() && !self.dialogue.fixture {
+                        self.drop_caller(
+                            self.selected,
+                            self.local_player,
+                            "No AI service configured on the host.",
+                        );
+                    }
                 }
             }
             Action::Ask(fact)
@@ -413,6 +420,21 @@ impl Session {
                     && self.conversation == Some(self.selected)
                     && self.call_station == self.seated =>
             {
+                if !self.dialogue.fixture {
+                    if let Some((_, question)) = self
+                        .sim
+                        .call_view(self.selected)
+                        .unwrap()
+                        .questions
+                        .into_iter()
+                        .find(|(id, _)| id == &fact)
+                        && let Err(e) = self.talk(self.selected, question)
+                    {
+                        self.notice = e.clone();
+                        self.last_error = Some(e);
+                    }
+                    return;
+                }
                 let asked = fact.clone();
                 let accepted = self.command(
                     Command::Ask {
@@ -559,8 +581,10 @@ impl Session {
             Action::BuyPolice => self.buy(false),
             Action::NextShift if self.phase == Phase::Review => {
                 let service = self.dialogue.service;
+                let fixture = self.dialogue.fixture;
                 self.dialogue = Default::default();
                 self.dialogue.service = service;
+                self.dialogue.fixture = fixture;
                 self.shift += 1;
                 self.sim = Self::make_sim(self.shift, self.radio, self.extra_police);
                 self.phase = if self.multiplayer {

@@ -23,7 +23,7 @@ context={'version':1,'report':'Smoke in laundromat','personality':'anxious','fac
 def ask(question):
  c=dict(context,question=question)
  with socket.create_connection(('127.0.0.1',port),timeout=6) as sock:
-  sock.sendall(json.dumps(c).encode()+b'\n');return json.loads(sock.makefile('rb').readline(16385))
+  sock.sendall(json.dumps(c).encode()+b'\n');raw=sock.makefile('rb').readline(16385);return json.loads(raw) if raw else None
 try:
  deadline=time.monotonic()+5
  while True:
@@ -33,9 +33,9 @@ try:
    if time.monotonic()>deadline:raise
    time.sleep(.05)
  first=ask('What can you see?');assert first['source']=='provider' and first['reply']['spoken_text']==context['facts'][0]['answer']
- invalid=ask('What malformed event can you see?');assert invalid['source']=='scripted fallback' and invalid['reply']['spoken_text']==context['facts'][0]['answer']
- budget=ask('What can you see?');assert budget['source']=='scripted fallback' and len(requests)==2
- result={'result':'PASS','valid_provider':True,'hallucination_rejected':True,'request_budget_enforced':True,'paid_requests':0}
+ invalid=ask('What malformed event can you see?');assert invalid is None
+ budget=ask('What can you see?');assert budget is None and len(requests)==2
+ result={'result':'PASS','valid_provider':True,'hallucination_rejected':True,'request_budget_enforced':True,'no_offline_fallback':True,'paid_requests':0}
  (out/'report.json').write_text(json.dumps(result,indent=2));print(json.dumps(result,indent=2))
 finally:
  proc.terminate();proc.wait(timeout=3);log.close();api.shutdown()

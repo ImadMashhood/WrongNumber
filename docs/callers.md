@@ -1,14 +1,14 @@
 # M5 caller conversation and optional local speech
 
-The office supports typed questions, authored question buttons and optional push-to-talk speech. It remains playable offline with no key, microphone or caller service. Caller dialogue selects from authored knowledge; it cannot rewrite fixed truth, dispatch responders, spend funding or generate events. This is a constrained caller prototype, not unrestricted model-written improvisation.
+The office supports typed questions, authored question buttons and optional push-to-talk speech. A configured AI service is required for live caller conversation. There is no offline caller replacement. Text input remains available without a microphone. Caller dialogue selects from authored knowledge; it cannot rewrite fixed truth, dispatch responders, spend funding or generate events. This is a constrained caller prototype, not unrestricted model-written improvisation.
 
-## Play without an API
+## Playing and disconnections
 
 Start the game normally. Sit with E, focus your monitor with E and answer a ringing call. Click **Type a question…**, type a short question and press Enter. Examples: “What happened?”, “What can you see?”, “Are they breathing?” and “Where did this happen?” Authored question buttons remain available when interpretation is unclear.
 
-The caller's introduction and replies appear as subtitles and in the shared case transcript. Facts become evidence only after the host validates a reply against that caller's authored knowledge. The display shows whether the answer came from the provider, scripted fallback or an authored question. Cancelling a pending response prevents its later result from revealing facts. Hanging up, transferring, disconnecting or starting another shift invalidates old responses.
+The caller's introduction and replies appear as subtitles and in the shared case transcript. Facts become evidence only after the host validates a reply against that caller's authored knowledge. Replies come from the configured provider. Authored question buttons send their question through that same service; they do not disclose facts offline. Cancelling a pending response prevents its later result from revealing facts. Hanging up, transferring, disconnecting or starting another shift invalidates old responses.
 
-Caller speech uses local `espeak-ng` when installed, otherwise subtitles remain available. Linux can install it through the distribution package manager. `--mute` suppresses automatic caller/ring/city audio. Audio settings in the terminal or Escape menu select microphone input, caller output and caller volume. Device choices/volume are session settings; persistence and expanded accessibility settings remain M6.
+Caller speech uses local `espeak-ng` when installed, otherwise subtitles remain available (audio-device failures do not synthesize a different caller). Linux can install it through the distribution package manager. `--mute` suppresses automatic caller/ring/city audio. Audio settings in the terminal or Escape menu select microphone input, caller output and caller volume. Device choices/volume are session settings; persistence and expanded accessibility settings remain M6.
 
 ## Optional OpenRouter / compatible provider
 
@@ -23,7 +23,9 @@ export CALLER_MODEL='YOUR_CHOSEN_SCHEMA_CAPABLE_MODEL_ID'
 cargo run --locked -p wrong-number-caller-server
 ```
 
-In another terminal, run the game with:
+For the default local port, `bash scripts/run-with-ai.sh` builds and starts both the trusted daemon and the game, and stops its daemon when the game exits. The key is loaded only in the daemon child process. This wrapper is for the solo/co-op host, not joining clients. This task's ready-to-use `outputs/run-with-ai.sh` also selects the installed local speech adapter.
+
+Alternatively, start the daemon separately and in another terminal run the game with:
 
 ```bash
 # Solo
@@ -32,15 +34,15 @@ cargo run --locked -- --caller-service 127.0.0.1:47005
 cargo run --locked -- --host 0.0.0.0:47004 --name Imad --caller-service 127.0.0.1:47005
 ```
 
-Joining clients use the usual `--join` command and do not configure provider access. The service binds only to loopback. `CALLER_ENDPOINT` can select another compatible chat-completions endpoint over HTTPS (or loopback HTTP for a local provider/test). It never follows HTTP redirects. `OPENROUTER_API_KEY` is also recognized by the server. `.env.example` documents configuration, but files are not automatically sourced; supply variables only to the trusted server process.
+Joining clients use the usual `--join` command and do not configure provider access. The service binds only to loopback. `bash scripts/run-caller-server.sh` loads ignored, private `.wrong-number/caller.env` configuration when present. No keys are embedded in the script. `CALLER_ENDPOINT` can select another compatible chat-completions endpoint over HTTPS (or loopback HTTP for a local provider/test). It never follows HTTP redirects. `OPENROUTER_API_KEY` is also recognized by the server. `.env.example` documents configuration, but files are not automatically sourced; supply variables only to the trusted server process.
 
 The provider sees a caller report, personality cue, permitted question/answer facts, at most eight recent dialogue pairs and the current typed question. It does not receive simulation truth, consequences, future calls, responder controls or raw microphone audio. Recognized text sent by a co-op dispatcher reaches the host; a configured cloud provider receives that text and the limited caller context. All dispatchers can see the resulting case transcript.
 
 The provider returns structured `spoken_text`, `emotion`, `proposed_action`, `fact_references` and `call_complete`. An answer must exactly match one permitted authored fact; Clarify/Goodbye use fixed approved phrases. Unsupported actions, fields, unknown facts and invented prose are rejected. A goodbye ends only the conversation. Natural phrasing/paraphrase generation and richer biographies remain a later content expansion; this strict boundary prioritizes consistent evidence.
 
-Provider failures, invalid output, unavailable service or exhausted budgets use the local scripted response. Network calls stay on bounded worker threads. The game permits one pending response per call, six worker requests, one new turn per dispatcher per second and 24 question turns per case. The daemon allows six active requests, 30 requests/minute and `CALLER_MAX_REQUESTS` provider attempts per process (default 100, maximum 1000). It caps input frames/request body and responses, requests at most 256 completion tokens, uses a four-second HTTP timeout and adds OpenRouter maximum prompt/completion pricing of $1 per million tokens. Other compatible endpoints do not receive OpenRouter-specific routing fields. There are no automatic retries. A cancelled in-flight provider request may still be billed; its result is ignored. Account-side spending caps remain appropriate for live keys.
+Provider failures, invalid output, unavailable service or exhausted budgets drop the caller conversation. Its incident, evidence, responders and consequences remain authoritative and continue. No bot or scripted answer replaces it. Network calls stay on bounded worker threads. The game permits one pending response per call, six worker requests, one new turn per dispatcher per second and 24 question turns per case. The daemon allows six active requests, 30 requests/minute and `CALLER_MAX_REQUESTS` provider attempts per process (default 100, maximum 1000). It caps input frames/request body and responses, requests at most 256 completion tokens, uses a four-second HTTP timeout and adds configurable OpenRouter maximum token pricing through `CALLER_MAX_INPUT_PRICE` and `CALLER_MAX_OUTPUT_PRICE` (USD per million, default 1 each). Other compatible endpoints do not receive OpenRouter-specific routing fields. There are no automatic retries. A cancelled in-flight provider request may still be billed; its result is ignored. Account-side spending caps remain appropriate for live keys.
 
-Implementation references: [OpenRouter structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs), [provider routing and maximum prices](https://openrouter.ai/docs/guides/routing/provider-selection). Paid live-provider latency, model compatibility and billing have not been tested without a configured key/model; local HTTP fixtures verify the adapter and failure behavior.
+Implementation references: [OpenRouter structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs), [provider routing and maximum prices](https://openrouter.ai/docs/guides/routing/provider-selection). A live `openai/gpt-4o` request passed through the real daemon in 2.15 seconds on 2026-10-28. Local HTTP fixtures separately verify invalid-response and exhausted-budget disconnections. This is one request, not a latency/billing guarantee.
 
 ## Local speech recognition
 
@@ -61,6 +63,10 @@ Microphone capture and recording consent start **off on every launch**. Hold-V c
 
 The review panel lists local clips for playback alongside shared text excerpts. Disable saving to revoke consent for future clips. **Delete all my saved audio clips** deletes this game's local WAVs and disables saving. Saved clips survive restart until deletion/retention cleanup; text transcripts remain in memory for the current shift and reset for the next day. Automatic highlight selection, mixed full-call recordings and multiplayer voice chat are not claimed by this slice.
 
+## Explicit test fixtures
+
+Deterministic authored replies exist only for unit tests and explicitly invoked automated playtest/bot commands. They never activate because a live service fails, and they are not an offline gameplay option. A disconnected human player is removed from the room and is never replaced by a bot.
+
 ## Verification
 
 ```bash
@@ -72,4 +78,4 @@ python3 tools/net/playtest.py --players 6 --reconnect --dialogue-test
 cargo run --locked -- --conversation-test --capture-dir target/caller-captures
 ```
 
-The provider harness launches the real daemon against a local HTTP fixture, verifies structured answers, rejects hallucinated output and exhausts its request budget without any paid request. Unit tests cover authority ownership, cancellation, deadlines, unavailable-service fallback, private-state exclusion and bounded WAV handling. The graphical conversation test activates the real text-entry button and injects keyboard messages through the application's input path. A real local TTS smoke test is opt-in: `cargo test --workspace local_tts_returns_valid_audio -- --ignored` on a PC with `espeak-ng`. A synthesized question was independently transcribed with the installed tiny English CPU model; no human microphone was recorded during testing.
+The provider harness launches the real daemon against a local HTTP fixture, verifies structured answers, rejects hallucinated output and exhausts its request budget without any paid request. Unit tests cover authority ownership, cancellation, deadlines, unavailable-service disconnection, private-state exclusion and bounded WAV handling. The graphical conversation test activates the real text-entry button and injects keyboard messages through the application's input path. A real local TTS smoke test is opt-in: `cargo test --workspace local_tts_returns_valid_audio -- --ignored` on a PC with `espeak-ng`. A synthesized question was independently transcribed with the installed tiny English CPU model; no human microphone was recorded during testing.

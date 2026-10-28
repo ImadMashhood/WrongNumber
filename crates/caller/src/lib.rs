@@ -84,7 +84,7 @@ pub fn validate(c: &Context, r: &Reply) -> bool {
         }
     }
 }
-pub fn scripted(c: &Context) -> Reply {
+pub fn fixture_reply(c: &Context) -> Reply {
     let q = c.question.to_lowercase();
     let words: Vec<_> = q
         .split(|ch: char| !ch.is_alphanumeric())
@@ -209,9 +209,7 @@ pub fn service(address: std::net::SocketAddr, context: &Context) -> Result<Servi
     let line = read_frame(&mut stream, 16_384, std::time::Duration::from_secs(5))?;
     let response: ServiceReply =
         serde_json::from_slice(&line).map_err(|_| "Invalid caller response")?;
-    if !["provider", "scripted fallback", "scripted"].contains(&response.source.as_str())
-        || !validate(context, &response.reply)
-    {
+    if response.source != "provider" || !validate(context, &response.reply) {
         return Err("Caller response failed fact validation".into());
     }
     Ok(response)
