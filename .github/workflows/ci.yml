@@ -28,7 +28,12 @@ jobs:
         timeout-minutes: 5
         shell: bash
         run: |
-          export VK_DRIVER_FILES="$(rg --files /usr/share/vulkan/icd.d | rg '/lvp.*\.json$' | head -1)"
+          for mesa_icd_path in /usr/share/vulkan/icd.d/*lvp*.json; do
+            if [ -f "$mesa_icd_path" ]; then
+              export VK_DRIVER_FILES="$mesa_icd_path"
+              break
+            fi
+          done
           export WGPU_BACKEND=vulkan
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --playtest --capture-dir ci-captures
       - name: Save playthrough screenshots
