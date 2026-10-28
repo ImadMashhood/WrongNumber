@@ -59,6 +59,16 @@ impl Network {
         if host.is_some() && join.is_some() {
             return Err("Choose --host or --join".into());
         }
+        if let Some(raw) = value("--caller-service") {
+            let addr = raw
+                .parse::<std::net::SocketAddr>()
+                .map_err(|_| "Caller service must be a loopback IP:port")?;
+            if !addr.ip().is_loopback() || join.is_some() {
+                return Err(
+                    "Only a solo/host process may connect to a loopback caller service".into(),
+                );
+            }
+        }
         let address = host.clone().or(join.clone()).unwrap_or_default();
         let safe: String = format!("{address}-{name}")
             .chars()
@@ -144,6 +154,19 @@ impl Network {
     }
     pub fn initial_game(&mut self) -> Session {
         let mut game = Session::default();
+        let args: Vec<_> = std::env::args().collect();
+        let service = args
+            .iter()
+            .position(|a| a == "--caller-service")
+            .and_then(|n| args.get(n + 1))
+            .and_then(|v| v.parse::<std::net::SocketAddr>().ok())
+            .filter(|a| a.ip().is_loopback());
+        if !self.client() {
+            game.dialogue.service = service;
+        }
+        if let Link::Host { room, .. } = &mut self.link {
+            room.game.dialogue.service = service;
+        }
         match &mut self.link {
             Link::Host { room, .. } => {
                 let state = room.snapshot();

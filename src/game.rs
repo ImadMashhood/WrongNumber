@@ -29,6 +29,20 @@ pub enum Action {
     OpenLobby,
     Reconnect,
     Transfer(u8),
+    Talk {
+        incident: u32,
+        text: String,
+    },
+    CancelTalk(u32),
+    ChatFocus,
+    AudioSettings,
+    MicToggle,
+    SaveClips,
+    InputDevice,
+    OutputDevice,
+    Volume(bool),
+    DeleteClips,
+    ReplayClip(usize),
     Sit(usize),
     Stand,
     OpenDesk,
@@ -61,6 +75,7 @@ pub enum Action {
 #[derive(Resource)]
 pub struct Session {
     pub sim: Simulation,
+    pub dialogue: crate::dialogue::Dialogue,
     pub phase: Phase,
     pub screen: Screen,
     pub selected: u32,
@@ -88,6 +103,7 @@ pub struct Session {
 impl Default for Session {
     fn default() -> Self {
         Self {
+            dialogue: Default::default(),
             sim: Self::make_sim(1, false, false),
             phase: Phase::Running,
             screen: Screen::Office,
@@ -269,7 +285,22 @@ impl Session {
             Action::OpenLobby => {
                 self.screen = Screen::Lobby;
             }
-            Action::Transfer(to) => self.transfer(to),
+            Action::Transfer(to) => {
+                let previous = self.conversation;
+                self.transfer(to);
+                if self.last_error.is_none()
+                    && let Some(id) = previous
+                {
+                    self.dialogue.cancel(self.local_player, id);
+                }
+            }
+            Action::Talk { incident, text } => {
+                if let Err(e) = self.talk(incident, text) {
+                    self.notice = e.clone();
+                    self.last_error = Some(e);
+                }
+            }
+            Action::CancelTalk(id) => self.dialogue.cancel(self.local_player, id),
             Action::Sit(station) if station < 6 && self.seated.is_none() => {
                 if self
                     .occupied(station)
@@ -367,6 +398,12 @@ impl Session {
                     self.sim.incidents()[&self.selected].call,
                     CallState::Answered { .. }
                 ) {
+                    self.dialogue.intro(
+                        self.selected,
+                        self.local_player,
+                        self.sim.now(),
+                        self.sim.call_view(self.selected).unwrap().report,
+                    );
                     self.conversation = Some(self.selected);
                     self.ringing = None;
                 }
@@ -376,13 +413,35 @@ impl Session {
                     && self.conversation == Some(self.selected)
                     && self.call_station == self.seated =>
             {
-                self.command(
+                let asked = fact.clone();
+                let accepted = self.command(
                     Command::Ask {
                         incident: self.selected,
                         fact,
                     },
                     "Caller response added to the case notes.",
                 );
+                if accepted
+                    && let Some(f) = self
+                        .sim
+                        .call_view(self.selected)
+                        .unwrap()
+                        .facts
+                        .into_iter()
+                        .find(|f| f.id == asked)
+                {
+                    self.dialogue.authored(
+                        self.selected,
+                        crate::dialogue::Turn {
+                            at: self.sim.now(),
+                            player: self.local_player,
+                            question: f.question,
+                            spoken_text: f.answer,
+                            emotion: wrong_number_caller::Emotion::Calm,
+                            source: "authored question".into(),
+                        },
+                    );
+                }
             }
             Action::Decline
                 if self.can_dispatch()
@@ -499,6 +558,9 @@ impl Session {
             Action::BuyRadio => self.buy(true),
             Action::BuyPolice => self.buy(false),
             Action::NextShift if self.phase == Phase::Review => {
+                let service = self.dialogue.service;
+                self.dialogue = Default::default();
+                self.dialogue.service = service;
                 self.shift += 1;
                 self.sim = Self::make_sim(self.shift, self.radio, self.extra_police);
                 self.phase = if self.multiplayer {
@@ -617,6 +679,7 @@ impl Session {
         .into();
     }
     pub fn tick(&mut self, real_seconds: f32) {
+        self.poll_dialogue();
         if !matches!(self.phase, Phase::Running | Phase::Closing)
             || (self.screen == Screen::Pause && !self.multiplayer)
         {

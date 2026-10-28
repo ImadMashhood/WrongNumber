@@ -6,7 +6,8 @@ use crate::{
 use wrong_number_sim::{Command, UnitState};
 fn joined() -> Room {
     let mut r = Room::new("Host".into());
-    r.join(10, 1, "Partner".into(), None).unwrap();
+    r.join(10, wrong_number_net::PROTOCOL, "Partner".into(), None)
+        .unwrap();
     for id in [1, 2] {
         let p = r.members.get_mut(&id).unwrap();
         p.pose.position = [world::SEATS[usize::from(id - 1)], 1.65, 3.0];
@@ -58,7 +59,14 @@ fn independent_lines_transfer_and_reconnect_keep_shared_world_intact() {
     r.disconnect(10);
     assert_eq!(r.game.occupied(1), None);
     assert!(r.game.sim.call_view(one).is_ok());
-    let response = r.join(11, 1, "Partner".into(), Some(token)).unwrap();
+    let response = r
+        .join(
+            11,
+            wrong_number_net::PROTOCOL,
+            "Partner".into(),
+            Some(token),
+        )
+        .unwrap();
     assert!(matches!(response, Response::Welcome { id: 2, .. }));
     let snapshot = r.snapshot();
     let mut client = Session::default();
@@ -135,7 +143,15 @@ fn online_menus_do_not_pause_the_host_clock_and_resume_tokens_are_not_player_ids
     act(&mut r, 1, Action::Pause);
     r.tick(5.0);
     assert_eq!(r.game.sim.now(), 5);
-    assert!(r.join(12, 1, "Pretender".into(), Some("2".into())).is_err());
+    assert!(
+        r.join(
+            12,
+            wrong_number_net::PROTOCOL,
+            "Pretender".into(),
+            Some("2".into())
+        )
+        .is_err()
+    );
     r.game.phase = Phase::Review;
     r.game.screen = crate::game::Screen::Review;
     r.game.funds = 100;
@@ -190,4 +206,51 @@ fn lost_ringing_line_is_reassigned_and_bad_movement_is_corrected() {
     bad.position[0] = 999.0;
     assert!(r.pose(1, bad).is_err());
     assert_eq!(r.members[&1].pose.position, before.position);
+}
+
+#[test]
+fn text_dialogue_is_owned_by_the_host_and_replicates_only_spoken_evidence() {
+    let mut r = joined();
+    act(&mut r, 1, Action::Sit(0));
+    act(&mut r, 2, Action::Sit(1));
+    act(&mut r, 1, Action::StartShift);
+    r.tick(10.0);
+    let incident = r.game.desk(2).ringing.unwrap();
+    act(&mut r, 2, Action::OpenDesk);
+    act(&mut r, 2, Action::Answer);
+    assert!(
+        !act(
+            &mut r,
+            1,
+            Action::Talk {
+                incident,
+                text: "What happened?".into()
+            }
+        )
+        .accepted
+    );
+    assert!(
+        act(
+            &mut r,
+            2,
+            Action::Talk {
+                incident,
+                text: "What happened?".into()
+            }
+        )
+        .accepted
+    );
+    assert!(!act(&mut r, 2, Action::Transfer(1)).accepted);
+    assert_eq!(r.game.dialogue.conversations[&incident].pending, Some(2));
+    r.game.poll_dialogue();
+    let state = r.snapshot();
+    assert_eq!(state.conversations[&incident].turns.len(), 2);
+    let mut mirror = Session::default();
+    apply_snapshot(&mut mirror, &state, 2).unwrap();
+    assert_eq!(
+        mirror.dialogue.conversations[&incident].turns[1].spoken_text,
+        r.game.dialogue.conversations[&incident].turns[1].spoken_text
+    );
+    assert_eq!(mirror.sim.call_view(incident).unwrap().facts.len(), 1);
+    assert!(!serde_json::to_string(&state).unwrap().contains("\"truth\""));
 }

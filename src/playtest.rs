@@ -19,6 +19,9 @@ pub struct LaunchCheck {
     escalation: bool,
     benchmark: bool,
     network: bool,
+    conversation: bool,
+    typing_stage: u8,
+    typed_case: u32,
     frames: u32,
     stage: u8,
     last: u32,
@@ -31,11 +34,17 @@ impl LaunchCheck {
         Self {
             smoke: args.iter().any(|a| a == "--smoke-test"),
             playtest: args.iter().any(|a| {
-                a == "--playtest" || a == "--consequence-test" || a == "--escalation-test"
+                a == "--playtest"
+                    || a == "--consequence-test"
+                    || a == "--escalation-test"
+                    || a == "--conversation-test"
             }),
             consequence: args.iter().any(|a| a == "--consequence-test"),
             escalation: args.iter().any(|a| a == "--escalation-test"),
             benchmark: args.iter().any(|a| a == "--benchmark"),
+            conversation: args.iter().any(|a| a == "--conversation-test"),
+            typing_stage: 0,
+            typed_case: 0,
             network: args.iter().any(|a| a == "--network-playtest"),
             frames: 0,
             stage: 0,
@@ -79,6 +88,9 @@ pub fn automate(
     buttons: Query<(Entity, &UiAction)>,
     mut player: Single<&mut Transform, With<Player>>,
     mut exit: MessageWriter<AppExit>,
+    chat: Res<crate::voice::ChatInput>,
+    window: Single<Entity, With<Window>>,
+    mut keyboard: MessageWriter<bevy::input::keyboard::KeyboardInput>,
 ) {
     // Let asynchronous material pipelines finish before the first room capture.
     if check.playtest && time.elapsed_secs() < 4.0 {
@@ -92,7 +104,15 @@ pub fn automate(
     if !check.playtest {
         return;
     }
-    assert!(check.frames < 1400, "Graphical shift timed out");
+    assert!(
+        check.frames < 1400,
+        "Graphical shift timed out: stage {}, typing {}, editing {}, draft {:?}, notice {}",
+        check.stage,
+        check.typing_stage,
+        chat.editing,
+        chat.draft,
+        game.notice
+    );
     match check.frames {
         2 => **player = crate::world::overview(),
         20 => check.capture(&mut commands, "room-overview"),
@@ -186,7 +206,61 @@ pub fn automate(
                         "breathing",
                         "window",
                     ][(id - 1) as usize];
-                    click(&mut commands, &buttons, Action::Ask(fact.into()));
+                    if check.conversation {
+                        if check.typed_case != id {
+                            check.typed_case = id;
+                            check.typing_stage = 0;
+                        }
+                        if check.typing_stage == 0 {
+                            click(&mut commands, &buttons, Action::ChatFocus);
+                            check.typing_stage = 1;
+                        } else if check.typing_stage == 1 && chat.editing {
+                            keyboard.write(bevy::input::keyboard::KeyboardInput {
+                                key_code: KeyCode::KeyA,
+                                logical_key: bevy::input::keyboard::Key::Character(
+                                    "What happened?".into(),
+                                ),
+                                state: bevy::input::ButtonState::Pressed,
+                                text: Some("What happened?".into()),
+                                repeat: false,
+                                window: *window,
+                            });
+                            check.typing_stage = 2;
+                        } else if check.typing_stage == 2 && chat.draft == "What happened?" {
+                            keyboard.write(bevy::input::keyboard::KeyboardInput {
+                                key_code: KeyCode::Enter,
+                                logical_key: bevy::input::keyboard::Key::Enter,
+                                state: bevy::input::ButtonState::Pressed,
+                                text: None,
+                                repeat: false,
+                                window: *window,
+                            });
+                            check.typing_stage = 3;
+                        } else if check.typing_stage == 3
+                            && !game
+                                .dialogue
+                                .conversations
+                                .get(&id)
+                                .is_some_and(|c| c.pending.is_some())
+                            && !chat.editing
+                        {
+                            // The authority's per-player limiter may briefly reject fast scripted input.
+                            if game.notice.contains("moment") {
+                                check.typing_stage = 0;
+                            }
+                        }
+                    } else {
+                        click(&mut commands, &buttons, Action::Ask(fact.into()));
+                    }
+                } else if check.conversation && check.typing_stage != 4 {
+                    assert!(
+                        game.dialogue.conversations.get(&id).is_some_and(|c| c
+                            .turns
+                            .iter()
+                            .any(|t| t.question == "What happened?"))
+                    );
+                    check.capture(&mut commands, "m5-conversation");
+                    check.typing_stage = 4;
                 } else if [2, 3, 4].contains(&id)
                     || ((check.consequence || check.escalation) && id == 1)
                 {

@@ -12,6 +12,7 @@ pub struct Agent {
     path: Vec<[f32; 2]>,
     stage: u8,
     shift: u32,
+    talk_cooldown: f32,
 }
 impl Agent {
     pub fn new(id: u8) -> Self {
@@ -21,6 +22,7 @@ impl Agent {
             path: vec![],
             stage: 0,
             shift: 0,
+            talk_cooldown: 0.0,
         }
     }
     fn action(&mut self, net: &mut Network, game: &mut Session, action: Action) {
@@ -49,6 +51,7 @@ impl Agent {
         self.path.is_empty()
     }
     pub fn update(&mut self, net: &mut Network, game: &mut Session, seconds: f32, expected: usize) {
+        self.talk_cooldown = (self.talk_cooldown - seconds).max(0.0);
         let Some(id) = net.id else {
             return;
         };
@@ -127,7 +130,21 @@ impl Agent {
                 };
                 if view.facts.is_empty() {
                     if let Some((fact, _)) = view.questions.first() {
-                        self.action(net, game, Action::Ask(fact.clone()));
+                        if std::env::args().any(|a| a == "--dialogue-test") {
+                            if self.talk_cooldown <= 0.0
+                                && !game
+                                    .dialogue
+                                    .conversations
+                                    .get(&incident)
+                                    .is_some_and(|c| c.pending.is_some())
+                            {
+                                self.talk_cooldown = 1.05;
+                                let text = view.questions[0].1.clone();
+                                self.action(net, game, Action::Talk { incident, text });
+                            }
+                        } else {
+                            self.action(net, game, Action::Ask(fact.clone()));
+                        }
                     }
                     return;
                 }

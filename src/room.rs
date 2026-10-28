@@ -80,6 +80,7 @@ pub struct Snapshot {
     pub extra_police: bool,
     pub bought_this_review: bool,
     pub players: Vec<PlayerView>,
+    pub conversations: BTreeMap<u32, crate::dialogue::Conversation>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -415,6 +416,7 @@ impl Room {
             extra_police: self.game.extra_police,
             bought_this_review: self.game.bought_this_review,
             players,
+            conversations: self.game.dialogue.conversations.clone(),
         }
     }
     pub fn observed(&mut self, id: u8, revision: u64, hash: u64) -> bool {
@@ -443,6 +445,7 @@ pub fn apply_snapshot(game: &mut Session, state: &Snapshot, id: u8) -> Result<()
         return Err("Snapshot digest mismatch".into());
     }
     game.sim = sim;
+    game.dialogue.conversations = state.conversations.clone();
     game.phase = state.phase;
     game.shift = state.shift;
     game.funds = state.funds;

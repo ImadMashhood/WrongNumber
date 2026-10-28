@@ -23,14 +23,15 @@ jobs:
       - run: cargo check --locked --workspace --all-targets
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
-      - run: cargo build --locked
+      - run: cargo build --locked --workspace
       - name: Two-player and six-player reconnect shifts (real TCP processes)
         run: |
+          python tools/caller/playtest.py --output ci-captures/caller-provider
           python tools/net/playtest.py --players 2 --output ci-captures/network-two
-          python tools/net/playtest.py --players 6 --reconnect --output ci-captures/network-six
+          python tools/net/playtest.py --players 6 --reconnect --dialogue-test --output ci-captures/network-six
       - name: Graphical solo shift playthrough (software Vulkan)
         if: runner.os == 'Linux'
-        timeout-minutes: 5
+        timeout-minutes: 10
         shell: bash
         run: |
           for mesa_icd_path in /usr/share/vulkan/icd.d/*lvp*.json; do
@@ -41,6 +42,7 @@ jobs:
           done
           export WGPU_BACKEND=vulkan
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --playtest --low-graphics --capture-dir ci-captures
+          xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --conversation-test --low-graphics --capture-dir ci-captures/conversation
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --consequence-test --low-graphics --capture-dir ci-captures/consequences
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --escalation-test --low-graphics --capture-dir ci-captures/escalation
       - name: Save playthrough screenshots

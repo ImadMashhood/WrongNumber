@@ -3,6 +3,7 @@ mod bot;
 mod city;
 mod city_effects;
 mod desks;
+mod dialogue;
 mod environment;
 mod game;
 mod headless;
@@ -17,6 +18,7 @@ mod room;
 mod room_tests;
 mod routes;
 mod ui;
+mod voice;
 mod wall_map;
 mod world;
 use bevy::{app::AppExit, prelude::*};
@@ -45,6 +47,8 @@ fn main() {
         .insert_resource(game)
         .insert_resource(net)
         .init_resource::<Actions>()
+        .init_resource::<voice::Voice>()
+        .init_resource::<voice::ChatInput>()
         .init_resource::<net_playtest::NetPlaytest>()
         .insert_resource(check)
         .insert_resource(graphics)
@@ -83,6 +87,7 @@ fn main() {
                     performance::measure,
                     ui::scale,
                     world::controls,
+                    voice::update,
                     playtest::automate,
                     apply_actions,
                     world::seat_camera,
@@ -117,8 +122,14 @@ fn apply_actions(
     mut exit: MessageWriter<AppExit>,
     mut net: ResMut<network::Network>,
     player: Single<&Transform, With<world::Player>>,
+    mut voice: ResMut<voice::Voice>,
+    mut chat: ResMut<voice::ChatInput>,
 ) {
     for action in queue.0.drain(..) {
+        if voice.local_action(&mut chat, &action) {
+            game.dirty = true;
+            continue;
+        }
         if action == Action::Quit {
             exit.write(AppExit::Success);
         } else if action == Action::Reconnect {

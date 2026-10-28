@@ -238,6 +238,8 @@ fn terminal(
     game: &Session,
     image: &MapImage,
     routes: &crate::routes::RouteOverlay,
+    chat: &crate::voice::ChatInput,
+    voice: &crate::voice::Voice,
 ) {
     let running = matches!(game.phase, Phase::Running | Phase::Closing);
     p.spawn((column(23.0), BackgroundColor(PANEL)))
@@ -284,12 +286,15 @@ fn terminal(
             if view.state==IncidentState::Active {text(p,format!("Response window: {}s",game.sim.incidents()[&game.selected].deadline.saturating_sub(game.sim.now())),13.0,MUTED);}
             if view.call==CallState::Ringing {button(p,"ANSWER CALL",Action::Answer,running&&game.call_station==game.seated&&game.conversation.is_none());}
             if view.facts.is_empty() {text(p,"No evidence collected yet. Ask questions before committing limited teams.",15.0,MUTED);}
-            for fact in view.facts {text(p,format!("YOU: {}",fact.question),13.0,MUTED); text(p,format!("CALLER: {}",fact.answer),17.0,TEXT);}
+            if !view.facts.is_empty(){text(p,format!("{} evidence note(s) / caller transcript below",view.facts.len()),13.0,MUTED);}
             for (id,question) in view.questions {button(p,format!("Ask: {question}"),Action::Ask(id),running&&game.conversation==Some(game.selected)&&game.call_station==game.seated);}
             if view.state==IncidentState::Active {button(p,"Decline response",Action::Decline,running&&game.conversation==Some(game.selected)&&game.call_station==game.seated);}
         }
+        conversation_ui(p,game,chat,voice);
         button(p,"End conversation",Action::HangUp,game.conversation.is_some()&&game.call_station==game.seated);
         if game.multiplayer {for id in game.connected.iter().copied().filter(|id|*id!=game.local_player){let d=game.desk(id);button(p,format!("Transfer to dispatcher {id}"),Action::Transfer(id),game.conversation==Some(game.selected)&&d.seated.is_some()&&d.ringing.is_none()&&d.conversation.is_none());}}
+    });
+    p.spawn((column(39.0),BackgroundColor(PANEL))).with_children(|p| {
         text(p,"ASSIGN / CANCEL / REROUTE",13.0,MUTED);
         let missing:Vec<_>=[Capability::Police,Capability::Medical,Capability::Fire].into_iter().filter(|cap|!game.sim.units().values().any(|u|u.capability==*cap&&u.state==UnitState::Available)).map(cap_name).collect();
         let label=if missing.is_empty(){"Send Full Response".into()}else{format!("Full Response unavailable: {}",missing.join(", "))};
@@ -299,8 +304,6 @@ fn terminal(
             let enabled=running&&game.selected_call_answered()&&matches!(unit.state,UnitState::Available|UnitState::Assigned {..}|UnitState::EnRoute {..});
             button(p,format!("{verb} {} {} / {}",cap_name(unit.capability),unit.id,unit_label(&unit.state,game.sim.now())),Action::Unit(unit.id),enabled);
         }
-    });
-    p.spawn((column(39.0),BackgroundColor(PANEL))).with_children(|p| {
         text(p,"CITY OPERATIONS",14.0,MUTED); map(p, game, image, routes);
         text(p,"SHARED RESPONSE CAPACITY",14.0,MUTED);
         if let Some(policy)=game.scaled_director(){let active=game.sim.incidents().values().filter(|i|i.state==IncidentState::Active).count();let limit=policy.active_limit(game.shift);text(p,format!("Active incidents: {active} / {limit}{}",if active>=limit{" / incoming queue held"}else{""}),13.0,MUTED);}
@@ -310,6 +313,133 @@ fn terminal(
         for u in game.sim.units().values() {text(p,format!("{} {}: {}",cap_name(u.capability),u.id,unit_label(&u.state,game.sim.now())),13.0,cap_color(u.capability));}
         text(p,"Gather evidence. Appropriate refusals earn funding; unnecessary deployments occupy real capacity.",15.0,TEXT);
     });
+}
+fn conversation_ui(
+    p: &mut ChildSpawnerCommands,
+    game: &Session,
+    chat: &crate::voice::ChatInput,
+    voice: &crate::voice::Voice,
+) {
+    text(p, "CALL CONVERSATION / SUBTITLES", 15.0, AMBER);
+    if let Some(c) = game.dialogue.conversations.get(&game.selected) {
+        for turn in c.turns.iter().rev().take(6).rev() {
+            if !turn.question.is_empty() {
+                text(
+                    p,
+                    format!("DISPATCHER {}: {}", turn.player, turn.question),
+                    13.0,
+                    MUTED,
+                );
+            }
+            text(p, format!("CALLER: {}", turn.spoken_text), 16.0, TEXT);
+        }
+        text(p, &c.diagnostic, 12.0, MUTED);
+        if c.pending == Some(game.local_player) {
+            button(
+                p,
+                "Cancel pending caller response",
+                Action::CancelTalk(game.selected),
+                true,
+            );
+        }
+    }
+    let own = game.conversation == Some(game.selected) && game.call_station == game.seated;
+    button(
+        p,
+        if chat.editing {
+            format!("> {}_  [Enter sends]", chat.draft)
+        } else if chat.draft.is_empty() {
+            "Type a question...".into()
+        } else {
+            format!("Edit / send: {}", chat.draft)
+        },
+        Action::ChatFocus,
+        own,
+    );
+    text(
+        p,
+        "Type up to 256 characters. Enter sends. Hold V to speak after enabling your mic; review/edit the recognized text before sending.",
+        12.0,
+        MUTED,
+    );
+    text(
+        p,
+        &voice.status,
+        12.0,
+        if voice.recording { AMBER } else { MUTED },
+    );
+    audio_ui(p, voice, chat);
+}
+fn audio_ui(
+    p: &mut ChildSpawnerCommands,
+    voice: &crate::voice::Voice,
+    chat: &crate::voice::ChatInput,
+) {
+    button(
+        p,
+        if chat.settings {
+            "Hide audio settings"
+        } else {
+            "Audio / microphone settings"
+        },
+        Action::AudioSettings,
+        true,
+    );
+    if !chat.settings {
+        return;
+    }
+    button(
+        p,
+        if voice.enabled {
+            "Microphone: ON (hold V)"
+        } else {
+            "Enable microphone (hold V only)"
+        },
+        Action::MicToggle,
+        true,
+    );
+    button(
+        p,
+        format!("Input: {} / next", voice.inputs[voice.input]),
+        Action::InputDevice,
+        !voice.recording,
+    );
+    button(
+        p,
+        format!("Caller output: {} / next", voice.outputs[voice.output]),
+        Action::OutputDevice,
+        true,
+    );
+    text(
+        p,
+        format!("Caller volume: {:.0}%", voice.volume * 100.0),
+        13.0,
+        AMBER,
+    );
+    button(p, "Caller volume +", Action::Volume(true), true);
+    button(p, "Caller volume −", Action::Volume(false), true);
+    button(
+        p,
+        if voice.save_clips {
+            "Saving local audio: ON / revoke consent"
+        } else {
+            "Save my microphone and caller audio locally (opt in)"
+        },
+        Action::SaveClips,
+        true,
+    );
+    text(
+        p,
+        "Clips stay on this PC. Other players' microphones are never recorded or relayed. Delete removes saved WAVs and disables future recording.",
+        12.0,
+        MUTED,
+    );
+    button(
+        p,
+        "Delete all my saved audio clips",
+        Action::DeleteClips,
+        true,
+    );
 }
 fn lobby(p: &mut ChildSpawnerCommands, game: &Session, net: &crate::network::Network) {
     p.spawn((column(65.0), BackgroundColor(PANEL)))
@@ -373,7 +503,7 @@ fn lobby(p: &mut ChildSpawnerCommands, game: &Session, net: &crate::network::Net
         });
     p.spawn((column(34.0),BackgroundColor(PANEL))).with_children(|p|{text(p,"SHARED AUTHORITY",20.0,TEXT);text(p,"The host owns the clock, incidents, responders and funding. Seat claims and critical actions are validated in order.",16.0,TEXT);text(p,"Use E at a free chair. Open your monitor to answer calls. Transfer a conversation to a connected, seated, idle teammate.",16.0,MUTED);text(p,"Escape opens your local menu; the online shift keeps running.",16.0,AMBER);});
 }
-fn review(p: &mut ChildSpawnerCommands, game: &Session) {
+fn review(p: &mut ChildSpawnerCommands, game: &Session, voice: &crate::voice::Voice) {
     let result = game.sim.review();
     p.spawn((column(66.0),BackgroundColor(PANEL))).with_children(|p| {
         text(p,format!("SHIFT REVIEW / GRADE {}",game.grade()),24.0,TEXT);
@@ -391,6 +521,31 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session) {
         .with_children(|p| {
             text(p, format!("AVAILABLE FUNDING\n${}", game.funds), 28.0, TEXT);
             text(p, "One purchase per review", 15.0, MUTED);
+            text(p, "LOCAL CONVERSATION CLIPS (your device)", 14.0, AMBER);
+            for (n, clip) in voice.clips.iter().enumerate() {
+                button(
+                    p,
+                    format!("Replay {}", clip.label),
+                    Action::ReplayClip(n),
+                    true,
+                );
+            }
+            button(
+                p,
+                "Delete all my saved audio clips",
+                Action::DeleteClips,
+                true,
+            );
+            for (id, c) in &game.dialogue.conversations {
+                if let Some(t) = c.turns.iter().rev().find(|t| !t.question.is_empty()) {
+                    text(
+                        p,
+                        format!("Call {id}: YOU: {} / CALLER: {}", t.question, t.spoken_text),
+                        13.0,
+                        MUTED,
+                    );
+                }
+            }
             button(
                 p,
                 if game.radio {
@@ -426,6 +581,7 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session) {
             button(p, "Return to office", Action::Office, true);
         });
 }
+#[allow(clippy::too_many_arguments)]
 pub fn draw(
     mut commands: Commands,
     roots: Query<Entity, With<UiRoot>>,
@@ -434,6 +590,8 @@ pub fn draw(
     routes: Res<crate::routes::RouteOverlay>,
     net: Res<crate::network::Network>,
     player: Single<&Transform, With<Player>>,
+    chat: Res<crate::voice::ChatInput>,
+    voice: Res<crate::voice::Voice>,
 ) {
     if !game.dirty {
         return;
@@ -530,7 +688,7 @@ pub fn draw(
                 })
                 .with_children(|p| match screen {
                     Screen::Lobby => lobby(p, &game, &net),
-                    Screen::Terminal => terminal(p, &game, &image, &routes),
+                    Screen::Terminal => terminal(p, &game, &image, &routes, &chat, &voice),
                     Screen::CityMap => {
                         p.spawn((column(70.0), BackgroundColor(PANEL)))
                             .with_children(|p| {
@@ -538,7 +696,9 @@ pub fn draw(
                                 button(p, "Return to room", Action::Office, true);
                             });
                     }
-                    Screen::Review => review(p, &game),
+                    Screen::Review => {
+                        review(p, &game, &voice);
+                    }
                     Screen::Pause => {
                         p.spawn((column(50.0), BackgroundColor(PANEL)))
                             .with_children(|p| {
@@ -561,6 +721,7 @@ pub fn draw(
                                 if net.online() {
                                     button(p, "Room lobby / players", Action::OpenLobby, true);
                                 }
+                                audio_ui(p, &voice, &chat);
                                 button(p, "Resume", Action::Resume, true);
                                 button(p, "Quit game", Action::Quit, true);
                             });
