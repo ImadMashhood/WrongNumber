@@ -297,6 +297,7 @@ fn terminal(
     p.spawn((column(39.0),BackgroundColor(PANEL))).with_children(|p| {
         text(p,"CITY OPERATIONS",14.0,MUTED); map(p, game, image, routes);
         text(p,"SHARED RESPONSE CAPACITY",14.0,MUTED);
+        text(p,format!("Recorded city damage: ${}",game.sim.review().total_damage),14.0,AMBER);
         for cap in [Capability::Police,Capability::Medical,Capability::Fire] {let total=game.sim.units().values().filter(|u|u.capability==cap).count();let available=game.sim.units().values().filter(|u|u.capability==cap&&u.state==UnitState::Available).count();text(p,format!("{}: {available} / {total} available",cap_name(cap)),14.0,cap_color(cap));}
         text(p,format!("Run funding ${} | Recovery {}s",game.funds,if game.radio {crate::city::config().radio_recovery_seconds} else {crate::city::config().recovery_seconds}),12.0,MUTED);
         for u in game.sim.units().values() {text(p,format!("{} {}: {}",cap_name(u.capability),u.id,unit_label(&u.state,game.sim.now())),13.0,cap_color(u.capability));}
@@ -309,7 +310,9 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session) {
         text(p,format!("SHIFT REVIEW / GRADE {}",game.grade()),24.0,TEXT);
         text(p,format!("{} resolved | {} refused | {} expired",result.resolved,result.dismissed,result.expired),18.0,AMBER);
         for entry in &result.score_entries {text(p,format!("{:02}:{:02}  Call {}  {:+} pts\n{}",entry.at/60,entry.at%60,entry.incident,entry.points,entry.reason),16.0,TEXT);}
-        text(p,format!("Score {}  /  Base grant 100 + score = {} funding (minimum 0)",result.score,game.grant()),17.0,AMBER);
+        text(p,format!("City damage: ${} | Funding assessment: {}",result.total_damage,game.damage_assessment()),19.0,AMBER);
+        for entry in &result.damage_entries {text(p,format!("Call {} / ${} damage / {:02}:{:02} to {:02}:{:02} / delayed response",entry.incident,entry.damage,entry.first_at/60,entry.first_at%60,entry.last_at/60,entry.last_at%60),14.0,TEXT);}
+        text(p,format!("Base 100 + score {} - damage assessment {} = {} funding (minimum 0)",result.score,game.damage_assessment(),game.grant()),17.0,AMBER);
         text(p,"Recorded decisions drive this review. Upgrades apply to the next shift in this run.",14.0,MUTED);
     });
     p.spawn((column(33.0), BackgroundColor(PANEL)))

@@ -30,3 +30,17 @@ Final verdict: **PASS for the corrected solo M2 baseline**. The full game specif
 Evidence: 46 automated tests pass (17 office/session, 23 simulation rules, 6 road/full-response). Formatting and strict Clippy pass. The NVIDIA graphical playthrough targets a chair and monitor, clicks Full Response, handles six calls for 210 points, displays live road paths, opens the review, purchases radios and verifies 10-second recovery next shift. Captures were inspected for readable caller details, availability counts and route alignment. Repeat-call and failed/atomic dispatch behavior have dedicated tests. A 300-frame normal-graphics benchmark on the RTX 3080 averages 58.3 FPS at 1440x900 (p95 18.43 ms), following 90 warm-up frames. Spatial sound is wired through Bevy; physical-device listening remains a manual check, with mute/no-device fallbacks.
 
 The 14-page PDF was rendered and inspected. Extracted text contains every supplied source line; the preserved source is byte-for-byte identical to the attachment. M3 is now authorized to start automatically. Its initial work is the deterministic monetary consequence ledger, not a claim that all M3 escalation/effects are finished.
+
+
+## M3 initial consequence slice - 2026-10-27
+
+Verdict: **PASS for this slice; M3 remains IN PROGRESS**. M2 was reviewed and committed first (`c7f5b35`), then this work began automatically under the user's standing instruction.
+
+| Specification | Implemented and reviewed | Remaining work |
+| --- | --- | --- |
+| 6.2, 8.1-8.3 | Fixed truth drives delayed per-second monetary damage; caps bound losses, harmless reports stay at zero, pending calls are unaffected, and suitable on-scene responders stop growth. | Data-driven severity variants, city conditions and escalation chains. |
+| 8.2, 8.4 | `DamageApplied` records incident, cause, amount, cumulative total and timestamp; snapshots validate the ledger. Live dispatch and review show actual recorded totals. | Major city audio/visual feedback, closures and secondary calls. |
+| 1, 7.3, 8.1 | Review groups each incident's damage interval and explains its funding/grade assessment. | Broader balance and replay variety. |
+| 10.3 | The M2 seeded repeating caller loop retains its explicit 96-incident bound. | Adaptive severity/volume budgets by players, resources, city state and remaining time. |
+
+Verification: 51 automated tests pass (18 session/office, 23 original rules, 6 road/full-response and 4 consequence tests); strict Clippy and formatting pass. The rendered consequence scenario records $127,500 from a declined credible fire, 100 decision points, a 127-point damage assessment, grade F and 73 funding, then purchases radios and starts the next shift with 23 funding. The ordinary 210-point/310-funding graphical shift remains a regression check. Damage/review screenshots were inspected for readable evidence and arithmetic. The post-change benchmark averages 58.4 FPS at 1440x900 on the RTX 3080 (p95 17.91 ms, 300 measured frames after 90 warm-up frames). The next M3 work is authored escalation/secondary-call presentation and workload budgets; no M4 transition is approved by this slice alone.

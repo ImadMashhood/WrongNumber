@@ -1,5 +1,7 @@
 //! Authoritative, renderer-free dispatch rules. Time advances only when requested.
+pub mod consequences;
 pub mod roads;
+use consequences::{ConsequenceModel, DamageEntry, DamageReason};
 use roads::{Journey, RoadNetwork};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fmt};
@@ -93,6 +95,12 @@ pub struct Incident {
     pub revealed: Vec<String>,
     pub state: IncidentState,
     pub call: CallState,
+    #[serde(default)]
+    pub consequence: ConsequenceModel,
+    #[serde(default)]
+    pub damage: u64,
+    #[serde(default)]
+    pub reported_at: Option<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitState {
@@ -153,6 +161,12 @@ fn default_speed() -> u32 {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventKind {
+    DamageApplied {
+        incident: IncidentId,
+        amount: u64,
+        total: u64,
+        reason: DamageReason,
+    },
     FullResponseOrdered {
         incident: IncidentId,
         player: PlayerId,
@@ -271,6 +285,8 @@ pub struct ShiftResult {
     pub dismissed: usize,
     pub available_units: usize,
     pub score_entries: Vec<ScoreEntry>,
+    pub total_damage: u64,
+    pub damage_entries: Vec<DamageEntry>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "UncheckedSimulation")]
@@ -404,6 +420,7 @@ impl Simulation {
             for incident in sim.incidents.values_mut() {
                 incident.state = IncidentState::Pending;
                 incident.call = CallState::Queued;
+                incident.reported_at = None;
             }
         }
         for (unit, station) in sim.units.values_mut().zip(config.stations) {
@@ -448,6 +465,35 @@ impl Simulation {
             u.speed_milli = if index == 0 { 1250 } else { 1000 };
         }
         self.network = Some(network);
+        Ok(())
+    }
+    pub fn enable_consequences(&mut self) -> Result<(), Error> {
+        if self.now != 0 || !self.events.is_empty() {
+            return Err(Error::InvalidTransition);
+        }
+        for incident in self.incidents.values_mut() {
+            incident.consequence = if incident.truth == Truth::Benign {
+                ConsequenceModel::default()
+            } else {
+                match incident.required {
+                    Capability::Fire => ConsequenceModel {
+                        max_damage: 250_000,
+                        onset_seconds: 45,
+                        damage_per_second: 500,
+                    },
+                    Capability::Medical => ConsequenceModel {
+                        max_damage: 25_000,
+                        onset_seconds: 75,
+                        damage_per_second: 250,
+                    },
+                    Capability::Police => ConsequenceModel {
+                        max_damage: 15_000,
+                        onset_seconds: 60,
+                        damage_per_second: 100,
+                    },
+                }
+            };
+        }
         Ok(())
     }
     pub fn set_response_speeds(&mut self, speeds: [u32; 3]) -> Result<(), Error> {
@@ -540,6 +586,8 @@ impl Simulation {
         scenario.state = IncidentState::Pending;
         scenario.call = CallState::Queued;
         scenario.revealed.clear();
+        scenario.damage = 0;
+        scenario.reported_at = None;
         let id = scenario.id;
         self.incidents.insert(id, scenario);
         Ok(id)
@@ -557,6 +605,7 @@ impl Simulation {
         incident.state = IncidentState::Active;
         incident.call = CallState::Ringing;
         incident.deadline = self.now + window;
+        incident.reported_at = Some(self.now);
         self.emit(EventKind::CallArrived { incident: id });
         Ok(())
     }
@@ -592,7 +641,25 @@ impl Simulation {
     /// Current review rollup, derived from authoritative states and score events.
     pub fn review(&self) -> ShiftResult {
         let count = |state| self.incidents.values().filter(|i| i.state == state).count();
+        let mut damage: BTreeMap<IncidentId, DamageEntry> = BTreeMap::new();
+        for event in &self.events {
+            if let EventKind::DamageApplied {
+                incident, amount, ..
+            } = event.kind
+            {
+                let entry = damage.entry(incident).or_insert(DamageEntry {
+                    incident,
+                    first_at: event.at,
+                    last_at: event.at,
+                    damage: 0,
+                });
+                entry.damage += amount;
+                entry.last_at = event.at;
+            }
+        }
         ShiftResult {
+            total_damage: damage.values().map(|e| e.damage).sum(),
+            damage_entries: damage.into_values().collect(),
             at: self.now,
             score: self.score,
             active: count(IncidentState::Active),
@@ -919,6 +986,18 @@ impl Simulation {
         }
         for _ in 0..seconds {
             self.now += 1;
+            let damage:Vec<_>=self.incidents.values().filter(|i|i.state==IncidentState::Active&&i.truth==Truth::Emergency&&self.now.saturating_sub(i.reported_at.unwrap_or(0))>i.consequence.onset_seconds&&i.damage<i.consequence.max_damage&&!self.units.values().any(|u|matches!(u.state,UnitState::OnScene{incident}|UnitState::Resolving{incident,..} if incident==i.id)&&u.capability==i.required)).map(|i|(i.id,i.consequence.damage_per_second.min(i.consequence.max_damage-i.damage))).filter(|(_,amount)|*amount>0).collect();
+            for (incident, amount) in damage {
+                let i = self.incidents.get_mut(&incident).unwrap();
+                i.damage += amount;
+                let total = i.damage;
+                self.emit(EventKind::DamageApplied {
+                    incident,
+                    amount,
+                    total,
+                    reason: DamageReason::DelayedResponse,
+                });
+            }
             let expired: Vec<_> = self
                 .incidents
                 .values()
@@ -1092,6 +1171,16 @@ impl Simulation {
                 || i.deadline > 86_400
                 || i.service_seconds == 0
                 || i.service_seconds > 3600
+                || i.consequence.max_damage > 5_000_000
+                || i.consequence.onset_seconds > 3600
+                || i.consequence.damage_per_second > 100_000
+                || i.damage > i.consequence.max_damage
+                || (i.truth == Truth::Benign
+                    && (i.consequence != ConsequenceModel::default() || i.damage != 0))
+                || (matches!(i.state, IncidentState::Pending | IncidentState::Unreported)
+                    && i.damage != 0)
+                || i.reported_at.is_some_and(|at| at > self.now)
+                || (i.state == IncidentState::Pending && i.reported_at.is_some())
                 || (i.state == IncidentState::Active && i.deadline <= self.now)
                 || (!matches!(i.state, IncidentState::Active | IncidentState::Pending)
                     && i.call != CallState::Closed)
@@ -1193,6 +1282,7 @@ impl Simulation {
             }
         }
         let mut ended = std::collections::BTreeSet::new();
+        let mut damages: BTreeMap<IncidentId, u64> = BTreeMap::new();
         let mut total = 0_i64;
         let mut last = 0;
         for (index, e) in self.events.iter().enumerate() {
@@ -1202,6 +1292,25 @@ impl Simulation {
             last = e.at;
             let valid_player = |player| (1..=6).contains(&player);
             match &e.kind {
+                EventKind::DamageApplied {
+                    incident,
+                    amount,
+                    total,
+                    ..
+                } => {
+                    let i = self.incidents.get(incident).ok_or_else(invalid)?;
+                    let recorded = damages.entry(*incident).or_default();
+                    if *amount == 0
+                        || *amount > i.consequence.damage_per_second
+                        || *total > i.consequence.max_damage
+                        || recorded.checked_add(*amount) != Some(*total)
+                        || e.at.saturating_sub(i.reported_at.unwrap_or(0))
+                            <= i.consequence.onset_seconds
+                    {
+                        return Err(invalid());
+                    }
+                    *recorded = *total;
+                }
                 EventKind::CallArrived { incident } => {
                     if !self.incidents.contains_key(incident) {
                         return Err(invalid());
@@ -1272,6 +1381,13 @@ impl Simulation {
             (!matches!(i.state, IncidentState::Active | IncidentState::Pending))
                 != ended.contains(&i.id)
         }) {
+            return Err(invalid());
+        }
+        if self
+            .incidents
+            .values()
+            .any(|i| i.damage != damages.get(&i.id).copied().unwrap_or(0))
+        {
             return Err(invalid());
         }
         if total != i64::from(self.score) {

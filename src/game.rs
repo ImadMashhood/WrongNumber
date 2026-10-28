@@ -112,6 +112,8 @@ impl Session {
         )
         .expect("Valid shift configuration");
         crate::city::install(&mut sim);
+        sim.enable_consequences()
+            .expect("Authored consequence models are fixed before the shift");
         sim
     }
     pub fn call_duration(&self, id: u32) -> u32 {
@@ -565,15 +567,18 @@ impl Session {
             self.notice = "Shift complete. The rear meeting-room door is unlocked.".into();
         }
     }
+    pub fn damage_assessment(&self) -> i32 {
+        (self.sim.review().total_damage / 1000).min(i32::MAX as u64) as i32
+    }
     pub fn grant(&self) -> i32 {
-        (100 + self.sim.score()).max(0)
+        (100 + self.sim.score() - self.damage_assessment()).max(0)
     }
     pub fn grade(&self) -> &'static str {
         let r = self.sim.review();
         if r.resolved + r.dismissed == 0 {
             "F"
         } else {
-            match self.sim.score() {
+            match self.sim.score() - self.damage_assessment() {
                 180.. => "A",
                 120..=179 => "B",
                 60..=119 => "C",
@@ -809,5 +814,27 @@ mod review_tests {
         g.tick((next - g.sim.now()) as f32);
         assert_eq!(g.ringing, Some(7));
         assert!(g.visible_ids().count() > 6);
+    }
+}
+
+#[cfg(test)]
+mod consequence_tests {
+    use super::*;
+    #[test]
+    fn review_assesses_actual_damage_once_and_explains_grade() {
+        let mut game = Session::default();
+        game.act(Action::Sit(0));
+        game.tick(10.0);
+        game.act(Action::UsePhone);
+        game.act(Action::Ask("smoke".into()));
+        game.act(Action::Decline);
+        game.act(Action::EndShift);
+        assert_eq!(game.sim.review().total_damage, 127_500);
+        assert_eq!(game.damage_assessment(), 127);
+        assert_eq!(game.grant(), 0);
+        assert_eq!(game.grade(), "F");
+        game.tick(100.0);
+        assert_eq!(game.funds, 0);
+        assert_eq!(game.sim.review().damage_entries.len(), 1);
     }
 }

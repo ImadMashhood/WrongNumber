@@ -6,11 +6,11 @@ Players work a shift in a busy dispatch office, investigate calls from unreliabl
 
 The central challenge is sound triage. A refusal can be the right call, while a credible emergency left unanswered can become much worse. Humor comes from callers, player arguments, limited resources, and consequences the game can show and explain.
 
-This repository is the project home. The first goal is a small, complete, playable shift. AI callers, voice features, character creation, and Steam Workshop support come later, after the core loop is fun and reliable.
+This repository is the project home. The solo shift is playable; M3 now adds delayed monetary consequences. AI callers, voice features, character creation, and Steam Workshop support come later, after the core loop is fun and reliable.
 
 ## Project status
 
-**M2 implemented.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
+**M2 implemented and spec-reviewed; M3 started.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
 
 ## Design pillars
 
@@ -107,11 +107,17 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M3 — Escalation, city consequences, and replayable content
 
-- [ ] **Milestone status:** Not started
+- [ ] **Milestone status:** In progress — deterministic monetary consequences and review ledger implemented
 
 **Purpose:** Make the city react to decisions and create memorable, fair outcomes.
 
-**Deliverables**
+**Initial slice delivered**
+
+- [x] Delayed, bounded monetary damage driven by fixed scenario truth; benign reports cannot generate damage.
+- [x] Appropriate responders stop damage growth on scene; damage events replay and survive save/load.
+- [x] Per-incident damage timeline, funding assessment and grade impact in the review.
+
+**Remaining deliverables**
 
 - [ ] Data-driven deadlines and bounded escalation rules for incidents.
 - [ ] One authored major event, such as an ignored genuine threat leading to a blast, with synchronized map marker, skyline effect, road closure, office response, and secondary calls.
@@ -325,11 +331,11 @@ See [simulation rules and API](docs/simulation.md) for command examples, scoring
 VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json WGPU_BACKEND=vulkan cargo run --locked -- --smoke-test
 ```
 
-The M0 and M1 GitHub CI runs passed on Linux and Windows. M2 adds a Linux software-Vulkan graphical playthrough to CI; results for this revision remain pending until GitHub completes it.
+The M0/M1 and preceding M2 GitHub CI runs passed on Linux and Windows. M2 adds a Linux software-Vulkan graphical playthrough to CI; results for this revision remain pending until GitHub completes it.
 
 ## M2 verification and imported map
 
-- 46 local automated tests pass: 23 simulation rules tests, 6 road/full-response tests and 17 office/shift/input tests.
+- 51 local automated tests pass: 23 simulation rules tests, 6 road/full-response tests, 4 consequence tests and 18 office/shift/input tests.
 - Formatting, workspace compilation, and Clippy pass. Both hardware/normal-graphics and software/reduced-graphics graphical playthroughs pass locally.
 - The graphical playthrough on NVIDIA Vulkan verifies targeted seating and monitor focus, six sequential delayed calls, 210 points, the ten-minute shift boundary, review, a radio purchase, and shorter recovery in the next shift. Screenshots are inspected for room geometry and UI readability.
 - The supplied graph has 2,639 nodes, 1,977 roads and 694 disconnected weak components. The playable pilot uses real nodes/roads in its 144-node largest component. No links are invented between components. Road/junction endpoint offsets of at most one pixel per axis are normalized at import. Run `python3 tools/maps/audit_graph.py` after graph edits.

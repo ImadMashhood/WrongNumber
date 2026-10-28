@@ -21,3 +21,5 @@
 
 - The gameplay design PDF and exact source are versioned in `docs/design/`; review evidence lives in `docs/reviews/gameplay-loop.md`. `AGENTS.md` requires a comparison after every milestone/gameplay-changing commit and authorizes starting M3 automatically after M2 passes.
 - `src/routes.rs` caches a transparent route overlay; `src/phone.rs` provides spatial ringing and a physical beacon. The local launcher still selects hardware by default. Linux audio compilation requires ALSA development linkage.
+
+- M3's first slice adds bounded scenario consequence models, authoritative per-tick damage events, and an event-derived review ledger. The UI never reads potential damage/truth to invent an outcome. Full escalation chains and the adaptive director are still pending; this change starts M3 without marking the whole milestone complete.

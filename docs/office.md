@@ -20,7 +20,7 @@ After each conversation ends, another authored caller arrives in 1–15 seconds.
 
 The timer keeps running throughout room movement and all computer/map screens. Only explicit solo pause stops it. **Finish shift early / skip remaining time** is a playtest convenience: it first closes delivery, then advances the remaining time with normal deadlines and penalties for received calls. At 10 minutes, no more calls are delivered; existing incidents and responder returns finish before the rear door unlocks. Calls never delivered are recorded without a penalty and do not appear as received cases.
 
-Enter the unlocked rear meeting room and aim at the conference table to review the grade, score explanations and funding. Funding is `max(0, 100 + score)`, credited once. A shift with no handled calls receives grade F.
+Enter the unlocked rear meeting room and aim at the conference table to review the grade, score explanations and funding. Funding is `max(0, 100 + score - floor(actual damage / 1000))`, credited once. The damage assessment also reduces the score used for grading. A shift with no handled calls receives grade F.
 
 Buy at most one upgrade per review, or continue without buying:
 
@@ -56,3 +56,11 @@ The Linux launcher uses hardware rendering by default. The old launcher forced M
 `cargo run --locked -- --benchmark` renders the same room overview, skips 90 warm-up frames, measures 300 frames, prints average FPS and 95th-percentile frame time, then exits. Normal graphics use 1440×900 and the default VSync presentation mode. This is a reproducible scene sample, not a guarantee for every view, GPU or multiplayer session.
 
 When running the compiled binary directly from a source checkout, set `BEVY_ASSET_ROOT` to the repository directory. `cargo run` already supplies the source asset root. Packaged builds must put `assets/` beside the executable (release packaging is future work).
+
+## M3 first consequence slice
+
+Untreated genuine emergencies accrue abstract monetary damage after an authored delay. Fire starts after 45 seconds ($500/second, cap $250,000), medical after 75 seconds ($250/second, cap $25,000), and police after 60 seconds ($100/second, cap $15,000). These are gameplay balance values. Harmless scenarios produce zero damage. Appropriate responders stop growth on scene; resolved/expired incidents stop accumulating. Declining does not charge damage immediately, so later calls can overlap with an earlier incident's consequences.
+
+The review groups recorded damage by incident and shows first/last damage timestamps, total and funding assessment. No speculative future damage is shown. Major explosions, secondary incidents, road-closure effects and adaptive workload remain unfinished M3 work.
+
+Run `cargo run --locked -- --consequence-test --capture-dir /absolute/path` for the deterministic graphical damage scenario. It declines a credible fire, handles the other cases, verifies $127,500 damage, 100 decision points, 73 funding, and the review/upgrade/next-shift flow. Ordinary `--playtest` still verifies the undamaged 210-point/310-funding flow.

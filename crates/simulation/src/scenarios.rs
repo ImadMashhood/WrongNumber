@@ -94,6 +94,9 @@ pub(super) fn incidents(rng: &mut u64) -> Vec<Incident> {
                     revealed: vec![],
                     state: IncidentState::Active,
                     call: CallState::Ringing,
+                    consequence: ConsequenceModel::default(),
+                    damage: 0,
+                    reported_at: Some(0),
                 }
             },
         )

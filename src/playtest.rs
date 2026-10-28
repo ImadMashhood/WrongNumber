@@ -15,6 +15,7 @@ use wrong_number_sim::UnitState;
 pub struct LaunchCheck {
     smoke: bool,
     playtest: bool,
+    consequence: bool,
     benchmark: bool,
     frames: u32,
     stage: u8,
@@ -27,7 +28,10 @@ impl LaunchCheck {
         let args: Vec<_> = std::env::args().collect();
         Self {
             smoke: args.iter().any(|a| a == "--smoke-test"),
-            playtest: args.iter().any(|a| a == "--playtest"),
+            playtest: args
+                .iter()
+                .any(|a| a == "--playtest" || a == "--consequence-test"),
+            consequence: args.iter().any(|a| a == "--consequence-test"),
             benchmark: args.iter().any(|a| a == "--benchmark"),
             frames: 0,
             stage: 0,
@@ -160,7 +164,7 @@ pub fn automate(
                         "window",
                     ][(id - 1) as usize];
                     click(&mut commands, &buttons, Action::Ask(fact.into()));
-                } else if [2, 3, 4].contains(&id) {
+                } else if [2, 3, 4].contains(&id) || (check.consequence && id == 1) {
                     click(&mut commands, &buttons, Action::Decline);
                 } else {
                     let unit = match id {
@@ -190,8 +194,12 @@ pub fn automate(
         }
         1 => {
             assert_eq!(game.phase, Phase::AwaitingReview);
-            assert_eq!(game.sim.score(), 210);
-            assert_eq!(game.funds, 310);
+            assert_eq!(game.sim.score(), if check.consequence { 100 } else { 210 });
+            assert_eq!(
+                game.sim.review().total_damage,
+                if check.consequence { 127_500 } else { 0 }
+            );
+            assert_eq!(game.funds, if check.consequence { 73 } else { 310 });
             wrong_number_sim::Simulation::load_json(&game.sim.save_json().unwrap())
                 .expect("Valid completed shift snapshot");
             click(&mut commands, &buttons, Action::Office);
@@ -219,7 +227,14 @@ pub fn automate(
             check.stage = 5;
         }
         5 => {
-            check.capture(&mut commands, "m2-review");
+            check.capture(
+                &mut commands,
+                if check.consequence {
+                    "m3-damage-review"
+                } else {
+                    "m2-review"
+                },
+            );
             check.stage = 6;
             check.last = check.frames;
         }
@@ -229,7 +244,7 @@ pub fn automate(
         }
         7 => {
             assert!(game.radio);
-            assert_eq!(game.funds, 260);
+            assert_eq!(game.funds, if check.consequence { 23 } else { 260 });
             click(&mut commands, &buttons, Action::NextShift);
             check.stage = 8;
         }
@@ -243,6 +258,7 @@ pub fn automate(
             check.last = check.frames;
         }
         9 if check.frames - check.last >= 15 => {
+            info!("Consequence scenario: {}", check.consequence);
             info!(
                 "M2 PLAYTEST PASSED: targeted seating, monitor focus, six delayed calls, 600-second shift, review, purchase, next shift"
             );
