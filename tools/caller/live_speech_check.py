@@ -13,7 +13,7 @@ binary=Path('target/debug/wrong-number-caller-server').resolve();log=(out/'servi
 catalog=json.loads(Path('assets/scenarios/complaints.json').read_text())['complaints'];reports=[]
 def ask(c):
  start=time.monotonic()
- with socket.create_connection(('127.0.0.1',port),timeout=6) as s:
+ with socket.create_connection(('127.0.0.1',port),timeout=24) as s:
   s.sendall(json.dumps(c).encode()+b'\n');line=s.makefile('rb').readline(16385)
  if not line:raise RuntimeError('Live provider returned no accepted response; conversation disconnected')
  reply=json.loads(line)['reply'];assert 0<len(reply['spoken_text'])<=512

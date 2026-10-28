@@ -110,9 +110,7 @@ pub fn validate(c: &Context, r: &Reply) -> bool {
     }
     match r.proposed_action {
         Proposal::Opening => c.kind == TurnKind::Opening && !r.call_complete && refs.is_empty(),
-        Proposal::Answer => {
-            c.kind == TurnKind::Conversation && !r.call_complete && !refs.is_empty()
-        }
+        Proposal::Answer => c.kind == TurnKind::Conversation && !r.call_complete,
         Proposal::Clarify => {
             c.kind == TurnKind::Conversation && !r.call_complete && refs.is_empty()
         }
@@ -240,7 +238,7 @@ pub fn service(address: std::net::SocketAddr, context: &Context) -> Result<Servi
         std::net::TcpStream::connect_timeout(&address, std::time::Duration::from_millis(300))
             .map_err(|_| "Caller service unavailable")?;
     stream
-        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+        .set_read_timeout(Some(std::time::Duration::from_secs(22)))
         .map_err(|e| e.to_string())?;
     stream
         .set_write_timeout(Some(std::time::Duration::from_secs(1)))
@@ -250,7 +248,7 @@ pub fn service(address: std::net::SocketAddr, context: &Context) -> Result<Servi
     stream
         .write_all(&bytes)
         .map_err(|_| "Caller service write failed")?;
-    let line = read_frame(&mut stream, 16_384, std::time::Duration::from_secs(5))?;
+    let line = read_frame(&mut stream, 16_384, std::time::Duration::from_secs(22))?;
     let response: ServiceReply =
         serde_json::from_slice(&line).map_err(|_| "Invalid caller response")?;
     if response.source != "provider" || !validate(context, &response.reply) {

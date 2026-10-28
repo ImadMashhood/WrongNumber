@@ -263,7 +263,7 @@ impl Session {
             .pending
             .iter()
             .filter(|(id, p)| {
-                p.started.elapsed().as_secs_f32() > 5.2
+                p.started.elapsed().as_secs_f32() > 23.0
                     || p.shift != self.shift
                     || !matches!(self.phase, Phase::Running | Phase::Closing)
                     || self
@@ -465,10 +465,18 @@ mod tests {
         assert!(s.talk(1, "x".repeat(257)).is_err());
         s.talk(1, "What can you see?".into()).unwrap();
         assert!(s.talk(1, "another?".into()).is_err());
-        s.dialogue.pending.get_mut(&1).unwrap().started =
-            Instant::now() - std::time::Duration::from_secs(6);
         let empty: Vec<_> = s.dialogue.rx.lock().unwrap().try_iter().collect();
         assert!(!empty.is_empty());
+        s.dialogue.pending.get_mut(&1).unwrap().started =
+            Instant::now() - std::time::Duration::from_secs(6);
+        s.poll_dialogue();
+        assert_eq!(
+            s.conversation,
+            Some(1),
+            "Slow replies must survive the old five-second cutoff"
+        );
+        s.dialogue.pending.get_mut(&1).unwrap().started =
+            Instant::now() - std::time::Duration::from_secs(24);
         s.poll_dialogue();
         assert!(s.sim.call_view(1).unwrap().facts.is_empty());
         assert!(

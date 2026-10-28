@@ -15,8 +15,15 @@ pub struct Actions(pub Vec<Action>);
 pub struct UiRoot;
 #[derive(Resource)]
 pub struct MapImage(pub Handle<Image>);
+#[derive(Resource)]
+pub struct CallerPortraits(pub Vec<Handle<Image>>);
 pub fn load_map(mut commands: Commands, assets: Res<AssetServer>) {
     commands.insert_resource(MapImage(assets.load("city/map.png")));
+    commands.insert_resource(CallerPortraits(
+        (0..24)
+            .map(|n| assets.load(format!("callers/{n:02}.png")))
+            .collect(),
+    ));
 }
 #[derive(Component)]
 pub struct UiAction(pub Action);
@@ -93,16 +100,6 @@ fn column(width: f32) -> Node {
         padding: UiRect::all(px(16)),
         row_gap: px(8),
         ..default()
-    }
-}
-fn state_name(state: IncidentState) -> &'static str {
-    match state {
-        IncidentState::Pending => "QUEUED",
-        IncidentState::Unreported => "UNREPORTED",
-        IncidentState::Active => "OPEN",
-        IncidentState::Resolved => "RESOLVED",
-        IncidentState::Expired => "EXPIRED",
-        IncidentState::Dismissed => "REFUSED",
     }
 }
 pub fn unit_label(state: &UnitState, now: u32) -> String {
@@ -251,83 +248,330 @@ fn map(
 fn terminal(
     p: &mut ChildSpawnerCommands,
     game: &Session,
-    image: &MapImage,
-    routes: &crate::routes::RouteOverlay,
+    _image: &MapImage,
+    _routes: &crate::routes::RouteOverlay,
     chat: &crate::voice::ChatInput,
     voice: &crate::voice::Voice,
+    portraits: &CallerPortraits,
 ) {
     let running = matches!(game.phase, Phase::Running | Phase::Closing);
-    p.spawn((column(23.0), BackgroundColor(PANEL)))
+    // The desktop contains only resource status and the actual funding ledger.
+    p.spawn((
+        Node {
+            width: percent(100),
+            height: percent(100),
+            padding: UiRect::all(px(28)),
+            column_gap: px(36),
+            ..default()
+        },
+        BackgroundColor(Color::srgb(0.075, 0.13, 0.17)),
+    ))
+    .with_children(|p| {
+        p.spawn(Node {
+            width: percent(34),
+            height: percent(100),
+            min_height: px(0),
+            overflow: Overflow::scroll_y(),
+            min_width: px(0),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(18),
+            ..default()
+        })
         .with_children(|p| {
-            text(p, "INCOMING / CASE QUEUE", 14.0, MUTED);
-            for id in game.visible_ids() {
-                let v = game.sim.call_view(*id).unwrap();
-                let tag = if v.state != IncidentState::Active {
-                    state_name(v.state)
-                } else {
-                    match v.call {
-                        CallState::Queued => "QUEUED",
-                        CallState::Ringing => "RINGING",
-                        CallState::Answered { .. } => "ON LINE",
-                        CallState::Declined => "DECLINED",
-                        CallState::Closed => "CLOSED",
-                    }
-                };
-                let selected = if *id == game.selected { "> " } else { "" };
-                button(
+            text(p, "DISPATCH DESKTOP", 14.0, MUTED);
+            text(p, "Dispatch Center", 26.0, TEXT);
+            p.spawn((
+                Node {
+                    padding: UiRect::all(px(22)),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(12),
+                    border_radius: BorderRadius::all(px(12)),
+                    ..default()
+                },
+                BackgroundColor(PANEL),
+            ))
+            .with_children(|p| {
+                text(p, "CASH AVAILABLE", 12.0, MUTED);
+                text(p, format!("$ {}", game.funds), 38.0, TEXT);
+                text(
                     p,
-                    format!("{selected}{id:02} / {tag}\n{}", v.report),
-                    Action::Select(*id),
-                    true,
+                    format!(
+                        "Shift income (projected)   +$ {}",
+                        (100 + game.sim.score()).max(0)
+                    ),
+                    14.0,
+                    TEAL,
                 );
+                text(
+                    p,
+                    format!("Damage deductions         -$ {}", game.damage_assessment()),
+                    14.0,
+                    AMBER,
+                );
+                text(
+                    p,
+                    format!("Net paid at review         $ {}", game.grant()),
+                    13.0,
+                    MUTED,
+                );
+            });
+            text(p, "RESPONSE RESOURCES", 13.0, MUTED);
+            for cap in [Capability::Police, Capability::Medical, Capability::Fire] {
+                p.spawn((
+                    Node {
+                        padding: UiRect::all(px(16)),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(8),
+                        border_radius: BorderRadius::all(px(10)),
+                        ..default()
+                    },
+                    BackgroundColor(PANEL),
+                ))
+                .with_children(|p| {
+                    let total = game
+                        .sim
+                        .units()
+                        .values()
+                        .filter(|u| u.capability == cap)
+                        .count();
+                    let free = game
+                        .sim
+                        .units()
+                        .values()
+                        .filter(|u| u.capability == cap && u.state == UnitState::Available)
+                        .count();
+                    text(
+                        p,
+                        format!("{}   {free}/{total} available", cap_name(cap)),
+                        17.0,
+                        cap_color(cap),
+                    );
+                    for u in game.sim.units().values().filter(|u| u.capability == cap) {
+                        text(
+                            p,
+                            format!("Unit {} / {}", u.id, unit_label(&u.state, game.sim.now())),
+                            12.0,
+                            MUTED,
+                        );
+                    }
+                });
             }
+            button(p, "Leave desktop [Esc]", Action::Office, true);
             if running {
-                button(p, "Finish shift early", Action::EndShift, true);
+                button(p, "Finish shift", Action::EndShift, true);
             }
-            button(p, "Leave console [Esc]", Action::Office, true);
         });
-    p.spawn((column(36.0),BackgroundColor(PANEL))).with_children(|p| {
-        let Ok(view)=game.sim.call_view(game.selected) else {text(p,"Waiting for your first caller",25.0,TEXT);text(p,"Calls arrive 1–10 seconds after sitting. The clock keeps running outside computer focus.",17.0,MUTED);return;};
-        text(p,format!("CALL {:02} / {}",game.selected,state_name(view.state)),14.0,AMBER);
-        text(p,view.report,25.0,TEXT);
-        if view.escalated{text(p,"ESCALATED: structure explosion",17.0,AMBER);}
-        if let Some(parent)=view.parent{text(p,format!("Follow-up caused by incident {parent}"),15.0,AMBER);}
-        text(p,format!("Caller: {} | 555-{:04}",if view.caller_name.is_empty(){["Alex Morgan","Sam Lee","Jordan Ellis","Casey Park","Riley Jones","Taylor Reed"][((view.caller_id.saturating_sub(1))%6) as usize].to_string()}else{view.caller_name.clone()},100+view.caller_id%100),13.0,MUTED);
-        text(p,format!("Previous calls from this caller: {}",view.previous_calls),13.0,MUTED);
-        text(p,crate::city::address(view.location),13.0,MUTED);
-        let duration=game.call_duration(game.selected);text(p,format!("Call duration {:02}:{:02} | {}",duration/60,duration%60,view.facts.first().map_or("Type unconfirmed",|f|match f.id.as_str(){"smoke"|"fire"=>"Reported fire","breathing"|"medical"=>"Reported medical incident","window"|"police"=>"Reported police incident",_=>"Reported non-emergency"})),13.0,MUTED);
-        if game.phase==Phase::AwaitingReview {text(p,"Shift finished. Leave the console and walk through the rear door into the meeting room.",19.0,TEXT);}
-        else {
-            if view.state==IncidentState::Active {text(p,format!("Response window: {}s",game.sim.incidents()[&game.selected].deadline.saturating_sub(game.sim.now())),13.0,MUTED);}
-            if view.call==CallState::Ringing {button(p,"ANSWER CALL",Action::Answer,running&&game.call_station==game.seated&&game.conversation.is_none());}
-            if view.facts.is_empty() {text(p,"No evidence collected yet. Ask questions before committing limited teams.",15.0,MUTED);}
-            if !view.facts.is_empty(){text(p,format!("{} evidence note(s) / caller transcript below",view.facts.len()),13.0,MUTED);}
-            for (id,question) in view.questions {button(p,format!("Ask: {question}"),Action::Ask(id),running&&game.conversation==Some(game.selected)&&game.call_station==game.seated);}
-            if view.state==IncidentState::Active {button(p,"Decline response",Action::Decline,running&&game.conversation==Some(game.selected)&&game.call_station==game.seated);}
+        if let Some(id) = phone_call(game) {
+            let Ok(view) = game.sim.call_view(id) else {
+                return;
+            };
+            let own = game.conversation == Some(id) && game.call_station == game.seated;
+            p.spawn((
+                Node {
+                    width: percent(62),
+                    height: percent(100),
+                    min_height: px(0),
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(px(22)),
+                    row_gap: px(14),
+                    border_radius: BorderRadius::all(px(20)),
+                    border: UiRect::all(px(1)),
+                    ..default()
+                },
+                BackgroundColor(INK),
+                BorderColor::all(Color::srgb(0.22, 0.34, 0.39)),
+            ))
+            .with_children(|p| {
+                p.spawn(Node {
+                    column_gap: px(18),
+                    align_items: AlignItems::Center,
+                    ..default()
+                })
+                .with_children(|p| {
+                    p.spawn((
+                        ImageNode::new(portraits.0[(view.caller_id as usize) % 24].clone()),
+                        Node {
+                            width: px(96),
+                            height: px(96),
+                            border_radius: BorderRadius::all(px(12)),
+                            ..default()
+                        },
+                    ));
+                    p.spawn(Node {
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(8),
+                        ..default()
+                    })
+                    .with_children(|p| {
+                        text(
+                            p,
+                            if own {
+                                "PHONE  /  CONNECTED"
+                            } else {
+                                "PHONE  /  INCOMING CALL"
+                            },
+                            12.0,
+                            TEAL,
+                        );
+                        text(
+                            p,
+                            if view.caller_name.is_empty() {
+                                "Unknown caller"
+                            } else {
+                                &view.caller_name
+                            },
+                            23.0,
+                            TEXT,
+                        );
+                        text(
+                            p,
+                            format!(
+                                "555-{:04}  /  {:02}:{:02}",
+                                100 + view.caller_id % 100,
+                                game.call_duration(id) / 60,
+                                game.call_duration(id) % 60
+                            ),
+                            13.0,
+                            MUTED,
+                        );
+                    });
+                });
+                if !own {
+                    text(p, "Incoming voice call", 24.0, TEXT);
+                    button(
+                        p,
+                        "Answer phone",
+                        Action::Answer,
+                        running && game.call_station == game.seated,
+                    );
+                    text(
+                        p,
+                        "Answering connects your microphone. You can mute at any time.",
+                        13.0,
+                        MUTED,
+                    );
+                } else {
+                    p.spawn(Node {
+                        column_gap: px(10),
+                        width: percent(100),
+                        ..default()
+                    })
+                    .with_children(|p| {
+                        p.spawn(Node {
+                            width: percent(65),
+                            min_width: px(0),
+                            ..default()
+                        })
+                        .with_children(|p| {
+                            button(
+                                p,
+                                if voice.enabled {
+                                    "Mic on / click to mute"
+                                } else {
+                                    "Mic muted / click to unmute"
+                                },
+                                Action::MicToggle,
+                                true,
+                            );
+                        });
+                        p.spawn(Node {
+                            flex_grow: 1.0,
+                            min_width: px(0),
+                            ..default()
+                        })
+                        .with_children(|p| {
+                            button(p, "Hang up", Action::HangUp, true);
+                        });
+                    });
+                    p.spawn(Node {
+                        flex_grow: 1.0,
+                        min_height: px(80),
+                        width: percent(100),
+                        overflow: Overflow::scroll_y(),
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(12),
+                        ..default()
+                    })
+                    .with_children(|p| {
+                        conversation_ui(p, game, chat, voice);
+                        text(p, crate::city::address(view.location), 13.0, MUTED);
+                        text(p, "SEND HELP", 12.0, MUTED);
+                        button(
+                            p,
+                            "Send all three services",
+                            Action::FullResponse,
+                            running
+                                && game.selected_call_answered()
+                                && [Capability::Police, Capability::Medical, Capability::Fire]
+                                    .into_iter()
+                                    .all(|cap| {
+                                        game.sim.units().values().any(|u| {
+                                            u.capability == cap && u.state == UnitState::Available
+                                        })
+                                    }),
+                        );
+                        for unit in game.sim.units().values() {
+                            let verb = match unit.state {
+                                UnitState::Available => "Send",
+                                UnitState::Assigned { incident }
+                                | UnitState::EnRoute { incident, .. }
+                                    if incident == id =>
+                                {
+                                    "Cancel"
+                                }
+                                UnitState::Assigned { .. } | UnitState::EnRoute { .. } => "Reroute",
+                                _ => "Busy",
+                            };
+                            button(
+                                p,
+                                format!("{verb} {} / Unit {}", cap_name(unit.capability), unit.id),
+                                Action::Unit(unit.id),
+                                running
+                                    && matches!(
+                                        unit.state,
+                                        UnitState::Available
+                                            | UnitState::Assigned { .. }
+                                            | UnitState::EnRoute { .. }
+                                    ),
+                            );
+                        }
+                        button(
+                            p,
+                            "No response needed / close case",
+                            Action::Decline,
+                            running && view.state == IncidentState::Active,
+                        );
+                        if game.multiplayer {
+                            for other in game
+                                .connected
+                                .iter()
+                                .copied()
+                                .filter(|v| *v != game.local_player)
+                            {
+                                let d = game.desk(other);
+                                button(
+                                    p,
+                                    format!("Transfer to dispatcher {other}"),
+                                    Action::Transfer(other),
+                                    d.seated.is_some()
+                                        && d.ringing.is_none()
+                                        && d.conversation.is_none(),
+                                );
+                            }
+                        }
+                        audio_ui(p, voice, chat);
+                    });
+                }
+            });
         }
-        conversation_ui(p,game,chat,voice);
-        button(p,"End conversation",Action::HangUp,game.conversation.is_some()&&game.call_station==game.seated);
-        if game.multiplayer {for id in game.connected.iter().copied().filter(|id|*id!=game.local_player){let d=game.desk(id);button(p,format!("Transfer to dispatcher {id}"),Action::Transfer(id),game.conversation==Some(game.selected)&&d.seated.is_some()&&d.ringing.is_none()&&d.conversation.is_none());}}
     });
-    p.spawn((column(39.0),BackgroundColor(PANEL))).with_children(|p| {
-        text(p,"ASSIGN / CANCEL / REROUTE",13.0,MUTED);
-        let missing:Vec<_>=[Capability::Police,Capability::Medical,Capability::Fire].into_iter().filter(|cap|!game.sim.units().values().any(|u|u.capability==*cap&&u.state==UnitState::Available)).map(cap_name).collect();
-        let label=if missing.is_empty(){"Send Full Response".into()}else{format!("Full Response unavailable: {}",missing.join(", "))};
-        button(p,label,Action::FullResponse,running&&game.selected_call_answered()&&missing.is_empty()&&!game.sim.units().values().any(|u|u.state.assignment()==Some(game.selected)));
-        for unit in game.sim.units().values() {
-            let verb=match unit.state {UnitState::Available=>"Send",UnitState::Assigned {incident} | UnitState::EnRoute {incident,..} if incident==game.selected=>"Cancel",UnitState::Assigned {..} | UnitState::EnRoute {..}=>"Reroute",_=>"Busy"};
-            let enabled=running&&game.selected_call_answered()&&matches!(unit.state,UnitState::Available|UnitState::Assigned {..}|UnitState::EnRoute {..});
-            button(p,format!("{verb} {} {} / {}",cap_name(unit.capability),unit.id,unit_label(&unit.state,game.sim.now())),Action::Unit(unit.id),enabled);
-        }
-        text(p,"CITY OPERATIONS",14.0,MUTED); map(p, game, image, routes);
-        text(p,"SHARED RESPONSE CAPACITY",14.0,MUTED);
-        if let Some(policy)=game.scaled_director(){let active=game.sim.incidents().values().filter(|i|i.state==IncidentState::Active).count();let limit=policy.active_limit(game.shift);text(p,format!("Active incidents: {active} / {limit}{}",if active>=limit{" / incoming queue held"}else{""}),13.0,MUTED);}
-        text(p,format!("Recorded city damage: ${}",game.sim.review().total_damage),14.0,AMBER);
-        for cap in [Capability::Police,Capability::Medical,Capability::Fire] {let total=game.sim.units().values().filter(|u|u.capability==cap).count();let available=game.sim.units().values().filter(|u|u.capability==cap&&u.state==UnitState::Available).count();text(p,format!("{}: {available} / {total} available",cap_name(cap)),14.0,cap_color(cap));}
-        text(p,format!("Run funding ${} | Recovery {}s",game.funds,if game.radio {crate::city::config().radio_recovery_seconds} else {crate::city::config().recovery_seconds}),12.0,MUTED);
-        for u in game.sim.units().values() {text(p,format!("{} {}: {}",cap_name(u.capability),u.id,unit_label(&u.state,game.sim.now())),13.0,cap_color(u.capability));}
-        text(p,"Gather evidence. Appropriate refusals earn funding; unnecessary deployments occupy real capacity.",15.0,TEXT);
-    });
+}
+fn phone_call(game: &Session) -> Option<u32> {
+    game.conversation.or(game.ringing).filter(|id| {
+        game.sim
+            .call_view(*id)
+            .is_ok_and(|v| matches!(v.call, CallState::Ringing | CallState::Answered { .. }))
+    })
 }
 fn conversation_ui(
     p: &mut ChildSpawnerCommands,
@@ -335,7 +579,7 @@ fn conversation_ui(
     chat: &crate::voice::ChatInput,
     voice: &crate::voice::Voice,
 ) {
-    text(p, "CALL CONVERSATION / SUBTITLES", 15.0, AMBER);
+    text(p, "CONVERSATION", 12.0, MUTED);
     if let Some(c) = game.dialogue.conversations.get(&game.selected) {
         for turn in c.turns.iter().rev().take(6).rev() {
             if !turn.question.is_empty() {
@@ -348,11 +592,11 @@ fn conversation_ui(
             }
             text(p, format!("CALLER: {}", turn.spoken_text), 16.0, TEXT);
         }
-        text(p, &c.diagnostic, 12.0, MUTED);
+
         if c.pending == Some(game.local_player) {
             button(
                 p,
-                "Cancel pending caller response",
+                "Caller is connecting… Cancel",
                 Action::CancelTalk(game.selected),
                 true,
             );
@@ -373,7 +617,7 @@ fn conversation_ui(
     );
     text(
         p,
-        "Type and Enter to send, or enable your mic and hold V. Release sends locally transcribed speech; optional transcript review is in Audio settings.",
+        "Speak naturally, then pause to send. Your microphone pauses while the caller speaks. You can also type a message.",
         12.0,
         MUTED,
     );
@@ -383,7 +627,6 @@ fn conversation_ui(
         12.0,
         if voice.recording { AMBER } else { MUTED },
     );
-    audio_ui(p, voice, chat);
 }
 fn audio_ui(
     p: &mut ChildSpawnerCommands,
@@ -406,9 +649,9 @@ fn audio_ui(
     button(
         p,
         if voice.enabled {
-            "Microphone: ON (hold V)"
+            "Microphone: ON / voice activated"
         } else {
-            "Enable microphone (hold V only)"
+            "Microphone: MUTED / click to unmute"
         },
         Action::MicToggle,
         true,
@@ -418,7 +661,7 @@ fn audio_ui(
         if voice.review_speech {
             "Speech: review transcript before sending"
         } else {
-            "Speech: send automatically on release"
+            "Speech: send after a pause"
         },
         Action::SpeechReviewToggle,
         true,
@@ -617,6 +860,7 @@ pub fn draw(
     player: Single<&Transform, With<Player>>,
     chat: Res<crate::voice::ChatInput>,
     voice: Res<crate::voice::Voice>,
+    portraits: Res<CallerPortraits>,
 ) {
     if !game.dirty {
         return;
@@ -690,7 +934,16 @@ pub fn draw(
                     ..default()
                 })
                 .with_children(|p| {
-                    text(p, "WRONG NUMBER  /  DISPATCH AUTHORITY", 22.0, TEXT);
+                    text(
+                        p,
+                        if screen == Screen::Terminal {
+                            "wn / Dispatch desktop"
+                        } else {
+                            "WRONG NUMBER / DISPATCH AUTHORITY"
+                        },
+                        22.0,
+                        TEXT,
+                    );
                     text(
                         p,
                         format!(
@@ -713,7 +966,9 @@ pub fn draw(
                 })
                 .with_children(|p| match screen {
                     Screen::Lobby => lobby(p, &game, &net),
-                    Screen::Terminal => terminal(p, &game, &image, &routes, &chat, &voice),
+                    Screen::Terminal => {
+                        terminal(p, &game, &image, &routes, &chat, &voice, &portraits)
+                    }
                     Screen::CityMap => {
                         p.spawn((column(70.0), BackgroundColor(PANEL)))
                             .with_children(|p| {
@@ -935,4 +1190,23 @@ fn timeline_line(event: &wrong_number_sim::EventKind) -> Option<String> {
         } => format!("Unit {unit} is available again"),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod phone_tests {
+    use super::*;
+    #[test]
+    fn phone_only_exists_while_ringing_or_connected() {
+        let mut game = Session::default();
+        assert_eq!(phone_call(&game), None);
+        game.act(Action::Sit(0));
+        game.tick(10.0);
+        game.act(Action::OpenDesk);
+        assert_eq!(phone_call(&game), game.ringing);
+        assert!(phone_call(&game).is_some());
+        game.act(Action::Answer);
+        assert_eq!(phone_call(&game), game.conversation);
+        game.act(Action::HangUp);
+        assert_eq!(phone_call(&game), None);
+    }
 }

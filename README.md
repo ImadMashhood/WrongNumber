@@ -308,7 +308,7 @@ Normal play draws from [300 complaints](docs/design/complaint-catalogue.md), wit
 
 Answer a call, click **Type a question...**, type and press **Enter**. Caller replies, subtitles and evidence use the same authority rules in solo/co-op. Authored question buttons remain available. Live dialogue requires the configured service; it never falls back to scripted replies. The AI writes an opening statement and natural replies from the selected fixed scenario; the host controls truth and outcomes.
 
-Optional caller speech uses local `espeak-ng` or a replaceable TTS adapter. With a configured local STT adapter, enable the microphone in Audio settings and hold **V** while your call is open. Release to transcribe locally and send automatically. Optional transcript review lets you edit before pressing Enter. Microphone access and saved audio are **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
+Optional caller speech uses local `espeak-ng` or a replaceable TTS adapter. With a configured local STT adapter, answer the phone and speak naturally. Voice activation sends a local transcription after a short pause; the phone has a mute/unmute button. Optional transcript review lets you edit before pressing Enter. Voice activation is **on during answered calls**; saved audio remains **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
 
 For OpenRouter or another compatible provider, start `cargo run --locked -p wrong-number-caller-server` with a locally configured key and explicit model, then pass `--caller-service 127.0.0.1:47005` to the solo/co-op host. Clients need no key. See [setup, limits, privacy and verification](docs/callers.md); a live GPT-4o request is verified; physical microphone/listening quality still needs playtesting.
 
@@ -382,3 +382,7 @@ The graphical verification tours the rebuilt room and completes the existing shi
 The current [gameplay specification PDF](docs/design/gameplay-loop.pdf) and its [exact supplied source](docs/design/gameplay-loop-source.txt) are checked into this repo. [The review log](docs/reviews/gameplay-loop.md) records the M2 mismatch and corrections, and must be updated after each milestone and gameplay-changing commit (see `AGENTS.md`). Explicit user directions override the brief: unnumbered chairs, pop-in E seating, daylight, low-poly graphics.
 
 The detailed concept and initial requirements are captured in *Wrong Number: Complete Game Design and Technical Specification* (October 2026). This README turns that proposed specification into an implementation sequence; the specification is a design brief, not a record of completed work.
+
+### Desktop and phone
+
+The computer displays resource availability, cash, projected shift income and damage deductions. Incoming calls open a separate phone window with a caller portrait and conversation. Answer to connect, speak naturally or type, dispatch from the phone, and use its mute or hang-up controls. Hanging up removes the window. Launch through scripts/run-with-ai.sh with your local STT adapter; the task’s normal output launcher already supplies it. Provider replies have a 20-second HTTP budget so the old four-second cutoff no longer disconnects slow openings.

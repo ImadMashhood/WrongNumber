@@ -57,6 +57,7 @@ pub struct Voice {
     tts: Option<PathBuf>,
     stop: Arc<AtomicBool>,
     epoch: Arc<AtomicU64>,
+    mic_epoch: Arc<AtomicU64>,
     busy: Arc<AtomicBool>,
     tx: mpsc::SyncSender<ResultEvent>,
     rx: Mutex<mpsc::Receiver<ResultEvent>>,
@@ -74,7 +75,7 @@ impl Default for Voice {
         let (tx, rx) = mpsc::sync_channel(12);
         let storage = PathBuf::from(".wrong-number/recordings");
         Self {
-            enabled: false,
+            enabled: true,
             save_clips: false,
             review_speech: false,
             volume: 0.7,
@@ -82,7 +83,8 @@ impl Default for Voice {
             output: 0,
             inputs: vec!["System default".into()],
             outputs: vec!["System default".into()],
-            status: "Text ready. Microphone off. Hold V only after enabling it.".into(),
+            status: "Voice activation ready. Microphone listens only during an answered call."
+                .into(),
             clips: saved_clips(&storage),
             storage,
             recording: false,
@@ -93,6 +95,7 @@ impl Default for Voice {
             tts: value("--tts-command"),
             stop: Arc::new(AtomicBool::new(false)),
             epoch: Arc::new(AtomicU64::new(0)),
+            mic_epoch: Arc::new(AtomicU64::new(0)),
             busy: Arc::new(AtomicBool::new(false)),
             tx,
             rx: Mutex::new(rx),
@@ -143,10 +146,10 @@ impl Voice {
                 self.enabled = !self.enabled;
                 if !self.enabled {
                     self.stop.store(true, Ordering::Relaxed);
-                    self.epoch.fetch_add(1, Ordering::Relaxed);
+                    self.mic_epoch.fetch_add(1, Ordering::Relaxed);
                 }
                 self.status = if self.enabled {
-                    "Microphone enabled for hold-V capture; release to transcribe and send (or enable transcript review)."
+                    "Microphone on. Speak naturally; pause to send."
                 } else {
                     "Microphone off."
                 }
@@ -262,8 +265,7 @@ impl Voice {
         let tx = self.tx.clone();
         let input = self.input;
         self.recording = true;
-        self.status = "Listening while V is held (maximum 12 seconds)…".into();
-        self.epoch.fetch_add(1, Ordering::Relaxed);
+        self.status = "Listening… Speak naturally, then pause.".into();
         std::thread::spawn(move || {
             let result = capture(input, &stop);
             let _ = tx.try_send(ResultEvent::Captured(shift, id, result));
@@ -499,6 +501,27 @@ fn play(
     }
     Ok(())
 }
+/// Energy gate in 20ms frames. Silence is never sent to Whisper/provider.
+#[derive(Default)]
+struct SpeechGate {
+    frames: usize,
+    voiced: usize,
+    quiet: usize,
+    first: Option<usize>,
+}
+impl SpeechGate {
+    fn frame(&mut self, rms: f32) -> bool {
+        if rms >= 0.01 {
+            self.first.get_or_insert(self.frames);
+            self.voiced += 1;
+            self.quiet = 0;
+        } else {
+            self.quiet += 1;
+        }
+        self.frames += 1;
+        self.voiced >= 8 && self.quiet >= 40
+    }
+}
 fn capture(input: usize, stop: &AtomicBool) -> Result<Vec<u8>, String> {
     let host = cpal::default_host();
     let device = if input == 0 {
@@ -528,7 +551,10 @@ fn capture(input: usize, stop: &AtomicBool) -> Result<Vec<u8>, String> {
                     if let Ok(mut target) = data.try_lock() {
                         for frame in samples.chunks(channels) {
                             if target.len() < cap {
-                                target.push(($convert)(frame[0]));
+                                target.push(
+                                    frame.iter().map(|v| ($convert)(*v)).sum::<f32>()
+                                        / frame.len() as f32,
+                                );
                             }
                         }
                     }
@@ -549,20 +575,42 @@ fn capture(input: usize, stop: &AtomicBool) -> Result<Vec<u8>, String> {
     .map_err(|_| "Microphone cannot open")?;
     stream.play().map_err(|_| "Microphone cannot start")?;
     let at = Instant::now();
+    let mut gate = SpeechGate::default();
+    let mut processed = 0;
+    let frame_len = (config.sample_rate / 50) as usize;
     while !stop.load(Ordering::Relaxed)
         && !failed.load(Ordering::Relaxed)
         && at.elapsed() < Duration::from_secs(12)
     {
+        let mut done = false;
+        {
+            let buffer = data.lock().unwrap();
+            while processed + frame_len <= buffer.len() {
+                let frame = &buffer[processed..processed + frame_len];
+                let rms = (frame.iter().map(|v| v * v).sum::<f32>() / frame_len as f32).sqrt();
+                processed += frame_len;
+                if gate.frame(rms) {
+                    done = true;
+                    break;
+                }
+            }
+        }
+        if done {
+            break;
+        }
         std::thread::sleep(Duration::from_millis(10));
     }
     drop(stream);
     if failed.load(Ordering::Relaxed) {
-        return Err("Microphone disconnected".into());
+        return Err("Microphone disconnected; unmute to retry.".into());
+    }
+    if stop.load(Ordering::Relaxed) || gate.voiced < 8 {
+        return Ok(Vec::new());
     }
     let data = data.lock().unwrap();
-    if data.len() < (config.sample_rate / 5) as usize {
-        return Err("Hold V a little longer or type a question".into());
-    }
+    let begin = gate.first.unwrap_or(0).saturating_sub(10) * frame_len;
+    let end = processed.min(data.len());
+    let data = &data[begin.min(end)..end];
     let pcm: Vec<i16> = (0..(data.len() * 16000 / config.sample_rate as usize))
         .map(|n| {
             let ix = n * config.sample_rate as usize / 16000;
@@ -596,7 +644,6 @@ pub fn update(
     mut voice: ResMut<Voice>,
     mut chat: ResMut<ChatInput>,
     mut game: ResMut<Session>,
-    keys: Res<ButtonInput<KeyCode>>,
     window: Single<&Window>,
     mut keyboard: MessageReader<KeyboardInput>,
     mut actions: ResMut<Actions>,
@@ -610,6 +657,7 @@ pub fn update(
         voice.queued = None;
         voice.stop.store(true, Ordering::Relaxed);
         voice.epoch.fetch_add(1, Ordering::Relaxed);
+        voice.mic_epoch.fetch_add(1, Ordering::Relaxed);
     }
     if game.screen != Screen::Terminal {
         chat.editing = false;
@@ -634,10 +682,13 @@ pub fn update(
                 }
                 match result {
                     Ok(wav) => {
+                        if wav.is_empty() {
+                            continue;
+                        }
                         voice.store(shift, id, "my-microphone", &wav);
                         if let Some(program) = voice.stt.clone() {
                             let tx = voice.tx.clone();
-                            let token = voice.epoch.clone();
+                            let token = voice.mic_epoch.clone();
                             let expected = token.load(Ordering::Relaxed);
                             voice.status = "Transcribing locally…".into();
                             voice.transcribing = true;
@@ -647,7 +698,10 @@ pub fn update(
                             });
                         }
                     }
-                    Err(e) => voice.status = e,
+                    Err(e) => {
+                        voice.status = e;
+                        voice.enabled = false;
+                    }
                 }
             }
             ResultEvent::Text(shift, id, result) => {
@@ -727,27 +781,6 @@ pub fn update(
     } else {
         keyboard.clear();
     }
-    let active = case.is_some()
-        && game.screen == Screen::Terminal
-        && window.focused
-        && !chat.editing
-        && !game
-            .conversation
-            .and_then(|id| game.dialogue.conversations.get(&id))
-            .is_some_and(|c| c.pending.is_some());
-    if !active || !keys.pressed(KeyCode::KeyV) {
-        voice.stop.store(true, Ordering::Relaxed);
-    }
-    if !check.automated()
-        && voice.enabled
-        && active
-        && keys.just_pressed(KeyCode::KeyV)
-        && !voice.recording
-    {
-        let (shift, id) = case.unwrap();
-        voice.start_capture(shift, id);
-        game.dirty = true;
-    }
     if let Some((shift, id)) = case
         && let Some(c) = game.dialogue.conversations.get(&id)
     {
@@ -762,15 +795,76 @@ pub fn update(
             }
         }
     }
+    // Start listening only AFTER scheduling new caller audio. This prevents the
+    // microphone worker from cancelling or recording the opening/reply.
+    let active = case.is_some()
+        && game.screen == Screen::Terminal
+        && window.focused
+        && !chat.editing
+        && !voice.busy.load(Ordering::Relaxed)
+        && voice.queued.is_none()
+        && !game
+            .conversation
+            .and_then(|id| game.dialogue.conversations.get(&id))
+            .is_some_and(|c| c.pending.is_some());
+    if !active || !voice.enabled {
+        voice.stop.store(true, Ordering::Relaxed);
+    }
+    if !check.automated()
+        && voice.enabled
+        && active
+        && !voice.recording
+        && !voice.transcribing
+        && voice.stt.is_some()
+    {
+        let (shift, id) = case.unwrap();
+        voice.start_capture(shift, id);
+        game.dirty = true;
+    }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn microphone_and_recording_require_explicit_opt_in() {
+    fn voice_activation_defaults_on_but_recording_stays_off() {
         let v = Voice::default();
-        assert!(!v.enabled && !v.save_clips && !v.recording);
+        assert!(v.enabled && !v.save_clips && !v.recording);
         assert!(v.clips.is_empty());
+    }
+    #[test]
+    fn activation_ignores_silence_and_clicks_and_waits_for_a_pause() {
+        let mut gate = SpeechGate::default();
+        for _ in 0..600 {
+            assert!(!gate.frame(0.001));
+        }
+        assert!(!gate.frame(0.2));
+        for _ in 0..80 {
+            assert!(!gate.frame(0.0));
+        }
+        for _ in 0..20 {
+            assert!(!gate.frame(0.03));
+        }
+        for _ in 0..39 {
+            assert!(!gate.frame(0.0));
+        }
+        assert!(gate.frame(0.0));
+    }
+    #[test]
+    fn muting_does_not_cancel_the_callers_speech() {
+        let mut voice = Voice::default();
+        let mut chat = ChatInput::default();
+        let before = voice.epoch.load(Ordering::Relaxed);
+        voice.local_action(&mut chat, &Action::MicToggle);
+        assert!(!voice.enabled);
+        assert_eq!(voice.epoch.load(Ordering::Relaxed), before);
+        assert!(voice.stop.load(Ordering::Relaxed));
+    }
+    #[test]
+    #[ignore = "Requires a real output device; plays a short test sentence"]
+    fn local_speaker_playback() {
+        let token = AtomicU64::new(0);
+        let wav = synthesize(None, "Wrong Number. Caller audio is connected.", &token, 0).unwrap();
+        play(&wav, 0, 0.7, &token, 0).unwrap();
     }
     #[test]
     fn bounded_pcm_wav_roundtrips_and_invalid_audio_is_rejected() {

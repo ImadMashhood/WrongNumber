@@ -250,7 +250,7 @@ pub fn automate(
                             }
                         }
                     } else {
-                        click(&mut commands, &buttons, Action::Ask(fact.into()));
+                        queue.0.push(Action::Ask(fact.into()));
                     }
                 } else if check.conversation && check.typing_stage != 4 {
                     assert!(

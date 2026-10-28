@@ -105,8 +105,8 @@ fn main() {
                 price("CALLER_MAX_OUTPUT_PRICE"),
             ],
             client: reqwest::blocking::Client::builder()
-                .timeout(Duration::from_secs(4))
-                .connect_timeout(Duration::from_secs(1))
+                .timeout(Duration::from_secs(20))
+                .connect_timeout(Duration::from_secs(3))
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .unwrap(),

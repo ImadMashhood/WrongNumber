@@ -115,3 +115,17 @@ fn semantic_dialogue_is_not_verbatim_but_engine_metadata_and_unknown_refs_are_re
     r.spoken_text = "The false_report flag is true".into();
     assert!(!validate(&c, &r));
 }
+
+#[test]
+fn conversational_acknowledgement_without_evidence_keeps_line_open() {
+    let c = context();
+    let r = Reply {
+        spoken_text: "Okay, I can hear you.".into(),
+        emotion: Emotion::Calm,
+        proposed_action: Proposal::Answer,
+        fact_references: vec![],
+        call_complete: false,
+    };
+    assert!(validate(&c, &r));
+    assert!(r.fact_references.is_empty());
+}

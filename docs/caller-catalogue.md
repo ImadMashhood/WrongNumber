@@ -33,12 +33,12 @@ Structured output carries spoken text, emotion, an allowed conversational action
 ## Voice loop
 
 1. Answer a call: the AI generates an opening; local TTS plays it and subtitles appear.
-2. Enable the microphone in Audio settings and hold **V** while the caller is ready.
-3. Release: the game stops capture and runs the local Whisper adapter.
+2. The answered phone activates the microphone automatically; use its **Mute** button whenever needed.
+3. Speak, then pause for about 800 ms: the game runs the local Whisper adapter.
 4. Recognized text automatically goes to the host/provider.
 5. The response appears in the transcript and plays through local TTS.
 
-**Review transcript before sending** remains an optional Audio setting; in that mode, edit the result and press Enter. Typed questions also remain available. Microphone access and saving audio still start off; no human microphone was recorded by automated tests. Captured audio stays local. Only recognized text is sent to the caller service/provider.
+**Review transcript before sending** remains an optional Audio setting; in that mode, edit the result and press Enter. Typed questions also remain available. Voice activation defaults on only during an answered call; saving audio remains off; no human microphone was recorded by automated tests. Captured audio stays local. Only recognized text is sent to the caller service/provider.
 
 The supplied adapter uses Faster Whisper CPU/int8 with beam search. This task's launcher now points at the installed `base.en` model. Local speech is imperfect; review mode is available when recognition quality is poor. The TTS backend remains local espeak-ng or a replaceable adapter, with caller volume/output selection and subtitles.
 
