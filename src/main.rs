@@ -1,8 +1,10 @@
 //! M2 solo dispatch office, backed by the renderer-free authority simulation.
 mod city;
+mod environment;
 mod game;
 mod playtest;
 mod ui;
+mod wall_map;
 mod world;
 use bevy::{app::AppExit, prelude::*};
 use game::{Action, Session};
@@ -12,7 +14,7 @@ fn main() {
     let check = playtest::LaunchCheck::from_args();
     let automated = check.automated();
     App::new()
-        .insert_resource(ClearColor(Color::srgb(0.015, 0.025, 0.045)))
+        .insert_resource(ClearColor(Color::srgb(0.48, 0.64, 0.78)))
         .init_resource::<Session>()
         .init_resource::<Actions>()
         .insert_resource(check)
@@ -27,7 +29,16 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Startup, (world::setup, ui::load_map))
+        .add_systems(
+            Startup,
+            (
+                ui::load_map,
+                wall_map::setup,
+                environment::setup,
+                world::setup,
+            )
+                .chain(),
+        )
         .add_systems(
             Update,
             (
@@ -36,6 +47,8 @@ fn main() {
                 playtest::automate,
                 apply_actions,
                 tick,
+                world::doors,
+                wall_map::refresh,
                 ui::draw,
                 ui::update_hud,
                 ui::hover,

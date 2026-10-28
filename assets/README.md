@@ -1,6 +1,6 @@
 # Asset provenance
 
-The office and skyline are procedural Bevy primitives.
+The dispatch room, supporting rooms, furniture, equipment, arched windows, and close exterior facades are procedural low-poly meshes. The 128-pixel repeating brick and floor patterns are generated in Rust; no new external room art or textures are required. The supplied reference image informs layout and silhouettes.
 
 ## Imported coastal map starter
 

@@ -22,6 +22,7 @@ pub enum Screen {
 pub enum Action {
     OpenDesk,
     OpenReview,
+    Door,
     Office,
     Pause,
     Resume,
@@ -68,7 +69,7 @@ impl Default for Session {
             extra_police: false,
             bought_this_review: false,
             speed: 1,
-            notice: "Welcome to dispatch. Walk to the illuminated desk and press E.".into(),
+            notice: "Welcome to dispatch. Approach any chair and press E to sit.".into(),
             dirty: true,
             previous_screen: Screen::Office,
             elapsed: 0.0,
@@ -102,6 +103,14 @@ impl Session {
             Action::OpenDesk => {
                 self.screen = Screen::Terminal;
                 self.notice = "Select a call, answer, and investigate before deciding. Time runs while dispatching.".into();
+            }
+            Action::Door => {
+                self.notice = if crate::world::review_unlocked(self.phase) {
+                    "Review room unlocked. Enter and use the conference screen."
+                } else {
+                    "Review room locked until the shift is complete."
+                }
+                .into();
             }
             Action::OpenReview => {
                 if self.phase == Phase::AwaitingReview || self.phase == Phase::Review {
@@ -324,7 +333,7 @@ impl Session {
             self.phase = Phase::AwaitingReview;
             self.funds += self.grant();
             self.notice =
-                "Shift complete. Leave the terminal and meet at the review table to buy upgrades."
+                "Shift complete. Leave the terminal and enter the rear meeting room to buy upgrades."
                     .into();
         }
     }

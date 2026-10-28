@@ -252,7 +252,7 @@ fn terminal(p: &mut ChildSpawnerCommands, game: &Session, image: &MapImage) {
         text(p,view.report,25.0,TEXT);
         text(p,format!("Grid {}, {}",view.location.x,view.location.y),13.0,MUTED);
         if game.phase==Phase::Preparation {text(p,"Begin the shift when you are ready. Calls and timers are held during preparation.",17.0,TEXT);}
-        else if game.phase==Phase::AwaitingReview {text(p,"Shift finished. Leave the console and walk through the right-hand doorway to the amber review screen.",19.0,TEXT);}
+        else if game.phase==Phase::AwaitingReview {text(p,"Shift finished. Leave the console and walk through the rear door into the meeting room.",19.0,TEXT);}
         else {
             if view.state==IncidentState::Active {text(p,format!("Response window: {}s",game.sim.incidents()[&game.selected].deadline.saturating_sub(game.sim.now())),13.0,MUTED);}
             if view.call==CallState::Ringing {button(p,"ANSWER CALL",Action::Answer,running);}
@@ -354,17 +354,39 @@ pub fn draw(
                     Hud,
                     Text::new(hud_text(&game, player.translation)),
                     TextFont {
-                        font_size: FontSize::Px(17.0),
+                        font_size: FontSize::Px(14.0),
                         ..default()
                     },
                     TextColor(TEXT),
                     Node {
                         padding: UiRect::all(px(14)),
-                        width: px(560),
+                        width: px(780),
+                        position_type: PositionType::Absolute,
+                        bottom: px(0),
+                        left: px(0),
                         max_width: percent(65),
                         ..default()
                     },
-                    BackgroundColor(INK.with_alpha(0.85)),
+                    BackgroundColor(INK.with_alpha(0.72)),
+                ));
+                p.spawn((
+                    Text::new("+"),
+                    TextFont {
+                        font_size: FontSize::Px(17.0),
+                        ..default()
+                    },
+                    TextColor(TEXT.with_alpha(0.6)),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: percent(50),
+                        top: percent(50),
+                        margin: UiRect {
+                            left: px(-5),
+                            top: px(-10),
+                            ..default()
+                        },
+                        ..default()
+                    },
                 ));
             } else {
                 p.spawn(Node {

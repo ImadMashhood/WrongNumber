@@ -104,20 +104,42 @@ pub fn automate(
     }
     assert!(check.frames < 1000, "Graphical playthrough timed out");
     if check.frames == 20 {
-        check.capture(&mut commands, "m2-office");
+        check.capture(&mut commands, "room-overview");
     }
-    if check.frames == 25 {
+    if check.frames == 26 {
+        **player =
+            Transform::from_xyz(2.0, 1.75, 4.9).looking_at(Vec3::new(-8.9, 2.3, -1.8), Vec3::Y);
+    }
+    if check.frames == 32 {
+        check.capture(&mut commands, "room-windows");
+    }
+    if check.frames == 38 {
+        **player =
+            Transform::from_xyz(6.7, 1.7, 3.5).looking_at(Vec3::new(11.8, 1.7, -2.0), Vec3::Y);
+    }
+    if check.frames == 44 {
+        check.capture(&mut commands, "room-break");
+    }
+    if check.frames == 50 {
+        **player =
+            Transform::from_xyz(-0.5, 1.7, 3.5).looking_at(Vec3::new(6.0, 1.8, 7.0), Vec3::Y);
+    }
+    if check.frames == 56 {
+        check.capture(&mut commands, "room-rear-door");
+    }
+    if check.frames == 62 {
+        **player = Transform::from_translation(crate::world::desk_approach(2));
         assert_eq!(interaction(player.translation), Some(Action::OpenDesk));
         queue.0.push(Action::OpenDesk);
     }
-    if check.frames == 35 {
+    if check.frames == 75 {
         assert!(
             images.get(&map.0).is_some(),
             "Imported city map must load before terminal verification"
         );
         check.capture(&mut commands, "m2-terminal");
     }
-    if check.frames < 40 || !check.frames.is_multiple_of(3) {
+    if check.frames < 80 || !check.frames.is_multiple_of(3) {
         return;
     }
     if check.step < check.script.len() {
@@ -143,12 +165,23 @@ pub fn automate(
         }
         1 => {
             if game.screen == Screen::Office {
-                player.translation = Vec3::new(5.0, 1.65, 4.0);
-                queue
-                    .0
-                    .push(interaction(player.translation).expect("Review table must be reachable"));
-                check.stage = 2;
+                **player = Transform::from_xyz(5.7, 1.65, 9.0)
+                    .looking_at(Vec3::new(5.7, 2.0, 13.8), Vec3::Y);
+                assert!(crate::world::walkable(Vec2::new(5.7, 9.0), game.phase));
+                check.stage = 8;
+                check.last = check.frames;
             }
+        }
+        8 if check.frames - check.last >= 6 => {
+            check.capture(&mut commands, "room-meeting");
+            check.stage = 9;
+            check.last = check.frames;
+        }
+        9 if check.frames - check.last >= 6 => {
+            queue
+                .0
+                .push(interaction(player.translation).expect("Review table must be reachable"));
+            check.stage = 2;
         }
         2 => {
             if game.screen == Screen::Review {

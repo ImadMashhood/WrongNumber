@@ -249,13 +249,13 @@ Install [Rust through rustup](https://rustup.rs/). The repository selects Rust 1
 On Fedora, install native build/window dependencies:
 
 ```bash
-sudo dnf install gcc-c++ pkgconf-pkg-config libX11-devel libxkbcommon-devel
+sudo dnf install gcc-c++ pkgconf-pkg-config libX11-devel libxkbcommon-devel libxkbcommon-x11-devel
 ```
 
 On Ubuntu/Debian:
 
 ```bash
-sudo apt-get install build-essential pkg-config libx11-dev libxkbcommon-dev
+sudo apt-get install build-essential pkg-config libx11-dev libxkbcommon-dev libxkbcommon-x11-dev
 ```
 
 On Windows, install Visual Studio Build Tools with the **Desktop development with C++** workload. A working graphics driver is required on both platforms. Linux currently uses X11 or XWayland.
@@ -266,7 +266,7 @@ From the repository directory:
 cargo run --locked
 ```
 
-The M2 build opens the dispatch office. Press **E** at the nearby desk, then **Begin shift**. Use WASD to walk, hold right mouse or use arrows to look, and press Escape to leave a terminal or pause. After the shift, visit the table through the right-hand doorway for your review and upgrades. See [the office guide](docs/office.md) for the full controls and flow.
+The M2 build opens the dispatch office. Walk up behind any dispatch chair and press **E** to sit and use the computer, then **Begin shift**. Use WASD to walk and move the mouse to look; Escape leaves a terminal or pauses and releases the cursor. After the shift, enter the unlocked rear meeting room for your review and upgrades. See [the office guide](docs/office.md) for the full controls and flow.
 
 To check startup and exit automatically after 60 updates (requires a display and graphics device):
 
@@ -321,13 +321,21 @@ The M0 and M1 GitHub CI runs passed on Linux and Windows. M2 adds a Linux softwa
 
 ## M2 verification and imported map
 
-- 26 local automated tests pass: 19 simulation tests and 7 office/shift lifecycle tests.
+- 29 local automated tests pass: 19 simulation tests and 10 office/shift, seating, movement, door, and input tests.
 - Formatting, workspace compilation, and Clippy pass.
 - A graphical playthrough using Mesa software Vulkan loaded the map, investigated six calls, earned 210 points, opened the review, bought radios, and verified shorter recovery in the next shift. Screenshots were inspected for readability.
 - The imported road-map starter has 2,639 nodes and 1,977 roads but 694 disconnected weak components. The supplied image is displayed; the graph does not yet drive travel. Run `python3 tools/maps/audit_graph.py` after editing the graph.
 - The map's 4 km width, synthetic street names/addresses, connections, and training station placements need confirmation before road routing. Run upgrades currently last only until the app closes.
 
 See [the office guide](docs/office.md) for controls, map integration boundaries, and the graphical test command.
+
+## Dispatch-center environment pass
+
+The office now follows the supplied environment reference: a deeper brick industrial room, tall arched windows looking onto close neighboring buildings in daylight, six unnumbered workstations with simple recognizable equipment, a large live city board, a glass-fronted break room, and a separate rear meeting room. Shared low-poly meshes and small repeating brick/floor textures keep the detail restrained.
+
+Mouse look is automatic while walking. Press E at a chair to sit and use its computer; leaving the terminal restores the standing position. The rear meeting-room door stays locked during the shift and opens when review becomes available. The wall map and desktop monitors share a live render target driven by the existing simulation.
+
+The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. This is a solo environment refinement; networked characters, proximity voice and road-graph routing remain in their planned milestones. Hardware performance still needs measurement; local graphical validation uses the Mesa fallback described above. See [the environment guide](docs/environment.md).
 
 ## Source brief
 
