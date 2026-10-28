@@ -35,6 +35,7 @@ pub enum Action {
     },
     CancelTalk(u32),
     ChatFocus,
+    SpeechReviewToggle,
     AudioSettings,
     MicToggle,
     SaveClips,
@@ -135,8 +136,21 @@ impl Default for Session {
 impl Session {
     fn make_sim(shift: u32, radio: bool, extra_police: bool) -> Simulation {
         let config = crate::city::config();
+        let joining = std::env::args().any(|a| a == "--join" || a == "--bot");
+        let catalogue_enabled = !joining
+            && (!crate::dialogue::fixture_mode()
+                || std::env::args().any(|a| a == "--catalogue-test"));
+        let seed = if catalogue_enabled && !crate::dialogue::fixture_mode() {
+            static SEED: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+            SEED.get_or_init(|| {
+                u64::from_le_bytes(uuid::Uuid::new_v4().as_bytes()[..8].try_into().unwrap())
+            })
+            .wrapping_add(u64::from(shift))
+        } else {
+            41 + u64::from(shift)
+        };
         let mut sim = Simulation::new_with_config(
-            41 + u64::from(shift),
+            seed,
             ShiftConfig {
                 recovery_seconds: if radio {
                     config.radio_recovery_seconds
@@ -152,6 +166,10 @@ impl Session {
         crate::city::install(&mut sim);
         sim.apply_scenario_rules(crate::city::scenario_rules().clone())
             .expect("Authored consequence models are fixed before the shift");
+        if catalogue_enabled {
+            sim.enable_catalogue(crate::city::catalogue_locations().clone())
+                .expect("Reachable catalogue locations");
+        }
         sim
     }
     pub fn call_duration(&self, id: u32) -> u32 {
@@ -218,16 +236,22 @@ impl Session {
             return;
         }
         if self.pending_call().is_none() && self.sim.incidents().len() < 96 {
-            let template = self
-                .sim
-                .director_policy()
-                .map_or(1 + ((self.rng >> 24) % 6) as u32, |p| {
-                    p.template(&self.sim, self.shift, self.rng >> 24)
-                });
-            let location = self.sim.incidents()[&template].location;
-            self.sim
-                .queue_scenario(template, location)
-                .expect("Validated authored repeat scenario");
+            if self.sim.has_catalogue() {
+                self.sim
+                    .queue_catalogue_call()
+                    .expect("Validated catalogue location");
+            } else {
+                let template = self
+                    .sim
+                    .director_policy()
+                    .map_or(1 + ((self.rng >> 24) % 6) as u32, |p| {
+                        p.template(&self.sim, self.shift, self.rng >> 24)
+                    });
+                let location = self.sim.incidents()[&template].location;
+                self.sim
+                    .queue_scenario(template, location)
+                    .expect("Validated authored repeat scenario");
+            }
         }
         if self.next_call_at.is_none() && self.pending_call().is_some() {
             self.rng = self
@@ -398,12 +422,14 @@ impl Session {
                     self.sim.incidents()[&self.selected].call,
                     CallState::Answered { .. }
                 ) {
-                    self.dialogue.intro(
-                        self.selected,
-                        self.local_player,
-                        self.sim.now(),
-                        self.sim.call_view(self.selected).unwrap().report,
-                    );
+                    if self.dialogue.fixture {
+                        self.dialogue.intro(
+                            self.selected,
+                            self.local_player,
+                            self.sim.now(),
+                            self.sim.call_view(self.selected).unwrap().report,
+                        );
+                    }
                     self.conversation = Some(self.selected);
                     self.ringing = None;
                     if self.dialogue.service.is_none() && !self.dialogue.fixture {
@@ -412,6 +438,10 @@ impl Session {
                             self.local_player,
                             "No AI service configured on the host.",
                         );
+                    } else if !self.dialogue.fixture
+                        && let Err(e) = self.opening(self.selected)
+                    {
+                        self.drop_caller(self.selected, self.local_player, &e);
                     }
                 }
             }

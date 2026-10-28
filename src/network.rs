@@ -174,6 +174,9 @@ impl Network {
                 self.players = state.players;
             }
             Link::Client { .. } => {
+                game.sim =
+                    wrong_number_sim::Simulation::from_public_snapshot(game.sim.public_snapshot())
+                        .unwrap();
                 game.lobby();
                 game.notice = self.status.clone();
             }

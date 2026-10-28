@@ -1,0 +1,2705 @@
+{
+  "version": 1,
+  "complaints": [
+    {
+      "id": 1,
+      "title": "Shop window burglary",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The closed shop's front window is broken and someone is removing the cash register.",
+      "can_explode": false
+    },
+    {
+      "id": 2,
+      "title": "Armed convenience-store robbery",
+      "service": "Police",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A masked person is pointing a gun at the cashier while customers are inside.",
+      "can_explode": false
+    },
+    {
+      "id": 3,
+      "title": "Car being stolen",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Someone smashed a parked car's window and is trying to drive it away.",
+      "can_explode": false
+    },
+    {
+      "id": 4,
+      "title": "Apartment door being forced",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A stranger is kicking a locked apartment door while the tenant is inside.",
+      "can_explode": false
+    },
+    {
+      "id": 5,
+      "title": "Bicycle theft in progress",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Someone is cutting a locked bicycle chain outside a busy building.",
+      "can_explode": false
+    },
+    {
+      "id": 6,
+      "title": "Street assault",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "One person is repeatedly hitting another who has fallen on the pavement.",
+      "can_explode": false
+    },
+    {
+      "id": 7,
+      "title": "Domestic assault heard next door",
+      "service": "Police",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "I hear repeated blows, screams for help and threats from the apartment next door.",
+      "can_explode": false
+    },
+    {
+      "id": 8,
+      "title": "Person following a pedestrian",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A stranger has followed the same frightened pedestrian through several turns and is blocking their way.",
+      "can_explode": false
+    },
+    {
+      "id": 9,
+      "title": "Threat with a knife",
+      "service": "Police",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A person is waving a knife and threatening people near the building entrance.",
+      "can_explode": false
+    },
+    {
+      "id": 10,
+      "title": "Hit-and-run driver leaving",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A vehicle struck a pedestrian and the driver is leaving without stopping.",
+      "can_explode": false
+    },
+    {
+      "id": 11,
+      "title": "Dangerous road racing",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Two cars are racing each other through occupied intersections.",
+      "can_explode": false
+    },
+    {
+      "id": 12,
+      "title": "Vehicle driving toward oncoming traffic",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A car is moving against traffic and other drivers are swerving to avoid it.",
+      "can_explode": false
+    },
+    {
+      "id": 13,
+      "title": "Driver swerving across lanes",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A moving car repeatedly crosses into other lanes and nearly hits pedestrians.",
+      "can_explode": false
+    },
+    {
+      "id": 14,
+      "title": "Child left in a hot car",
+      "service": "Police",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A small child is alone in a closed car in direct sun and is crying weakly.",
+      "can_explode": false
+    },
+    {
+      "id": 15,
+      "title": "Missing young child",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A six-year-old disappeared from the busy public area a few minutes ago and no adult can find them.",
+      "can_explode": false
+    },
+    {
+      "id": 16,
+      "title": "Confused person near moving traffic",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A disoriented person keeps stepping into the road and cannot explain where they live.",
+      "can_explode": false
+    },
+    {
+      "id": 17,
+      "title": "Aggressive dog cornering pedestrians",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "An unrestrained dog is lunging at pedestrians who cannot get past it.",
+      "can_explode": false
+    },
+    {
+      "id": 18,
+      "title": "Fight outside a bar",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Several people are exchanging punches outside the bar and the fight is growing.",
+      "can_explode": false
+    },
+    {
+      "id": 19,
+      "title": "Someone trying car door handles",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person is checking parked car handles and has opened one vehicle that is not theirs.",
+      "can_explode": false
+    },
+    {
+      "id": 20,
+      "title": "Package theft from a doorstep",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A stranger has picked up several residents' delivered packages and is carrying them away.",
+      "can_explode": false
+    },
+    {
+      "id": 21,
+      "title": "Stalking at a workplace exit",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person who was told to leave is waiting at an employee's exit and threatening to follow them home.",
+      "can_explode": false
+    },
+    {
+      "id": 22,
+      "title": "School entrance blocked by a threatening adult",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "An adult is blocking the entrance and threatening staff who ask them to move.",
+      "can_explode": false
+    },
+    {
+      "id": 23,
+      "title": "Cash machine being tampered with",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Someone is attaching a suspicious device over the bank machine's card slot.",
+      "can_explode": false
+    },
+    {
+      "id": 24,
+      "title": "Cash machine being pried open",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Two people are forcing open the cash machine with tools while a vehicle waits nearby.",
+      "can_explode": false
+    },
+    {
+      "id": 25,
+      "title": "Shoplifter threatening staff",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person caught taking merchandise is threatening the worker who asked them to stop.",
+      "can_explode": false
+    },
+    {
+      "id": 26,
+      "title": "Intruder inside a warehouse",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The warehouse is closed and an unfamiliar person is moving goods through a forced side door.",
+      "can_explode": false
+    },
+    {
+      "id": 27,
+      "title": "Construction equipment being stolen",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person is loading marked construction tools into an unmarked vehicle after breaking a site lock.",
+      "can_explode": false
+    },
+    {
+      "id": 28,
+      "title": "Trespasser climbing a crane",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Someone has crossed the site barrier and is climbing a tall crane above occupied streets.",
+      "can_explode": false
+    },
+    {
+      "id": 29,
+      "title": "Person threatening to jump",
+      "service": "Police",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A distressed person is standing outside the safety railing and saying they intend to jump.",
+      "can_explode": false
+    },
+    {
+      "id": 30,
+      "title": "Shots heard with visible damage",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "I heard several sharp shots and a nearby car window shattered immediately afterward.",
+      "can_explode": false
+    },
+    {
+      "id": 31,
+      "title": "Someone carrying a bleeding person away",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A struggling injured person is being forced into a vehicle and is shouting for help.",
+      "can_explode": false
+    },
+    {
+      "id": 32,
+      "title": "Attempted abduction outside a shop",
+      "service": "Police",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "An adult is dragging a resisting child toward a van while the child calls for their parent.",
+      "can_explode": false
+    },
+    {
+      "id": 33,
+      "title": "Violent threat at a bus stop",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person is threatening waiting passengers and has just struck one of them.",
+      "can_explode": false
+    },
+    {
+      "id": 34,
+      "title": "Traffic lights dark at a busy junction",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "All signals at the busy intersection are dark and vehicles are nearly colliding.",
+      "can_explode": false
+    },
+    {
+      "id": 35,
+      "title": "Loose load falling from a truck",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Heavy items are falling from a moving truck onto an active traffic lane.",
+      "can_explode": false
+    },
+    {
+      "id": 36,
+      "title": "Large object blocking a blind bend",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A fallen object blocks the lane immediately after a blind bend and drivers cannot see it in time.",
+      "can_explode": false
+    },
+    {
+      "id": 37,
+      "title": "Crowd crushing at a locked gate",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A crowd is pressing toward a gate that will not open and people at the front cannot move.",
+      "can_explode": false
+    },
+    {
+      "id": 38,
+      "title": "Threatening visitor at a hospital entrance",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A visitor is pushing staff and threatening patients entering the building.",
+      "can_explode": false
+    },
+    {
+      "id": 39,
+      "title": "Animal trapped in active traffic",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A frightened animal is trapped between moving lanes and cars are braking abruptly.",
+      "can_explode": false
+    },
+    {
+      "id": 40,
+      "title": "Vandalism to occupied building windows",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Someone is throwing rocks at windows while people are inside the rooms.",
+      "can_explode": false
+    },
+    {
+      "id": 41,
+      "title": "Public statue being damaged",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "People are using tools to break pieces off the public statue and are still present.",
+      "can_explode": false
+    },
+    {
+      "id": 42,
+      "title": "Streetlights being deliberately smashed",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Someone is smashing streetlight fittings and dropping glass onto pedestrians.",
+      "can_explode": false
+    },
+    {
+      "id": 43,
+      "title": "Person firing fireworks into a crowd",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Someone is aiming lit fireworks directly toward people who are trying to get away.",
+      "can_explode": false
+    },
+    {
+      "id": 44,
+      "title": "Threatening fare dispute in a taxi",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A passenger is striking the taxi partition and threatening the driver who has stopped the car.",
+      "can_explode": false
+    },
+    {
+      "id": 45,
+      "title": "Delivery driver being threatened",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Several people have surrounded a delivery driver and are demanding the vehicle keys.",
+      "can_explode": false
+    },
+    {
+      "id": 46,
+      "title": "Purse snatch just witnessed",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person pulled a bag from its owner's shoulder and is running away within sight.",
+      "can_explode": false
+    },
+    {
+      "id": 47,
+      "title": "Person trapped by a violent partner",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person is asking for help from a window because their partner is preventing them from leaving.",
+      "can_explode": false
+    },
+    {
+      "id": 48,
+      "title": "Door-to-door scam becoming threatening",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A supposed utility worker is refusing to leave and threatening the resident who would not let them in.",
+      "can_explode": false
+    },
+    {
+      "id": 49,
+      "title": "Fake parking officer taking cash",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person without official identification is demanding cash from parked drivers and threatening them.",
+      "can_explode": false
+    },
+    {
+      "id": 50,
+      "title": "Train crossing barrier deliberately lifted",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Someone is holding the crossing barrier up while vehicles attempt to cross the tracks.",
+      "can_explode": false
+    },
+    {
+      "id": 51,
+      "title": "Children throwing objects from a bridge",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Objects are falling from the bridge onto moving vehicles below.",
+      "can_explode": false
+    },
+    {
+      "id": 52,
+      "title": "Boat theft at the marina",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Someone cut a boat's mooring line and is trying to start it while the owner shouts for help.",
+      "can_explode": false
+    },
+    {
+      "id": 53,
+      "title": "Harassment of a lone shop worker",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A group is cornering the lone worker and will not let them leave the counter area.",
+      "can_explode": false
+    },
+    {
+      "id": 54,
+      "title": "Escaped prisoner transport passenger",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A handcuffed person ran from a stopped custody vehicle and officers are searching nearby.",
+      "can_explode": false
+    },
+    {
+      "id": 55,
+      "title": "Alarm with visible forced entry",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A building alarm is sounding and the rear door frame is visibly broken.",
+      "can_explode": false
+    },
+    {
+      "id": 56,
+      "title": "A threatening person inside a school yard",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "An unfamiliar person climbed the locked school fence and is threatening those who approach.",
+      "can_explode": false
+    },
+    {
+      "id": 57,
+      "title": "Intimidation outside a polling place",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "People are blocking the entrance and threatening visitors who try to pass.",
+      "can_explode": false
+    },
+    {
+      "id": 58,
+      "title": "Dangerous pursuit through a pedestrian zone",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A vehicle is accelerating through the pedestrian area while people jump aside.",
+      "can_explode": false
+    },
+    {
+      "id": 59,
+      "title": "A person kicking an occupied taxi",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Someone is kicking the taxi windows while a frightened passenger remains inside.",
+      "can_explode": false
+    },
+    {
+      "id": 60,
+      "title": "Fight on an occupied balcony",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Two people are fighting close to the balcony edge and one is being pushed against the railing.",
+      "can_explode": false
+    },
+    {
+      "id": 61,
+      "title": "Suspicious removal of road barriers",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "People are removing the barriers around a known road hazard while traffic approaches.",
+      "can_explode": false
+    },
+    {
+      "id": 62,
+      "title": "Someone threatening a sleeping rough resident",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person is threatening and kicking a sleeping person who cannot get away.",
+      "can_explode": false
+    },
+    {
+      "id": 63,
+      "title": "Damage to an emergency access gate",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "Someone is chaining shut the marked emergency access gate despite requests to stop.",
+      "can_explode": false
+    },
+    {
+      "id": 64,
+      "title": "A cyclist being deliberately chased",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A driver repeatedly swerves toward a cyclist and is continuing to follow them.",
+      "can_explode": false
+    },
+    {
+      "id": 65,
+      "title": "Threatening dispute over a child handover",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "One adult is threatening violence and trying to force a child into a vehicle during an argument.",
+      "can_explode": false
+    },
+    {
+      "id": 66,
+      "title": "Theft from a market stall",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "People are taking the stall's stock while one blocks the owner from following them.",
+      "can_explode": false
+    },
+    {
+      "id": 67,
+      "title": "Intruder hiding in an occupied home",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The resident saw an unfamiliar person enter through a window and believes they are still inside.",
+      "can_explode": false
+    },
+    {
+      "id": 68,
+      "title": "A threatening group surrounding a car",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A group is pounding on an occupied car and blocking every exit route.",
+      "can_explode": false
+    },
+    {
+      "id": 69,
+      "title": "Someone stealing a traffic sign",
+      "service": "Police",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person is removing the junction's stop sign while traffic is using the road.",
+      "can_explode": false
+    },
+    {
+      "id": 70,
+      "title": "Vehicle deliberately driven into a shop entrance",
+      "service": "Police",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A driver has repeatedly driven into the shop entrance while people flee inside.",
+      "can_explode": false
+    },
+    {
+      "id": 71,
+      "title": "Lost wallet with no current suspect",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I noticed my wallet missing after shopping; there was no confrontation and nobody is in immediate danger.",
+      "can_explode": false
+    },
+    {
+      "id": 72,
+      "title": "Old bicycle theft report",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "My bicycle disappeared overnight; I have no current sighting and nobody is threatened now.",
+      "can_explode": false
+    },
+    {
+      "id": 73,
+      "title": "A noisy upstairs rehearsal",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The upstairs neighbour is practising a trombone; I hear music but no threats or distress.",
+      "can_explode": false
+    },
+    {
+      "id": 74,
+      "title": "A parking space argument that ended",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "Two neighbours argued over a parking space but have separated and no one was threatened.",
+      "can_explode": false
+    },
+    {
+      "id": 75,
+      "title": "A car parked across a driveway",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "An unattended car partly blocks my driveway; it is not blocking emergency access.",
+      "can_explode": false
+    },
+    {
+      "id": 76,
+      "title": "A suspicious-looking garden ornament",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The figure in the garden is a motionless decorative mannequin and no person has entered the property.",
+      "can_explode": false
+    },
+    {
+      "id": 77,
+      "title": "A neighbour's very bright security light",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The security light shines into my bedroom; there is no active threat or emergency.",
+      "can_explode": false
+    },
+    {
+      "id": 78,
+      "title": "A rude message on a community noticeboard",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "Someone left an insulting notice about my bins; there are no threats or identified immediate danger.",
+      "can_explode": false
+    },
+    {
+      "id": 79,
+      "title": "A missing parcel marked delivered",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The delivery tracker says my parcel arrived but I cannot find it and did not witness any theft.",
+      "can_explode": false
+    },
+    {
+      "id": 80,
+      "title": "A rumour about a stolen parking cone",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I heard a neighbour moved a parking cone; I have seen no theft, threats or road hazard.",
+      "can_explode": false
+    },
+    {
+      "id": 81,
+      "title": "A legal street musician playing badly",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "A street musician is playing out of tune in an allowed area; there is no fight or danger.",
+      "can_explode": false
+    },
+    {
+      "id": 82,
+      "title": "A stranger taking lawful holiday photographs",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "Someone is photographing the public skyline; they have not approached anyone or entered private property.",
+      "can_explode": false
+    },
+    {
+      "id": 83,
+      "title": "A disagreement about a shared fence",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The neighbour and I disagree about our fence boundary; nobody is threatened and the argument has ended.",
+      "can_explode": false
+    },
+    {
+      "id": 84,
+      "title": "A cat accused of stealing a sandwich",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "A neighbour's cat carried off my sandwich; the animal and everyone nearby are unharmed.",
+      "can_explode": false
+    },
+    {
+      "id": 85,
+      "title": "A board-game accusation of robbery",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "My friend stole my money during a board game; there was no real-world theft or threat.",
+      "can_explode": false
+    },
+    {
+      "id": 86,
+      "title": "A disappointing haircut complaint",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I dislike my new haircut and want a refund; there are no injuries or threats.",
+      "can_explode": false
+    },
+    {
+      "id": 87,
+      "title": "A television volume complaint",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "My neighbour's television is loud; I can identify the programme and hear no actual distress.",
+      "can_explode": false
+    },
+    {
+      "id": 88,
+      "title": "A pigeon refusing to leave a windowsill",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "A pigeon sits outside my closed window; no one is trapped or endangered.",
+      "can_explode": false
+    },
+    {
+      "id": 89,
+      "title": "A missing plastic wheelie-bin lid",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The lid vanished from my bin; there is no current suspect or immediate hazard.",
+      "can_explode": false
+    },
+    {
+      "id": 90,
+      "title": "A neighbour mowing too early",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The neighbour is using a lawnmower in their own garden; no one is being threatened.",
+      "can_explode": false
+    },
+    {
+      "id": 91,
+      "title": "A restaurant bill disagreement",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I dispute the bill but the staff and I are calm and there is no threat or assault.",
+      "can_explode": false
+    },
+    {
+      "id": 92,
+      "title": "A request to settle a football result",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "My friends disagree about a football score; no emergency or real crime has occurred.",
+      "can_explode": false
+    },
+    {
+      "id": 93,
+      "title": "A dog barking behind a secure fence",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The dog barks in its own enclosed yard; it is not loose and nobody is threatened.",
+      "can_explode": false
+    },
+    {
+      "id": 94,
+      "title": "A complaint about an ugly mural",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I dislike a permitted mural on a public wall; nobody is damaging anything now.",
+      "can_explode": false
+    },
+    {
+      "id": 95,
+      "title": "A lost set of house keys",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I misplaced my own keys and have not seen anyone take them; no one is locked in danger.",
+      "can_explode": false
+    },
+    {
+      "id": 96,
+      "title": "An argument about whose turn it is to clean",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "My housemate and I disagree about chores but there are no threats or injuries.",
+      "can_explode": false
+    },
+    {
+      "id": 97,
+      "title": "A request for the time of a football match",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I called to ask when a match starts; I have no emergency to report.",
+      "can_explode": false
+    },
+    {
+      "id": 98,
+      "title": "A cardboard cutout mistaken for a guard",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The silent figure in the window is a cardboard advertising cutout, not a trapped person.",
+      "can_explode": false
+    },
+    {
+      "id": 99,
+      "title": "A missing remote control accusation",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I cannot find the television remote and blame my flatmate; I have no evidence of a real crime.",
+      "can_explode": false
+    },
+    {
+      "id": 100,
+      "title": "A complaint about a queue jumper",
+      "service": "Police",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "Someone joined ahead of me in a shop queue; no one is threatening or hurting anyone.",
+      "can_explode": false
+    },
+    {
+      "id": 101,
+      "title": "Laundromat dryer fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Dark smoke is pouring from a running dryer and flames are visible behind its drum.",
+      "can_explode": true
+    },
+    {
+      "id": 102,
+      "title": "Apartment fire with someone at a window",
+      "service": "Fire",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "Flames are spreading through an apartment and someone is calling for help from an upper window.",
+      "can_explode": true
+    },
+    {
+      "id": 103,
+      "title": "Restaurant extraction-duct fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Flames are coming from the kitchen extraction duct and smoke is entering the dining room.",
+      "can_explode": true
+    },
+    {
+      "id": 104,
+      "title": "Car engine on fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Flames are coming from a stopped car's engine compartment and the occupants have moved away.",
+      "can_explode": true
+    },
+    {
+      "id": 105,
+      "title": "Bus engine fire at a stop",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Smoke and flames are coming from the bus's rear engine area while passengers leave.",
+      "can_explode": true
+    },
+    {
+      "id": 106,
+      "title": "Factory conveyor-belt fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A moving conveyor belt is burning inside the factory and staff are evacuating.",
+      "can_explode": true
+    },
+    {
+      "id": 107,
+      "title": "Sparks from an electrical switchboard",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The switchboard is arcing and smoke is coming from the wall around it.",
+      "can_explode": false
+    },
+    {
+      "id": 108,
+      "title": "Gas smell inside an occupied building",
+      "service": "Fire",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "There is a strong gas smell inside the occupied building and several people feel unwell.",
+      "can_explode": true
+    },
+    {
+      "id": 109,
+      "title": "Gas escaping from a damaged street pipe",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A road worker struck a pipe and a loud hiss with a strong gas smell is coming from the excavation.",
+      "can_explode": true
+    },
+    {
+      "id": 110,
+      "title": "Roof fire above a row of shops",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Flames are visible along the connected shop roofs and smoke is spreading between them.",
+      "can_explode": true
+    },
+    {
+      "id": 111,
+      "title": "Rubbish chute fire in an apartment block",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Hot smoke is coming from the rubbish chute on several occupied floors.",
+      "can_explode": false
+    },
+    {
+      "id": 112,
+      "title": "Smoke filling an underground car park",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Thick smoke is spreading through the underground parking area and the source is not visible.",
+      "can_explode": false
+    },
+    {
+      "id": 113,
+      "title": "Warehouse loading-bay fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Stored packaging is burning in the loading bay and the fire is spreading toward the warehouse.",
+      "can_explode": true
+    },
+    {
+      "id": 114,
+      "title": "Balcony barbecue setting cladding alight",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Flames from a barbecue have reached the balcony wall and are spreading upward.",
+      "can_explode": true
+    },
+    {
+      "id": 115,
+      "title": "Kitchen grease fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Flames are rising from a pan and have spread to the cupboards above the stove.",
+      "can_explode": true
+    },
+    {
+      "id": 116,
+      "title": "Burning mattress in a stairwell",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A mattress is burning in the building's only stairwell and smoke blocks the route.",
+      "can_explode": true
+    },
+    {
+      "id": 117,
+      "title": "Smoke beneath a nursery door",
+      "service": "Fire",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "Smoke is coming under the nursery's closed internal door while children and staff are inside the building.",
+      "can_explode": false
+    },
+    {
+      "id": 118,
+      "title": "Flames in a supermarket freezer unit",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "An electrical section of a freezer is sparking and flames are visible behind the display.",
+      "can_explode": true
+    },
+    {
+      "id": 119,
+      "title": "Solar-panel roof wiring fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Sparks and small flames are visible beneath the roof-mounted solar panels.",
+      "can_explode": true
+    },
+    {
+      "id": 120,
+      "title": "Battery pack burning in a flat",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A charging battery pack is producing flames, popping sounds and dense smoke inside the flat.",
+      "can_explode": true
+    },
+    {
+      "id": 121,
+      "title": "Electric scooter fire in an entrance hall",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A charging scooter is burning beside the building's shared entrance.",
+      "can_explode": true
+    },
+    {
+      "id": 122,
+      "title": "Boat fire while moored",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Smoke and flames are coming from a moored boat close to other occupied boats.",
+      "can_explode": true
+    },
+    {
+      "id": 123,
+      "title": "Fuel spilling beside an ignition source",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Liquid fuel is spreading from a damaged pump near running equipment and people are nearby.",
+      "can_explode": false
+    },
+    {
+      "id": 124,
+      "title": "Generator overheating and smoking",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The temporary generator is smoking heavily and flames have appeared beneath its cover.",
+      "can_explode": true
+    },
+    {
+      "id": 125,
+      "title": "Transformer sparking over a pavement",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The electrical transformer is arcing and hot fragments are falling onto a public pavement.",
+      "can_explode": false
+    },
+    {
+      "id": 126,
+      "title": "Power line down across a road",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A fallen power line crosses the road and is sparking where it touches a vehicle.",
+      "can_explode": false
+    },
+    {
+      "id": 127,
+      "title": "Chimney fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "There is a loud roaring sound inside the chimney and sparks are shooting from its top.",
+      "can_explode": false
+    },
+    {
+      "id": 128,
+      "title": "Ceiling light fitting on fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The ceiling light fitting is burning and smoke is collecting above the occupied room.",
+      "can_explode": true
+    },
+    {
+      "id": 129,
+      "title": "Dry grass fire near houses",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A grass fire is moving toward garden fences and occupied houses.",
+      "can_explode": false
+    },
+    {
+      "id": 130,
+      "title": "Bonfire spreading beyond its boundary",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The fire has spread out of the garden bonfire area and is burning the neighbouring fence.",
+      "can_explode": true
+    },
+    {
+      "id": 131,
+      "title": "Tree fire touching a building",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A burning tree is dropping embers onto the building roof and windows.",
+      "can_explode": true
+    },
+    {
+      "id": 132,
+      "title": "Scrap-yard tyre fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A stack of tyres is burning and dense black smoke is moving across neighbouring properties.",
+      "can_explode": true
+    },
+    {
+      "id": 133,
+      "title": "Recycling baler fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Compacted recyclable material is burning inside the baler and smoke is filling the work area.",
+      "can_explode": true
+    },
+    {
+      "id": 134,
+      "title": "Commercial boiler-room fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Flames and heavy smoke are coming from the building's boiler room.",
+      "can_explode": true
+    },
+    {
+      "id": 135,
+      "title": "Lift motor room smoking",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Smoke is coming from the lift machinery room while the building is occupied.",
+      "can_explode": false
+    },
+    {
+      "id": 136,
+      "title": "People trapped in a smoke-filled lift",
+      "service": "Fire",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "The lift is stuck between floors and its occupants report smoke entering the cabin.",
+      "can_explode": false
+    },
+    {
+      "id": 137,
+      "title": "People trapped in a stalled lift",
+      "service": "Fire",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "The lift has stopped between floors and the occupants cannot open the doors or contact maintenance.",
+      "can_explode": false
+    },
+    {
+      "id": 138,
+      "title": "Child trapped behind a jammed fire door",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A child is trapped behind a damaged door while smoke is entering the corridor.",
+      "can_explode": false
+    },
+    {
+      "id": 139,
+      "title": "Collapsed floor with people below",
+      "service": "Fire",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "Part of a floor has collapsed and people are believed to be trapped beneath the debris.",
+      "can_explode": false
+    },
+    {
+      "id": 140,
+      "title": "Unstable wall beside a footpath",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A masonry wall has visibly shifted and loose bricks are falling beside a busy footpath.",
+      "can_explode": false
+    },
+    {
+      "id": 141,
+      "title": "Scaffolding coming away from a building",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Sections of scaffolding are pulling away from their anchors above an occupied pavement.",
+      "can_explode": false
+    },
+    {
+      "id": 142,
+      "title": "Roof debris falling after a storm",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Large pieces of roofing are falling onto the street while people shelter nearby.",
+      "can_explode": false
+    },
+    {
+      "id": 143,
+      "title": "Water rushing into a basement with people inside",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A burst main is filling a basement and the people inside cannot open the exit.",
+      "can_explode": false
+    },
+    {
+      "id": 144,
+      "title": "Person trapped in floodwater",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person is stranded in moving floodwater and cannot reach the bank.",
+      "can_explode": false
+    },
+    {
+      "id": 145,
+      "title": "Vehicle stuck in rising water",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A stopped vehicle contains people and the water is rising around its doors.",
+      "can_explode": false
+    },
+    {
+      "id": 146,
+      "title": "Person fallen into a canal",
+      "service": "Fire",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "Someone fell into the canal and is struggling to stay above the water.",
+      "can_explode": false
+    },
+    {
+      "id": 147,
+      "title": "Child stuck in a narrow drainage shaft",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A child has fallen into the drainage shaft and cannot climb out.",
+      "can_explode": false
+    },
+    {
+      "id": 148,
+      "title": "Worker trapped in a locked industrial enclosure",
+      "service": "Fire",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A worker is stuck inside a secured enclosure and the normal release mechanism has failed.",
+      "can_explode": false
+    },
+    {
+      "id": 149,
+      "title": "Hand trapped in industrial machinery",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A worker's hand is caught in a machine and the people present cannot free it.",
+      "can_explode": false
+    },
+    {
+      "id": 150,
+      "title": "Person pinned by a fallen tree",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A fallen tree is holding a person against the ground and bystanders cannot lift it.",
+      "can_explode": false
+    },
+    {
+      "id": 151,
+      "title": "Vehicle collision with a trapped occupant",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The vehicle's damaged doors will not open and an occupant remains trapped inside.",
+      "can_explode": false
+    },
+    {
+      "id": 152,
+      "title": "Chemical spill with irritating fumes",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Liquid from a damaged container is producing strong fumes and workers are leaving the area coughing.",
+      "can_explode": false
+    },
+    {
+      "id": 153,
+      "title": "Unknown chemical cloud inside a workplace",
+      "service": "Fire",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "An unexpected chemical cloud is spreading through an occupied workplace and people are struggling to leave.",
+      "can_explode": false
+    },
+    {
+      "id": 154,
+      "title": "Carbon monoxide alarm with illness",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The carbon monoxide alarm is sounding and people inside report dizziness and nausea.",
+      "can_explode": false
+    },
+    {
+      "id": 155,
+      "title": "Carbon monoxide alarm in an occupied home",
+      "service": "Fire",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "The carbon monoxide alarm has sounded repeatedly and people are still inside the home.",
+      "can_explode": false
+    },
+    {
+      "id": 156,
+      "title": "Smoke coming from a locked storage room",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Hot smoke is pushing from around the locked storage-room door.",
+      "can_explode": false
+    },
+    {
+      "id": 157,
+      "title": "Fire in a public rubbish compactor",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Material in the compactor is burning and flames are spreading toward the adjoining building.",
+      "can_explode": true
+    },
+    {
+      "id": 158,
+      "title": "Industrial oven fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Flames have spread outside the industrial oven's cooking chamber and workers are evacuating.",
+      "can_explode": true
+    },
+    {
+      "id": 159,
+      "title": "Paint store fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Paint containers are burning in the store and smoke is entering the adjoining workshop.",
+      "can_explode": true
+    },
+    {
+      "id": 160,
+      "title": "Welding sparks igniting insulation",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Welding sparks have ignited wall insulation and the fire is spreading inside the partition.",
+      "can_explode": false
+    },
+    {
+      "id": 161,
+      "title": "Fire in a ventilation shaft",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Smoke and flames are visible inside the ventilation shaft serving several occupied rooms.",
+      "can_explode": true
+    },
+    {
+      "id": 162,
+      "title": "Electrical fire under a shop counter",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Sparks and flames are coming from wiring below the shop counter.",
+      "can_explode": true
+    },
+    {
+      "id": 163,
+      "title": "Smoke from an occupied hotel corridor",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The hotel corridor is filling with smoke and guests are trying to find the stairs.",
+      "can_explode": false
+    },
+    {
+      "id": 164,
+      "title": "Garage fire beside a home",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The detached garage is burning and flames are reaching the home's external wall.",
+      "can_explode": true
+    },
+    {
+      "id": 165,
+      "title": "Camping stove fire inside a tent",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The tent's fabric has caught fire around a camping stove and other tents are nearby.",
+      "can_explode": true
+    },
+    {
+      "id": 166,
+      "title": "Fireworks stock catching fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Stored fireworks are igniting and sending burning material across the enclosed yard.",
+      "can_explode": true
+    },
+    {
+      "id": 167,
+      "title": "Outdoor market canopy burning",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A market canopy has caught fire and flames are spreading across adjacent stalls.",
+      "can_explode": true
+    },
+    {
+      "id": 168,
+      "title": "Bus shelter electrical cabinet burning",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Flames are coming from the shelter's electrical cabinet beside waiting passengers.",
+      "can_explode": true
+    },
+    {
+      "id": 169,
+      "title": "Laundry-room lint duct fire",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The laundry-room exhaust duct is burning and smoke is coming from its outlet and wall joints.",
+      "can_explode": true
+    },
+    {
+      "id": 170,
+      "title": "Industrial dust hopper smoking",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The dust hopper is producing heavy smoke and workers hear repeated bangs from inside it.",
+      "can_explode": false
+    },
+    {
+      "id": 171,
+      "title": "Animal trapped in a wall cavity",
+      "service": "Fire",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "An animal is trapped in an inaccessible cavity and maintenance staff cannot reach it safely.",
+      "can_explode": false
+    },
+    {
+      "id": 172,
+      "title": "Person locked inside a walk-in freezer",
+      "service": "Fire",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A worker is locked inside the cold room and the interior release will not open the door.",
+      "can_explode": false
+    },
+    {
+      "id": 173,
+      "title": "A falling tree leaning on a roof",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A damaged tree is leaning into an occupied roof and keeps shifting in the wind.",
+      "can_explode": false
+    },
+    {
+      "id": 174,
+      "title": "Balcony railing partially detached",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "The balcony railing has pulled out of the wall while people are still on the balcony.",
+      "can_explode": false
+    },
+    {
+      "id": 175,
+      "title": "Water entering an electrical plant room",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Water is flooding into a room with active electrical equipment and sparks are visible.",
+      "can_explode": false
+    },
+    {
+      "id": 176,
+      "title": "Smoke under a train platform",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Smoke is rising from beneath the occupied platform and passengers are moving away.",
+      "can_explode": false
+    },
+    {
+      "id": 177,
+      "title": "Fuel tanker smoking after a collision",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A tanker has collided with a barrier and smoke is coming from its cab near the tank.",
+      "can_explode": false
+    },
+    {
+      "id": 178,
+      "title": "Smoke from a cinema projection room",
+      "service": "Fire",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Smoke is escaping the projection-room door while the cinema audience is still inside.",
+      "can_explode": false
+    },
+    {
+      "id": 179,
+      "title": "Person stuck on a damaged fire escape",
+      "service": "Fire",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person cannot get off a damaged exterior fire escape and a section is moving under their weight.",
+      "can_explode": false
+    },
+    {
+      "id": 180,
+      "title": "A dangerous branch hanging over a busy path",
+      "service": "Fire",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A partly broken branch is suspended over the occupied path and pieces keep falling.",
+      "can_explode": false
+    },
+    {
+      "id": 181,
+      "title": "A toaster making an ordinary popping noise",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The toaster popped finished bread; there is no flame, unusual heat, smoke or injured person.",
+      "can_explode": false
+    },
+    {
+      "id": 182,
+      "title": "Steam rising from a restaurant vent",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The white vapour is ordinary kitchen steam; no burning smell, flames or distress are present.",
+      "can_explode": false
+    },
+    {
+      "id": 183,
+      "title": "A supervised public barbecue",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "People are cooking safely in an authorised barbecue area and no fire has spread.",
+      "can_explode": false
+    },
+    {
+      "id": 184,
+      "title": "A planned fire-alarm test",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "Building staff confirm this is a scheduled alarm test and there is no smoke, flame or distress.",
+      "can_explode": false
+    },
+    {
+      "id": 185,
+      "title": "A smoke alarm with a low-battery chirp",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The alarm makes a brief low-battery chirp and there is no smoke, heat or burning smell.",
+      "can_explode": false
+    },
+    {
+      "id": 186,
+      "title": "A decorative electric fireplace",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The apparent flames are the fireplace's normal visual effect and nothing is burning.",
+      "can_explode": false
+    },
+    {
+      "id": 187,
+      "title": "Red festival lighting mistaken for flames",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The red glow comes from cool decorative lights; there is no heat, smoke or actual fire.",
+      "can_explode": false
+    },
+    {
+      "id": 188,
+      "title": "An extinguished garden fire complaint",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The supervised garden fire is fully out and cold; the dispute is about its earlier smell.",
+      "can_explode": false
+    },
+    {
+      "id": 189,
+      "title": "A request to refill a fire extinguisher",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I want to arrange routine extinguisher servicing and have no fire or current hazard to report.",
+      "can_explode": false
+    },
+    {
+      "id": 190,
+      "title": "A request for a home fire-safety leaflet",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I am asking for general printed safety information and there is no emergency happening.",
+      "can_explode": false
+    },
+    {
+      "id": 191,
+      "title": "A car releasing harmless washer mist",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The brief spray came from the car's washer nozzles; there is no smoke, flame or burning smell.",
+      "can_explode": false
+    },
+    {
+      "id": 192,
+      "title": "A neighbour's smoky cooking that has stopped",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The cooking smoke has cleared, the appliance is off and no fire or breathing difficulty remains.",
+      "can_explode": false
+    },
+    {
+      "id": 193,
+      "title": "A cold outdoor metal fire sculpture",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The sculpture is lit with LEDs and is cool; no fuel, flame or smoke is involved.",
+      "can_explode": false
+    },
+    {
+      "id": 194,
+      "title": "A kettle boiling normally",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The kettle is producing ordinary steam while attended; nothing is burning and nobody is hurt.",
+      "can_explode": false
+    },
+    {
+      "id": 195,
+      "title": "A routine hydrant location question",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I want to know where the nearest hydrant is for a future event; no current incident exists.",
+      "can_explode": false
+    },
+    {
+      "id": 196,
+      "title": "A request to retrieve a toy from a roof",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "A toy is on a low unoccupied roof and no person or animal is trapped or in danger.",
+      "can_explode": false
+    },
+    {
+      "id": 197,
+      "title": "A report about yesterday's burnt toast",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "Toast burned yesterday but everything is now cold and there is no ongoing smoke, heat or injury.",
+      "can_explode": false
+    },
+    {
+      "id": 198,
+      "title": "A request for the fire-station open day",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I am asking when the station's public open day takes place; there is no emergency.",
+      "can_explode": false
+    },
+    {
+      "id": 199,
+      "title": "An argument about a neighbour's permitted fire pit",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The fire pit is attended, contained and causing no immediate danger; the dispute concerns permission.",
+      "can_explode": false
+    },
+    {
+      "id": 200,
+      "title": "A projector showing a fireplace video",
+      "service": "Fire",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The flames are part of a video projected onto a wall; no actual material is burning.",
+      "can_explode": false
+    },
+    {
+      "id": 201,
+      "title": "Unresponsive roommate",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "My roommate will not wake up and is taking occasional gasping breaths.",
+      "can_explode": false
+    },
+    {
+      "id": 202,
+      "title": "Person collapsed in a shop",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A shopper suddenly collapsed and is not responding when staff speak to them.",
+      "can_explode": false
+    },
+    {
+      "id": 203,
+      "title": "Severe difficulty breathing",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A person can barely speak because they are struggling to breathe and the problem is getting worse.",
+      "can_explode": false
+    },
+    {
+      "id": 204,
+      "title": "Sudden chest pain with collapse",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A person developed strong chest pain, became pale and then collapsed.",
+      "can_explode": false
+    },
+    {
+      "id": 205,
+      "title": "Sudden weakness on one side",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person's face and one arm suddenly became weak and their speech sounds different.",
+      "can_explode": false
+    },
+    {
+      "id": 206,
+      "title": "Heavy bleeding after a fall",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A person has a deep injury after falling and there is a large amount of blood around them.",
+      "can_explode": false
+    },
+    {
+      "id": 207,
+      "title": "Serious head injury",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person hit their head hard and is now confused and repeatedly becoming drowsy.",
+      "can_explode": false
+    },
+    {
+      "id": 208,
+      "title": "Seizure that is not stopping",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person is still shaking and unresponsive several minutes after a seizure began.",
+      "can_explode": false
+    },
+    {
+      "id": 209,
+      "title": "Child struggling after choking",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A child began choking during a meal and is now struggling to make any sound.",
+      "can_explode": false
+    },
+    {
+      "id": 210,
+      "title": "Severe allergic reaction",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A person's lips are swelling and they are having increasing difficulty breathing after eating.",
+      "can_explode": false
+    },
+    {
+      "id": 211,
+      "title": "Severe burns from hot liquid",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person has painful burns over a large area after hot liquid spilled onto them.",
+      "can_explode": false
+    },
+    {
+      "id": 212,
+      "title": "Worker injured by falling machinery",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Heavy equipment fell on a worker and they cannot stand or move normally.",
+      "can_explode": false
+    },
+    {
+      "id": 213,
+      "title": "Pedestrian struck by a bicycle",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A pedestrian was hit by a bicycle, fell hard and cannot get back up.",
+      "can_explode": false
+    },
+    {
+      "id": 214,
+      "title": "Cyclist thrown from a bike",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A cyclist was thrown onto the road and is in severe pain and unable to stand.",
+      "can_explode": false
+    },
+    {
+      "id": 215,
+      "title": "Person injured in a vehicle collision",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "An occupant has been hurt in a collision and is confused and in considerable pain.",
+      "can_explode": false
+    },
+    {
+      "id": 216,
+      "title": "Person rescued from water but unresponsive",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A person pulled from the water is not responding and is not breathing normally.",
+      "can_explode": false
+    },
+    {
+      "id": 217,
+      "title": "Smoke inhalation after leaving a fire",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person who came out of a smoky building is coughing heavily and struggling to breathe.",
+      "can_explode": false
+    },
+    {
+      "id": 218,
+      "title": "Dizziness after a chemical exposure",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "Several workers became dizzy and nauseated after an unexpected chemical release.",
+      "can_explode": false
+    },
+    {
+      "id": 219,
+      "title": "Heat illness with confusion",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person working outside in the heat is very confused and cannot remain standing.",
+      "can_explode": false
+    },
+    {
+      "id": 220,
+      "title": "Cold exposure with reduced responsiveness",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person found outside in the cold is very drowsy and barely responding to questions.",
+      "can_explode": false
+    },
+    {
+      "id": 221,
+      "title": "Severe abdominal pain with fainting",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person has sudden severe abdominal pain and has fainted twice.",
+      "can_explode": false
+    },
+    {
+      "id": 222,
+      "title": "Sudden severe headache",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person developed an abrupt extremely painful headache and is becoming confused.",
+      "can_explode": false
+    },
+    {
+      "id": 223,
+      "title": "Diabetic person becoming unresponsive",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person with diabetes is confused, sweating and becoming difficult to wake.",
+      "can_explode": false
+    },
+    {
+      "id": 224,
+      "title": "Possible poisoning with symptoms",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person swallowed an unknown substance and is now vomiting and unusually drowsy.",
+      "can_explode": false
+    },
+    {
+      "id": 225,
+      "title": "Medication overdose with collapse",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A person may have taken too much medication and is now unresponsive.",
+      "can_explode": false
+    },
+    {
+      "id": 226,
+      "title": "Person fainted and remains confused",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person fainted and, after waking, cannot answer simple questions normally.",
+      "can_explode": false
+    },
+    {
+      "id": 227,
+      "title": "Severe asthma symptoms",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person with asthma is having marked trouble breathing and can only say a few words.",
+      "can_explode": false
+    },
+    {
+      "id": 228,
+      "title": "Fall down a full flight of stairs",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person fell down the stairs and has severe pain and cannot move safely.",
+      "can_explode": false
+    },
+    {
+      "id": 229,
+      "title": "Elderly person on the floor for hours",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "An older person has been on the floor for several hours and is weak and confused.",
+      "can_explode": false
+    },
+    {
+      "id": 230,
+      "title": "Person with a serious leg injury",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person has a badly injured leg after an accident and cannot put any weight on it.",
+      "can_explode": false
+    },
+    {
+      "id": 231,
+      "title": "Crush injury to a hand",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A worker's hand was crushed by a heavy object and they are in severe pain.",
+      "can_explode": false
+    },
+    {
+      "id": 232,
+      "title": "Deep cut with continuing bleeding",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person has a deep cut and blood continues to soak through material covering it.",
+      "can_explode": false
+    },
+    {
+      "id": 233,
+      "title": "Person bitten by an animal with severe injury",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "An animal bite has caused a large wound and the injured person is pale and shaking.",
+      "can_explode": false
+    },
+    {
+      "id": 234,
+      "title": "Eye injury from a flying fragment",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A worker was struck in the eye by a fragment and reports sudden loss of vision.",
+      "can_explode": false
+    },
+    {
+      "id": 235,
+      "title": "Pregnant person with heavy bleeding",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A pregnant person has begun bleeding heavily and feels faint.",
+      "can_explode": false
+    },
+    {
+      "id": 236,
+      "title": "Birth with the baby arriving now",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A person in labour says the baby is arriving immediately and no medical professional is present.",
+      "can_explode": false
+    },
+    {
+      "id": 237,
+      "title": "Infant unusually unresponsive",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A baby is difficult to wake and is not responding in their usual way.",
+      "can_explode": false
+    },
+    {
+      "id": 238,
+      "title": "Young child with breathing distress",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A young child is breathing with obvious effort and cannot settle or speak normally.",
+      "can_explode": false
+    },
+    {
+      "id": 239,
+      "title": "Child with a high fever and reduced awareness",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A child with a fever has become unusually drowsy and is not responding normally.",
+      "can_explode": false
+    },
+    {
+      "id": 240,
+      "title": "Person coughing blood",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person is coughing up a noticeable amount of blood and feels weak.",
+      "can_explode": false
+    },
+    {
+      "id": 241,
+      "title": "Vomiting blood",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person is vomiting blood and is becoming pale and faint.",
+      "can_explode": false
+    },
+    {
+      "id": 242,
+      "title": "Serious workplace electric shock",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A worker received an electric shock and has collapsed nearby.",
+      "can_explode": false
+    },
+    {
+      "id": 243,
+      "title": "Person injured by a collapsing shelf",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A heavy shelf fell onto a person and they have severe pain and difficulty moving.",
+      "can_explode": false
+    },
+    {
+      "id": 244,
+      "title": "Worsening confusion after a sports impact",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A player struck their head during a game and is becoming more confused.",
+      "can_explode": false
+    },
+    {
+      "id": 245,
+      "title": "Severe dehydration with collapse",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person who has been ill cannot keep fluids down and has collapsed when trying to stand.",
+      "can_explode": false
+    },
+    {
+      "id": 246,
+      "title": "Sudden loss of vision with weakness",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person suddenly cannot see normally and is also weak and disoriented.",
+      "can_explode": false
+    },
+    {
+      "id": 247,
+      "title": "A person cannot stop shaking after an injury",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "An injured person is very pale, shaking and becoming less responsive.",
+      "can_explode": false
+    },
+    {
+      "id": 248,
+      "title": "Older person with sudden severe breathlessness",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "An older person suddenly became extremely short of breath while sitting at home.",
+      "can_explode": false
+    },
+    {
+      "id": 249,
+      "title": "A child pulled from a pool",
+      "service": "Medical",
+      "severity": "Critical",
+      "needs_response": true,
+      "observation": "A child was pulled from the pool and is not responding normally.",
+      "can_explode": false
+    },
+    {
+      "id": 250,
+      "title": "Severe back pain after a fall from height",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person fell from a height and has severe back pain and difficulty moving their legs.",
+      "can_explode": false
+    },
+    {
+      "id": 251,
+      "title": "Person trapped under a fallen motorbike",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A rider is pinned beneath a motorbike and reports severe leg pain.",
+      "can_explode": false
+    },
+    {
+      "id": 252,
+      "title": "Passenger becoming unresponsive on a bus",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A seated passenger is slumping forward and no longer answers when spoken to.",
+      "can_explode": false
+    },
+    {
+      "id": 253,
+      "title": "Person collapsed in a public toilet",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person was found on the floor of a public toilet and is only weakly responsive.",
+      "can_explode": false
+    },
+    {
+      "id": 254,
+      "title": "Sudden confusion while driving",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A driver stopped after becoming suddenly confused and is now having trouble speaking.",
+      "can_explode": false
+    },
+    {
+      "id": 255,
+      "title": "Serious injury from broken glass",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person fell through glass and has several deep wounds with substantial bleeding.",
+      "can_explode": false
+    },
+    {
+      "id": 256,
+      "title": "Person with severe pain after a dog attack",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person has multiple bite wounds and is having trouble staying upright after an attack.",
+      "can_explode": false
+    },
+    {
+      "id": 257,
+      "title": "Breathing trouble after inhaling fumes",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person exposed to unexpected fumes is wheezing and struggling to speak.",
+      "can_explode": false
+    },
+    {
+      "id": 258,
+      "title": "Severe chest pain during exercise",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A runner stopped with strong chest pain and is sweating and very short of breath.",
+      "can_explode": false
+    },
+    {
+      "id": 259,
+      "title": "Someone fainted during a blood donation",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A donor fainted and remains unusually pale and difficult to rouse despite staff being present.",
+      "can_explode": false
+    },
+    {
+      "id": 260,
+      "title": "Severe swelling after an insect sting",
+      "service": "Medical",
+      "severity": "Major",
+      "needs_response": true,
+      "observation": "A person's face and throat began swelling after a sting and their voice has changed.",
+      "can_explode": false
+    },
+    {
+      "id": 261,
+      "title": "Possible broken ankle after a fall",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person fell awkwardly and has a visibly swollen ankle and cannot walk.",
+      "can_explode": false
+    },
+    {
+      "id": 262,
+      "title": "Painful shoulder injury",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person injured their shoulder in a fall and cannot move the arm normally.",
+      "can_explode": false
+    },
+    {
+      "id": 263,
+      "title": "A person cannot stand after a hip injury",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "An older person fell and cannot get up because of severe hip pain.",
+      "can_explode": false
+    },
+    {
+      "id": 264,
+      "title": "A worker with a painful machinery burn",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A worker touched hot machinery and has a painful blistered burn that needs assessment.",
+      "can_explode": false
+    },
+    {
+      "id": 265,
+      "title": "Repeated fainting in a crowded venue",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A visitor has fainted more than once and remains weak and dizzy.",
+      "can_explode": false
+    },
+    {
+      "id": 266,
+      "title": "Severe dizziness on a stair landing",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person is too dizzy to stand and is stranded on the stair landing.",
+      "can_explode": false
+    },
+    {
+      "id": 267,
+      "title": "A person injured while lifting a heavy object",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A worker developed sudden severe pain while lifting and cannot move normally.",
+      "can_explode": false
+    },
+    {
+      "id": 268,
+      "title": "A painful deep splinter injury",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A large fragment is embedded in a person's hand and they cannot use it normally.",
+      "can_explode": false
+    },
+    {
+      "id": 269,
+      "title": "A young person hurt during a sports collision",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A player collided with another and has marked pain and cannot continue or walk unaided.",
+      "can_explode": false
+    },
+    {
+      "id": 270,
+      "title": "A person vomiting repeatedly at a public venue",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person has vomited repeatedly, is very weak and cannot remain standing.",
+      "can_explode": false
+    },
+    {
+      "id": 271,
+      "title": "A person with a worsening infected wound",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person has a rapidly worsening painful wound and now feels feverish and weak.",
+      "can_explode": false
+    },
+    {
+      "id": 272,
+      "title": "A person injured in a heavy door",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A heavy door slammed onto a person's fingers and they are badly swollen and painful.",
+      "can_explode": false
+    },
+    {
+      "id": 273,
+      "title": "A passenger injured during hard braking",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A bus passenger fell during sudden braking and is in considerable pain.",
+      "can_explode": false
+    },
+    {
+      "id": 274,
+      "title": "A person with a severe nosebleed and weakness",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person has been bleeding from the nose for a long time and feels increasingly faint.",
+      "can_explode": false
+    },
+    {
+      "id": 275,
+      "title": "An older resident unable to get off the floor",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "An older resident fell, is in pain and cannot get up without assistance.",
+      "can_explode": false
+    },
+    {
+      "id": 276,
+      "title": "A person with persistent painful breathing after a fall",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person fell onto their side and now has persistent pain when breathing.",
+      "can_explode": false
+    },
+    {
+      "id": 277,
+      "title": "A child injured after playground equipment broke",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A child fell from damaged play equipment and cannot move the injured arm normally.",
+      "can_explode": false
+    },
+    {
+      "id": 278,
+      "title": "A person badly hurt in a kitchen accident",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A person has a painful deep hand injury from a kitchen accident and needs assessment.",
+      "can_explode": false
+    },
+    {
+      "id": 279,
+      "title": "A worker with a painful foot injury",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A heavy box fell onto a worker's foot and they cannot walk on it.",
+      "can_explode": false
+    },
+    {
+      "id": 280,
+      "title": "Someone severely distressed and unable to stay safe",
+      "service": "Medical",
+      "severity": "Moderate",
+      "needs_response": true,
+      "observation": "A distressed person says they cannot keep themselves safe and is asking for immediate help.",
+      "can_explode": false
+    },
+    {
+      "id": 281,
+      "title": "Routine medical appointment rescheduling",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I need to move next month's routine checkup and have no urgent symptoms.",
+      "can_explode": false
+    },
+    {
+      "id": 282,
+      "title": "Prescription renewal for next month",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "My regular prescription runs out next month; I am not currently ill or in distress.",
+      "can_explode": false
+    },
+    {
+      "id": 283,
+      "title": "A request for a clinic's opening hours",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I only want to know when a clinic opens and have no medical emergency.",
+      "can_explode": false
+    },
+    {
+      "id": 284,
+      "title": "A healed bruise from last week",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The old bruise is fading, I feel well and there are no new symptoms or injuries.",
+      "can_explode": false
+    },
+    {
+      "id": 285,
+      "title": "A minor paper cut that has stopped bleeding",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "The tiny paper cut has stopped bleeding and I otherwise feel completely well.",
+      "can_explode": false
+    },
+    {
+      "id": 286,
+      "title": "A request for a routine vaccination appointment",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I want to book a future vaccination and have no current symptoms or injury.",
+      "can_explode": false
+    },
+    {
+      "id": 287,
+      "title": "A request to find a dentist for a checkup",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I want a routine dental checkup and have no pain, swelling or current injury.",
+      "can_explode": false
+    },
+    {
+      "id": 288,
+      "title": "A request for directions to a hospital visitor entrance",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I am visiting someone and only need directions; no one with me needs medical assistance.",
+      "can_explode": false
+    },
+    {
+      "id": 289,
+      "title": "A question about an old appointment letter",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I cannot understand the date on a routine appointment letter and I feel well.",
+      "can_explode": false
+    },
+    {
+      "id": 290,
+      "title": "Mild soreness after ordinary exercise",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "My muscles feel mildly sore after exercise but I have no injury, weakness or concerning new symptoms.",
+      "can_explode": false
+    },
+    {
+      "id": 291,
+      "title": "A request for a new glasses appointment",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I want to arrange a routine eye test and have no sudden vision change or injury.",
+      "can_explode": false
+    },
+    {
+      "id": 292,
+      "title": "A request for a pharmacy's telephone number",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I need the pharmacy number for a routine enquiry and no one is currently unwell.",
+      "can_explode": false
+    },
+    {
+      "id": 293,
+      "title": "A complaint that a vitamin tastes unpleasant",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I dislike the taste of a normal vitamin; I have no illness or adverse symptoms.",
+      "can_explode": false
+    },
+    {
+      "id": 294,
+      "title": "A request to replace a lost appointment card",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I lost my clinic appointment card and need a replacement; there is no urgent health issue.",
+      "can_explode": false
+    },
+    {
+      "id": 295,
+      "title": "A harmless hiccup complaint that has already stopped",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I had a brief episode of hiccups that has stopped and I now feel normal.",
+      "can_explode": false
+    },
+    {
+      "id": 296,
+      "title": "A request for a fitness class timetable",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I want to ask about a fitness class schedule and am not reporting any illness or injury.",
+      "can_explode": false
+    },
+    {
+      "id": 297,
+      "title": "A question about collecting routine test paperwork",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I only want to know where to collect routine paperwork and have no symptoms.",
+      "can_explode": false
+    },
+    {
+      "id": 298,
+      "title": "A request for the date of a dental hygiene visit",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I forgot the date of a scheduled hygiene appointment and have no current dental problem.",
+      "can_explode": false
+    },
+    {
+      "id": 299,
+      "title": "A request for a clinic parking permit",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I am arranging parking for a future appointment and nobody needs urgent care.",
+      "can_explode": false
+    },
+    {
+      "id": 300,
+      "title": "A complaint about a hospital cafeteria sandwich",
+      "service": "Medical",
+      "severity": "Minor",
+      "needs_response": false,
+      "observation": "I dislike the sandwich I bought while visiting; I have no symptoms or medical problem.",
+      "can_explode": false
+    }
+  ]
+}

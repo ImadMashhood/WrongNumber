@@ -102,6 +102,8 @@ pub(super) fn incidents(rng: &mut u64) -> Vec<Incident> {
                     response_seconds: 300,
                     caller_id: n as u32 + 1,
                     variation: 0,
+                    caller_name: String::new(),
+                    case_brief: None,
                 }
             },
         )

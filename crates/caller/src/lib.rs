@@ -1,7 +1,7 @@
 //! Provider-neutral dialogue contract. Facts stay authored; dialogue cannot execute game commands.
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 pub const CLARIFY: &str = "Could you ask about what happened or what I can see?";
 pub const GOODBYE: &str = "Okay. Thank you for listening.";
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -11,11 +11,25 @@ pub struct Knowledge {
     pub question: String,
     pub answer: String,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TurnKind {
+    Opening,
+    #[default]
+    Conversation,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Context {
     pub version: u32,
     pub report: String,
+    #[serde(default)]
+    pub kind: TurnKind,
+    #[serde(default)]
+    pub caller_name: String,
+    #[serde(default)]
+    pub location: String,
+    #[serde(default)]
+    pub caller_private: String,
     pub personality: String,
     pub facts: Vec<Knowledge>,
     pub history: Vec<(String, String)>,
@@ -30,6 +44,7 @@ pub enum Emotion {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Proposal {
+    Opening,
     Answer,
     Clarify,
     Goodbye,
@@ -51,10 +66,13 @@ pub struct ServiceReply {
 }
 pub fn valid_context(c: &Context) -> bool {
     c.version == VERSION
-        && !c.question.trim().is_empty()
+        && (c.kind == TurnKind::Opening || !c.question.trim().is_empty())
         && c.question.len() <= 256
         && c.report.len() <= 512
-        && c.personality.len() <= 80
+        && c.personality.len() <= 400
+        && c.caller_private.len() <= 512
+        && c.caller_name.len() <= 80
+        && c.location.len() <= 160
         && c.facts.len() <= 8
         && c.facts
             .iter()
@@ -65,26 +83,52 @@ pub fn valid_context(c: &Context) -> bool {
             .all(|(a, b)| a.len() <= 256 && b.len() <= 512)
 }
 pub fn validate(c: &Context, r: &Reply) -> bool {
-    if !valid_context(c) || r.fact_references.len() > 1 {
+    if !valid_context(c)
+        || r.spoken_text.trim().is_empty()
+        || r.spoken_text.len() > 512
+        || r.spoken_text.chars().any(|ch| ch.is_control())
+        || r.fact_references.len() > 3
+    {
+        return false;
+    }
+    let refs: std::collections::BTreeSet<_> = r.fact_references.iter().collect();
+    if refs.len() != r.fact_references.len()
+        || refs.iter().any(|id| !c.facts.iter().any(|f| &f.id == *id))
+    {
+        return false;
+    }
+    if [
+        "caller_private",
+        "catalogue_id",
+        "false_report",
+        "system prompt",
+    ]
+    .iter()
+    .any(|s| r.spoken_text.to_lowercase().contains(s))
+    {
         return false;
     }
     match r.proposed_action {
+        Proposal::Opening => c.kind == TurnKind::Opening && !r.call_complete && refs.is_empty(),
         Proposal::Answer => {
-            !r.call_complete
-                && r.fact_references.len() == 1
-                && c.facts
-                    .iter()
-                    .any(|f| r.fact_references[0] == f.id && r.spoken_text == f.answer)
+            c.kind == TurnKind::Conversation && !r.call_complete && !refs.is_empty()
         }
         Proposal::Clarify => {
-            !r.call_complete && r.fact_references.is_empty() && r.spoken_text == CLARIFY
+            c.kind == TurnKind::Conversation && !r.call_complete && refs.is_empty()
         }
-        Proposal::Goodbye => {
-            r.call_complete && r.fact_references.is_empty() && r.spoken_text == GOODBYE
-        }
+        Proposal::Goodbye => c.kind == TurnKind::Conversation && r.call_complete && refs.is_empty(),
     }
 }
 pub fn fixture_reply(c: &Context) -> Reply {
+    if c.kind == TurnKind::Opening {
+        return Reply {
+            spoken_text: format!("Hello, I'm {}. {}.", c.caller_name, c.report),
+            emotion: Emotion::Anxious,
+            proposed_action: Proposal::Opening,
+            fact_references: vec![],
+            call_complete: false,
+        };
+    }
     let q = c.question.to_lowercase();
     let words: Vec<_> = q
         .split(|ch: char| !ch.is_alphanumeric())

@@ -78,3 +78,32 @@ pub fn address(position: Position) -> String {
         |r| format!("{} / junction {}, {}", r.name, position.x, position.y),
     )
 }
+
+/// Only real nodes with an actual outbound and return route to every station.
+pub fn catalogue_locations() -> &'static Vec<wrong_number_sim::catalogue::Location> {
+    static LOCATIONS: OnceLock<Vec<wrong_number_sim::catalogue::Location>> = OnceLock::new();
+    LOCATIONS.get_or_init(|| {
+        let n = network().connected_component(config().station_nodes[0]);
+        n.nodes
+            .iter()
+            .filter_map(|node| {
+                let position = Position {
+                    x: node.x,
+                    y: node.y,
+                };
+                config()
+                    .station_nodes
+                    .iter()
+                    .all(|id| {
+                        let station = n.node_position(*id).unwrap();
+                        n.route(station, position, 1000, None).is_ok()
+                            && n.route(position, station, 1000, None).is_ok()
+                    })
+                    .then(|| wrong_number_sim::catalogue::Location {
+                        position,
+                        address: address(position),
+                    })
+            })
+            .collect()
+    })
+}

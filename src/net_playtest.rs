@@ -24,6 +24,7 @@ pub struct NetPlaytest {
     goal: Option<f32>,
     review: Option<f32>,
     captured_review: bool,
+    captured_terminal: bool,
 }
 impl Default for NetPlaytest {
     fn default() -> Self {
@@ -45,6 +46,7 @@ impl Default for NetPlaytest {
             goal: None,
             review: None,
             captured_review: false,
+            captured_terminal: false,
         }
     }
 }
@@ -145,6 +147,17 @@ pub fn run(
             }
         }
         _ => {}
+    }
+    if game.screen == Screen::Terminal
+        && !test.captured_terminal
+        && game.conversation.is_some()
+        && game
+            .sim
+            .call_view(game.selected)
+            .is_ok_and(|v| !v.caller_name.is_empty() && !v.facts.is_empty())
+    {
+        test.capture(&mut commands, "m5-catalogue-call");
+        test.captured_terminal = true;
     }
     if game.phase == Phase::Review && game.screen == Screen::Review && !test.captured_review {
         if test.review.is_none() {

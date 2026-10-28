@@ -10,7 +10,7 @@ This repository is the project home. Solo and direct-connect co-op prototypes ar
 
 ## Project status
 
-**M3/M4 implemented; M5 caller and speech prototype implemented and locally verified.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Live caller conversation requires the configured AI service; provider failure drops the conversation. OpenRouter-compatible dialogue and local STT/TTS use bounded adapters. See [caller and speech setup](docs/callers.md). M4 has passed real multi-process and rendered host/client shifts; the two-physical-PC LAN check remains pending. See [multiplayer setup and verification](docs/multiplayer.md). Milestone checkboxes distinguish delivered work from remaining acceptance checks. Scope and technical choices may change as prototypes and playtests provide evidence.
+**M3/M4 implemented; M5 random-complaint and natural caller conversation prototype implemented and locally verified.** Play a solo dispatch shift in the office, investigate AI callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Live caller conversation requires the configured AI service; provider failure drops the conversation. OpenRouter-compatible dialogue and local STT/TTS use bounded adapters. See [caller and speech setup](docs/callers.md). M4 has passed real multi-process and rendered host/client shifts; the two-physical-PC LAN check remains pending. See [multiplayer setup and verification](docs/multiplayer.md). Milestone checkboxes distinguish delivered work from remaining acceptance checks. Scope and technical choices may change as prototypes and playtests provide evidence.
 
 ## Design pillars
 
@@ -156,7 +156,7 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M5 — Caller AI and audio, with explicit disconnect handling
 
-- [x] **Milestone status:** Implemented constrained prototype — provider-fixture, one live GPT-4o call and local speech verified; microphone listening check pending
+- [x] **Milestone status:** Implemented natural conversation prototype — 300 complaints, seeded 10% false-report batches, live openings and local speech verified; microphone listening check pending
 
 **Purpose:** Add flexible conversation while keeping game authority and playability deterministic.
 
@@ -172,7 +172,7 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 **Acceptance checks**
 
 - [x] Invalid or unavailable AI output drops the caller conversation without blocking the shift.
-- [x] AI output cannot alter hidden truth, dispatch units, spend money, create incidents, or reveal facts the caller does not know.
+- [x] AI output cannot alter truth, dispatch units, spend money or create incidents; evidence IDs are restricted to caller knowledge. Natural-prose consistency uses prompts/live evaluation rather than a formal semantic guarantee.
 - [x] Requests time out and can be cancelled; the rendering and simulation loops stay responsive.
 - [x] Typed input works without a microphone; live caller conversation requires the AI service (updated user requirement).
 
@@ -304,9 +304,11 @@ See [the architecture decision](docs/architecture.md) for boundaries and network
 
 ## Caller conversation and optional voice (M5)
 
-Answer a call, click **Type a question...**, type and press **Enter**. Caller replies, subtitles and evidence use the same authority rules in solo/co-op. Authored question buttons remain available. Live dialogue requires the configured service; it never falls back to scripted replies. The current model adapter selects approved authored replies; it does not improvise new facts.
+Normal play draws from [300 complaints](docs/design/complaint-catalogue.md), with random reachable addresses, stable caller personas and minor-to-critical severity. One in each ten catalogue-generated complaints is false; genuine minor complaints remain distinct. [Scenario generation and prompt design](docs/caller-catalogue.md) documents the exact policy and evidence.
 
-Optional caller speech uses local `espeak-ng` or a replaceable TTS adapter. With a configured local STT adapter, enable the microphone in Audio settings and hold **V** while your call is open. Release, review/edit the transcription, then press Enter. Microphone access and saved audio are **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
+Answer a call, click **Type a question...**, type and press **Enter**. Caller replies, subtitles and evidence use the same authority rules in solo/co-op. Authored question buttons remain available. Live dialogue requires the configured service; it never falls back to scripted replies. The AI writes an opening statement and natural replies from the selected fixed scenario; the host controls truth and outcomes.
+
+Optional caller speech uses local `espeak-ng` or a replaceable TTS adapter. With a configured local STT adapter, enable the microphone in Audio settings and hold **V** while your call is open. Release to transcribe locally and send automatically. Optional transcript review lets you edit before pressing Enter. Microphone access and saved audio are **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
 
 For OpenRouter or another compatible provider, start `cargo run --locked -p wrong-number-caller-server` with a locally configured key and explicit model, then pass `--caller-service 127.0.0.1:47005` to the solo/co-op host. Clients need no key. See [setup, limits, privacy and verification](docs/callers.md); a live GPT-4o request is verified; physical microphone/listening quality still needs playtesting.
 

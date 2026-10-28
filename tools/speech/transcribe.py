@@ -14,7 +14,7 @@ with wave.open(sys.argv[1],'rb') as wav:
  audio=np.frombuffer(wav.readframes(wav.getnframes()),dtype='<i2').astype(np.float32)/32768
  audio=audio.reshape(-1,channels).mean(axis=1)
  if rate!=16000:audio=np.interp(np.arange(int(len(audio)*16000/rate))*rate/16000,np.arange(len(audio)),audio).astype(np.float32)
-segments,_=model.transcribe(audio,language='en',beam_size=1,vad_filter=False,condition_on_previous_text=False)
+segments,_=model.transcribe(audio,language='en',beam_size=5,vad_filter=False,condition_on_previous_text=False)
 text=' '.join(s.text.strip() for s in segments).strip()
 if not text or len(text.encode())>256:raise SystemExit('No usable question recognized')
 Path(sys.argv[2]).write_text(text,encoding='utf-8')

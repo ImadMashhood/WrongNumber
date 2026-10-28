@@ -1,4 +1,5 @@
 //! Authoritative, renderer-free dispatch rules. Time advances only when requested.
+pub mod catalogue;
 pub mod consequences;
 pub mod director;
 pub mod public;
@@ -119,6 +120,10 @@ pub struct Incident {
     pub caller_id: u32,
     #[serde(default)]
     pub variation: u8,
+    #[serde(default)]
+    pub caller_name: String,
+    #[serde(default)]
+    pub case_brief: Option<catalogue::CaseBrief>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitState {
@@ -310,6 +315,8 @@ pub struct CallView {
     pub parent: Option<IncidentId>,
     pub caller_id: u32,
     pub previous_calls: usize,
+    #[serde(default)]
+    pub caller_name: String,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ScoreEntry {
@@ -349,6 +356,8 @@ pub struct Simulation {
     rules: Option<ScenarioRules>,
     #[serde(default)]
     closures: BTreeMap<u32, road_events::Closure>,
+    #[serde(default)]
+    catalogue: Option<catalogue::CatalogueState>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -365,6 +374,8 @@ struct UncheckedSimulation {
     rules: Option<ScenarioRules>,
     #[serde(default)]
     closures: BTreeMap<u32, road_events::Closure>,
+    #[serde(default)]
+    catalogue: Option<catalogue::CatalogueState>,
 }
 impl TryFrom<UncheckedSimulation> for Simulation {
     type Error = Error;
@@ -380,6 +391,7 @@ impl TryFrom<UncheckedSimulation> for Simulation {
             network: raw.network,
             rules: raw.rules,
             closures: raw.closures,
+            catalogue: raw.catalogue,
         };
         sim.validate()?;
         Ok(sim)
@@ -453,6 +465,7 @@ impl Simulation {
             network: None,
             rules: None,
             closures: BTreeMap::new(),
+            catalogue: None,
         }
     }
     pub fn new_with_config(seed: u64, config: ShiftConfig) -> Result<Self, Error> {
@@ -821,6 +834,7 @@ impl Simulation {
             escalated: i.escalated,
             parent: i.parent,
             caller_id: i.caller_id,
+            caller_name: i.caller_name.clone(),
             previous_calls: self
                 .incidents
                 .values()
@@ -1140,11 +1154,11 @@ impl Simulation {
         {
             return;
         }
-        let candidate=self.incidents.values().find(|i|i.state==IncidentState::Active&&i.truth==Truth::Emergency&&i.required==Capability::Fire&&i.parent.is_none()&&!i.escalated&&self.now<i.deadline&&self.now.saturating_sub(i.reported_at.unwrap_or(0))>=policy.fire_after_seconds&&!self.units.values().any(|u|u.capability==Capability::Fire&&matches!(u.state,UnitState::OnScene{incident}|UnitState::Resolving{incident,..} if incident==i.id))).map(|i|(i.id,i.location));
+        let candidate=self.incidents.values().find(|i|i.state==IncidentState::Active&&i.truth==Truth::Emergency&&i.required==Capability::Fire&&i.case_brief.as_ref().is_none_or(|c|c.can_explode)&&i.parent.is_none()&&!i.escalated&&self.now<i.deadline&&self.now.saturating_sub(i.reported_at.unwrap_or(0))>=policy.fire_after_seconds&&!self.units.values().any(|u|u.capability==Capability::Fire&&matches!(u.state,UnitState::OnScene{incident}|UnitState::Resolving{incident,..} if incident==i.id))).map(|i|(i.id,i.location));
         let Some((incident, location)) = candidate else {
             return;
         };
-        let secondary = self.queue_scenario(5, location).ok();
+        let secondary = self.queue_explosion_followup(location).ok();
         if let Some(id) = secondary {
             let child = self.incidents.get_mut(&id).unwrap();
             child.parent = Some(incident);
@@ -1368,6 +1382,9 @@ impl Simulation {
             || self.units.is_empty()
             || self.units.len() > 100
         {
+            return Err(invalid());
+        }
+        if !self.validate_catalogue() {
             return Err(invalid());
         }
         for (&id, i) in &self.incidents {

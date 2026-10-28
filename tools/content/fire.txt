@@ -1,0 +1,100 @@
+Major|E|Laundromat dryer fire|Dark smoke is pouring from a running dryer and flames are visible behind its drum.
+Critical|E|Apartment fire with someone at a window|Flames are spreading through an apartment and someone is calling for help from an upper window.
+Major|E|Restaurant extraction-duct fire|Flames are coming from the kitchen extraction duct and smoke is entering the dining room.
+Major|E|Car engine on fire|Flames are coming from a stopped car's engine compartment and the occupants have moved away.
+Major|E|Bus engine fire at a stop|Smoke and flames are coming from the bus's rear engine area while passengers leave.
+Major|E|Factory conveyor-belt fire|A moving conveyor belt is burning inside the factory and staff are evacuating.
+Major|E|Sparks from an electrical switchboard|The switchboard is arcing and smoke is coming from the wall around it.
+Critical|E|Gas smell inside an occupied building|There is a strong gas smell inside the occupied building and several people feel unwell.
+Major|E|Gas escaping from a damaged street pipe|A road worker struck a pipe and a loud hiss with a strong gas smell is coming from the excavation.
+Major|E|Roof fire above a row of shops|Flames are visible along the connected shop roofs and smoke is spreading between them.
+Major|E|Rubbish chute fire in an apartment block|Hot smoke is coming from the rubbish chute on several occupied floors.
+Major|E|Smoke filling an underground car park|Thick smoke is spreading through the underground parking area and the source is not visible.
+Major|E|Warehouse loading-bay fire|Stored packaging is burning in the loading bay and the fire is spreading toward the warehouse.
+Major|E|Balcony barbecue setting cladding alight|Flames from a barbecue have reached the balcony wall and are spreading upward.
+Major|E|Kitchen grease fire|Flames are rising from a pan and have spread to the cupboards above the stove.
+Major|E|Burning mattress in a stairwell|A mattress is burning in the building's only stairwell and smoke blocks the route.
+Critical|E|Smoke beneath a nursery door|Smoke is coming under the nursery's closed internal door while children and staff are inside the building.
+Major|E|Flames in a supermarket freezer unit|An electrical section of a freezer is sparking and flames are visible behind the display.
+Major|E|Solar-panel roof wiring fire|Sparks and small flames are visible beneath the roof-mounted solar panels.
+Major|E|Battery pack burning in a flat|A charging battery pack is producing flames, popping sounds and dense smoke inside the flat.
+Major|E|Electric scooter fire in an entrance hall|A charging scooter is burning beside the building's shared entrance.
+Major|E|Boat fire while moored|Smoke and flames are coming from a moored boat close to other occupied boats.
+Major|E|Fuel spilling beside an ignition source|Liquid fuel is spreading from a damaged pump near running equipment and people are nearby.
+Major|E|Generator overheating and smoking|The temporary generator is smoking heavily and flames have appeared beneath its cover.
+Major|E|Transformer sparking over a pavement|The electrical transformer is arcing and hot fragments are falling onto a public pavement.
+Major|E|Power line down across a road|A fallen power line crosses the road and is sparking where it touches a vehicle.
+Major|E|Chimney fire|There is a loud roaring sound inside the chimney and sparks are shooting from its top.
+Major|E|Ceiling light fitting on fire|The ceiling light fitting is burning and smoke is collecting above the occupied room.
+Major|E|Dry grass fire near houses|A grass fire is moving toward garden fences and occupied houses.
+Major|E|Bonfire spreading beyond its boundary|The fire has spread out of the garden bonfire area and is burning the neighbouring fence.
+Major|E|Tree fire touching a building|A burning tree is dropping embers onto the building roof and windows.
+Major|E|Scrap-yard tyre fire|A stack of tyres is burning and dense black smoke is moving across neighbouring properties.
+Major|E|Recycling baler fire|Compacted recyclable material is burning inside the baler and smoke is filling the work area.
+Major|E|Commercial boiler-room fire|Flames and heavy smoke are coming from the building's boiler room.
+Major|E|Lift motor room smoking|Smoke is coming from the lift machinery room while the building is occupied.
+Critical|E|People trapped in a smoke-filled lift|The lift is stuck between floors and its occupants report smoke entering the cabin.
+Moderate|E|People trapped in a stalled lift|The lift has stopped between floors and the occupants cannot open the doors or contact maintenance.
+Major|E|Child trapped behind a jammed fire door|A child is trapped behind a damaged door while smoke is entering the corridor.
+Critical|E|Collapsed floor with people below|Part of a floor has collapsed and people are believed to be trapped beneath the debris.
+Major|E|Unstable wall beside a footpath|A masonry wall has visibly shifted and loose bricks are falling beside a busy footpath.
+Major|E|Scaffolding coming away from a building|Sections of scaffolding are pulling away from their anchors above an occupied pavement.
+Major|E|Roof debris falling after a storm|Large pieces of roofing are falling onto the street while people shelter nearby.
+Major|E|Water rushing into a basement with people inside|A burst main is filling a basement and the people inside cannot open the exit.
+Major|E|Person trapped in floodwater|A person is stranded in moving floodwater and cannot reach the bank.
+Major|E|Vehicle stuck in rising water|A stopped vehicle contains people and the water is rising around its doors.
+Critical|E|Person fallen into a canal|Someone fell into the canal and is struggling to stay above the water.
+Major|E|Child stuck in a narrow drainage shaft|A child has fallen into the drainage shaft and cannot climb out.
+Moderate|E|Worker trapped in a locked industrial enclosure|A worker is stuck inside a secured enclosure and the normal release mechanism has failed.
+Major|E|Hand trapped in industrial machinery|A worker's hand is caught in a machine and the people present cannot free it.
+Major|E|Person pinned by a fallen tree|A fallen tree is holding a person against the ground and bystanders cannot lift it.
+Major|E|Vehicle collision with a trapped occupant|The vehicle's damaged doors will not open and an occupant remains trapped inside.
+Major|E|Chemical spill with irritating fumes|Liquid from a damaged container is producing strong fumes and workers are leaving the area coughing.
+Critical|E|Unknown chemical cloud inside a workplace|An unexpected chemical cloud is spreading through an occupied workplace and people are struggling to leave.
+Major|E|Carbon monoxide alarm with illness|The carbon monoxide alarm is sounding and people inside report dizziness and nausea.
+Moderate|E|Carbon monoxide alarm in an occupied home|The carbon monoxide alarm has sounded repeatedly and people are still inside the home.
+Major|E|Smoke coming from a locked storage room|Hot smoke is pushing from around the locked storage-room door.
+Major|E|Fire in a public rubbish compactor|Material in the compactor is burning and flames are spreading toward the adjoining building.
+Major|E|Industrial oven fire|Flames have spread outside the industrial oven's cooking chamber and workers are evacuating.
+Major|E|Paint store fire|Paint containers are burning in the store and smoke is entering the adjoining workshop.
+Major|E|Welding sparks igniting insulation|Welding sparks have ignited wall insulation and the fire is spreading inside the partition.
+Major|E|Fire in a ventilation shaft|Smoke and flames are visible inside the ventilation shaft serving several occupied rooms.
+Major|E|Electrical fire under a shop counter|Sparks and flames are coming from wiring below the shop counter.
+Major|E|Smoke from an occupied hotel corridor|The hotel corridor is filling with smoke and guests are trying to find the stairs.
+Major|E|Garage fire beside a home|The detached garage is burning and flames are reaching the home's external wall.
+Major|E|Camping stove fire inside a tent|The tent's fabric has caught fire around a camping stove and other tents are nearby.
+Major|E|Fireworks stock catching fire|Stored fireworks are igniting and sending burning material across the enclosed yard.
+Major|E|Outdoor market canopy burning|A market canopy has caught fire and flames are spreading across adjacent stalls.
+Major|E|Bus shelter electrical cabinet burning|Flames are coming from the shelter's electrical cabinet beside waiting passengers.
+Major|E|Laundry-room lint duct fire|The laundry-room exhaust duct is burning and smoke is coming from its outlet and wall joints.
+Major|E|Industrial dust hopper smoking|The dust hopper is producing heavy smoke and workers hear repeated bangs from inside it.
+Moderate|E|Animal trapped in a wall cavity|An animal is trapped in an inaccessible cavity and maintenance staff cannot reach it safely.
+Moderate|E|Person locked inside a walk-in freezer|A worker is locked inside the cold room and the interior release will not open the door.
+Major|E|A falling tree leaning on a roof|A damaged tree is leaning into an occupied roof and keeps shifting in the wind.
+Major|E|Balcony railing partially detached|The balcony railing has pulled out of the wall while people are still on the balcony.
+Major|E|Water entering an electrical plant room|Water is flooding into a room with active electrical equipment and sparks are visible.
+Major|E|Smoke under a train platform|Smoke is rising from beneath the occupied platform and passengers are moving away.
+Major|E|Fuel tanker smoking after a collision|A tanker has collided with a barrier and smoke is coming from its cab near the tank.
+Major|E|Smoke from a cinema projection room|Smoke is escaping the projection-room door while the cinema audience is still inside.
+Moderate|E|Person stuck on a damaged fire escape|A person cannot get off a damaged exterior fire escape and a section is moving under their weight.
+Moderate|E|A dangerous branch hanging over a busy path|A partly broken branch is suspended over the occupied path and pieces keep falling.
+Minor|N|A toaster making an ordinary popping noise|The toaster popped finished bread; there is no flame, unusual heat, smoke or injured person.
+Minor|N|Steam rising from a restaurant vent|The white vapour is ordinary kitchen steam; no burning smell, flames or distress are present.
+Minor|N|A supervised public barbecue|People are cooking safely in an authorised barbecue area and no fire has spread.
+Minor|N|A planned fire-alarm test|Building staff confirm this is a scheduled alarm test and there is no smoke, flame or distress.
+Minor|N|A smoke alarm with a low-battery chirp|The alarm makes a brief low-battery chirp and there is no smoke, heat or burning smell.
+Minor|N|A decorative electric fireplace|The apparent flames are the fireplace's normal visual effect and nothing is burning.
+Minor|N|Red festival lighting mistaken for flames|The red glow comes from cool decorative lights; there is no heat, smoke or actual fire.
+Minor|N|An extinguished garden fire complaint|The supervised garden fire is fully out and cold; the dispute is about its earlier smell.
+Minor|N|A request to refill a fire extinguisher|I want to arrange routine extinguisher servicing and have no fire or current hazard to report.
+Minor|N|A request for a home fire-safety leaflet|I am asking for general printed safety information and there is no emergency happening.
+Minor|N|A car releasing harmless washer mist|The brief spray came from the car's washer nozzles; there is no smoke, flame or burning smell.
+Minor|N|A neighbour's smoky cooking that has stopped|The cooking smoke has cleared, the appliance is off and no fire or breathing difficulty remains.
+Minor|N|A cold outdoor metal fire sculpture|The sculpture is lit with LEDs and is cool; no fuel, flame or smoke is involved.
+Minor|N|A kettle boiling normally|The kettle is producing ordinary steam while attended; nothing is burning and nobody is hurt.
+Minor|N|A routine hydrant location question|I want to know where the nearest hydrant is for a future event; no current incident exists.
+Minor|N|A request to retrieve a toy from a roof|A toy is on a low unoccupied roof and no person or animal is trapped or in danger.
+Minor|N|A report about yesterday's burnt toast|Toast burned yesterday but everything is now cold and there is no ongoing smoke, heat or injury.
+Minor|N|A request for the fire-station open day|I am asking when the station's public open day takes place; there is no emergency.
+Minor|N|An argument about a neighbour's permitted fire pit|The fire pit is attended, contained and causing no immediate danger; the dispute concerns permission.
+Minor|N|A projector showing a fireplace video|The flames are part of a video projected onto a wall; no actual material is burning.

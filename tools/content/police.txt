@@ -1,0 +1,100 @@
+Major|E|Shop window burglary|The closed shop's front window is broken and someone is removing the cash register.
+Critical|E|Armed convenience-store robbery|A masked person is pointing a gun at the cashier while customers are inside.
+Major|E|Car being stolen|Someone smashed a parked car's window and is trying to drive it away.
+Major|E|Apartment door being forced|A stranger is kicking a locked apartment door while the tenant is inside.
+Moderate|E|Bicycle theft in progress|Someone is cutting a locked bicycle chain outside a busy building.
+Major|E|Street assault|One person is repeatedly hitting another who has fallen on the pavement.
+Critical|E|Domestic assault heard next door|I hear repeated blows, screams for help and threats from the apartment next door.
+Major|E|Person following a pedestrian|A stranger has followed the same frightened pedestrian through several turns and is blocking their way.
+Critical|E|Threat with a knife|A person is waving a knife and threatening people near the building entrance.
+Major|E|Hit-and-run driver leaving|A vehicle struck a pedestrian and the driver is leaving without stopping.
+Moderate|E|Dangerous road racing|Two cars are racing each other through occupied intersections.
+Major|E|Vehicle driving toward oncoming traffic|A car is moving against traffic and other drivers are swerving to avoid it.
+Major|E|Driver swerving across lanes|A moving car repeatedly crosses into other lanes and nearly hits pedestrians.
+Critical|E|Child left in a hot car|A small child is alone in a closed car in direct sun and is crying weakly.
+Major|E|Missing young child|A six-year-old disappeared from the busy public area a few minutes ago and no adult can find them.
+Major|E|Confused person near moving traffic|A disoriented person keeps stepping into the road and cannot explain where they live.
+Moderate|E|Aggressive dog cornering pedestrians|An unrestrained dog is lunging at pedestrians who cannot get past it.
+Moderate|E|Fight outside a bar|Several people are exchanging punches outside the bar and the fight is growing.
+Major|E|Someone trying car door handles|A person is checking parked car handles and has opened one vehicle that is not theirs.
+Moderate|E|Package theft from a doorstep|A stranger has picked up several residents' delivered packages and is carrying them away.
+Major|E|Stalking at a workplace exit|A person who was told to leave is waiting at an employee's exit and threatening to follow them home.
+Major|E|School entrance blocked by a threatening adult|An adult is blocking the entrance and threatening staff who ask them to move.
+Moderate|E|Cash machine being tampered with|Someone is attaching a suspicious device over the bank machine's card slot.
+Major|E|Cash machine being pried open|Two people are forcing open the cash machine with tools while a vehicle waits nearby.
+Moderate|E|Shoplifter threatening staff|A person caught taking merchandise is threatening the worker who asked them to stop.
+Major|E|Intruder inside a warehouse|The warehouse is closed and an unfamiliar person is moving goods through a forced side door.
+Moderate|E|Construction equipment being stolen|A person is loading marked construction tools into an unmarked vehicle after breaking a site lock.
+Major|E|Trespasser climbing a crane|Someone has crossed the site barrier and is climbing a tall crane above occupied streets.
+Critical|E|Person threatening to jump|A distressed person is standing outside the safety railing and saying they intend to jump.
+Major|E|Shots heard with visible damage|I heard several sharp shots and a nearby car window shattered immediately afterward.
+Major|E|Someone carrying a bleeding person away|A struggling injured person is being forced into a vehicle and is shouting for help.
+Critical|E|Attempted abduction outside a shop|An adult is dragging a resisting child toward a van while the child calls for their parent.
+Major|E|Violent threat at a bus stop|A person is threatening waiting passengers and has just struck one of them.
+Moderate|E|Traffic lights dark at a busy junction|All signals at the busy intersection are dark and vehicles are nearly colliding.
+Major|E|Loose load falling from a truck|Heavy items are falling from a moving truck onto an active traffic lane.
+Major|E|Large object blocking a blind bend|A fallen object blocks the lane immediately after a blind bend and drivers cannot see it in time.
+Moderate|E|Crowd crushing at a locked gate|A crowd is pressing toward a gate that will not open and people at the front cannot move.
+Major|E|Threatening visitor at a hospital entrance|A visitor is pushing staff and threatening patients entering the building.
+Moderate|E|Animal trapped in active traffic|A frightened animal is trapped between moving lanes and cars are braking abruptly.
+Moderate|E|Vandalism to occupied building windows|Someone is throwing rocks at windows while people are inside the rooms.
+Moderate|E|Public statue being damaged|People are using tools to break pieces off the public statue and are still present.
+Moderate|E|Streetlights being deliberately smashed|Someone is smashing streetlight fittings and dropping glass onto pedestrians.
+Major|E|Person firing fireworks into a crowd|Someone is aiming lit fireworks directly toward people who are trying to get away.
+Moderate|E|Threatening fare dispute in a taxi|A passenger is striking the taxi partition and threatening the driver who has stopped the car.
+Major|E|Delivery driver being threatened|Several people have surrounded a delivery driver and are demanding the vehicle keys.
+Moderate|E|Purse snatch just witnessed|A person pulled a bag from its owner's shoulder and is running away within sight.
+Major|E|Person trapped by a violent partner|A person is asking for help from a window because their partner is preventing them from leaving.
+Major|E|Door-to-door scam becoming threatening|A supposed utility worker is refusing to leave and threatening the resident who would not let them in.
+Moderate|E|Fake parking officer taking cash|A person without official identification is demanding cash from parked drivers and threatening them.
+Major|E|Train crossing barrier deliberately lifted|Someone is holding the crossing barrier up while vehicles attempt to cross the tracks.
+Moderate|E|Children throwing objects from a bridge|Objects are falling from the bridge onto moving vehicles below.
+Major|E|Boat theft at the marina|Someone cut a boat's mooring line and is trying to start it while the owner shouts for help.
+Moderate|E|Harassment of a lone shop worker|A group is cornering the lone worker and will not let them leave the counter area.
+Major|E|Escaped prisoner transport passenger|A handcuffed person ran from a stopped custody vehicle and officers are searching nearby.
+Moderate|E|Alarm with visible forced entry|A building alarm is sounding and the rear door frame is visibly broken.
+Major|E|A threatening person inside a school yard|An unfamiliar person climbed the locked school fence and is threatening those who approach.
+Moderate|E|Intimidation outside a polling place|People are blocking the entrance and threatening visitors who try to pass.
+Major|E|Dangerous pursuit through a pedestrian zone|A vehicle is accelerating through the pedestrian area while people jump aside.
+Moderate|E|A person kicking an occupied taxi|Someone is kicking the taxi windows while a frightened passenger remains inside.
+Major|E|Fight on an occupied balcony|Two people are fighting close to the balcony edge and one is being pushed against the railing.
+Moderate|E|Suspicious removal of road barriers|People are removing the barriers around a known road hazard while traffic approaches.
+Major|E|Someone threatening a sleeping rough resident|A person is threatening and kicking a sleeping person who cannot get away.
+Moderate|E|Damage to an emergency access gate|Someone is chaining shut the marked emergency access gate despite requests to stop.
+Moderate|E|A cyclist being deliberately chased|A driver repeatedly swerves toward a cyclist and is continuing to follow them.
+Major|E|Threatening dispute over a child handover|One adult is threatening violence and trying to force a child into a vehicle during an argument.
+Moderate|E|Theft from a market stall|People are taking the stall's stock while one blocks the owner from following them.
+Major|E|Intruder hiding in an occupied home|The resident saw an unfamiliar person enter through a window and believes they are still inside.
+Moderate|E|A threatening group surrounding a car|A group is pounding on an occupied car and blocking every exit route.
+Moderate|E|Someone stealing a traffic sign|A person is removing the junction's stop sign while traffic is using the road.
+Major|E|Vehicle deliberately driven into a shop entrance|A driver has repeatedly driven into the shop entrance while people flee inside.
+Minor|N|Lost wallet with no current suspect|I noticed my wallet missing after shopping; there was no confrontation and nobody is in immediate danger.
+Minor|N|Old bicycle theft report|My bicycle disappeared overnight; I have no current sighting and nobody is threatened now.
+Minor|N|A noisy upstairs rehearsal|The upstairs neighbour is practising a trombone; I hear music but no threats or distress.
+Minor|N|A parking space argument that ended|Two neighbours argued over a parking space but have separated and no one was threatened.
+Minor|N|A car parked across a driveway|An unattended car partly blocks my driveway; it is not blocking emergency access.
+Minor|N|A suspicious-looking garden ornament|The figure in the garden is a motionless decorative mannequin and no person has entered the property.
+Minor|N|A neighbour's very bright security light|The security light shines into my bedroom; there is no active threat or emergency.
+Minor|N|A rude message on a community noticeboard|Someone left an insulting notice about my bins; there are no threats or identified immediate danger.
+Minor|N|A missing parcel marked delivered|The delivery tracker says my parcel arrived but I cannot find it and did not witness any theft.
+Minor|N|A rumour about a stolen parking cone|I heard a neighbour moved a parking cone; I have seen no theft, threats or road hazard.
+Minor|N|A legal street musician playing badly|A street musician is playing out of tune in an allowed area; there is no fight or danger.
+Minor|N|A stranger taking lawful holiday photographs|Someone is photographing the public skyline; they have not approached anyone or entered private property.
+Minor|N|A disagreement about a shared fence|The neighbour and I disagree about our fence boundary; nobody is threatened and the argument has ended.
+Minor|N|A cat accused of stealing a sandwich|A neighbour's cat carried off my sandwich; the animal and everyone nearby are unharmed.
+Minor|N|A board-game accusation of robbery|My friend stole my money during a board game; there was no real-world theft or threat.
+Minor|N|A disappointing haircut complaint|I dislike my new haircut and want a refund; there are no injuries or threats.
+Minor|N|A television volume complaint|My neighbour's television is loud; I can identify the programme and hear no actual distress.
+Minor|N|A pigeon refusing to leave a windowsill|A pigeon sits outside my closed window; no one is trapped or endangered.
+Minor|N|A missing plastic wheelie-bin lid|The lid vanished from my bin; there is no current suspect or immediate hazard.
+Minor|N|A neighbour mowing too early|The neighbour is using a lawnmower in their own garden; no one is being threatened.
+Minor|N|A restaurant bill disagreement|I dispute the bill but the staff and I are calm and there is no threat or assault.
+Minor|N|A request to settle a football result|My friends disagree about a football score; no emergency or real crime has occurred.
+Minor|N|A dog barking behind a secure fence|The dog barks in its own enclosed yard; it is not loose and nobody is threatened.
+Minor|N|A complaint about an ugly mural|I dislike a permitted mural on a public wall; nobody is damaging anything now.
+Minor|N|A lost set of house keys|I misplaced my own keys and have not seen anyone take them; no one is locked in danger.
+Minor|N|An argument about whose turn it is to clean|My housemate and I disagree about chores but there are no threats or injuries.
+Minor|N|A request for the time of a football match|I called to ask when a match starts; I have no emergency to report.
+Minor|N|A cardboard cutout mistaken for a guard|The silent figure in the window is a cardboard advertising cutout, not a trapped person.
+Minor|N|A missing remote control accusation|I cannot find the television remote and blame my flatmate; I have no evidence of a real crime.
+Minor|N|A complaint about a queue jumper|Someone joined ahead of me in a shop queue; no one is threatening or hurting anyone.

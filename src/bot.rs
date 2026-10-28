@@ -128,7 +128,9 @@ impl Agent {
                 let Ok(view) = game.sim.call_view(incident) else {
                     return;
                 };
-                if view.facts.is_empty() {
+                if view.facts.is_empty()
+                    || view.facts.iter().all(|f| f.evidence == Evidence::Unclear)
+                {
                     if let Some((fact, _)) = view.questions.first() {
                         if std::env::args().any(|a| a == "--dialogue-test") {
                             if self.talk_cooldown <= 0.0
@@ -153,8 +155,8 @@ impl Agent {
                     return;
                 }
                 let cap = match view.facts[0].id.as_str() {
-                    "smoke" => Capability::Fire,
-                    "breathing" => Capability::Medical,
+                    "smoke" | "fire" => Capability::Fire,
+                    "breathing" | "medical" => Capability::Medical,
                     _ => Capability::Police,
                 };
                 if let Some(unit) = game

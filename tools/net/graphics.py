@@ -1,7 +1,7 @@
 """Two rendered Bevy processes, actual lobby button and complete shared shift."""
 import argparse, json, os, socket, subprocess, time
 from pathlib import Path
-parser=argparse.ArgumentParser();parser.add_argument('--output',default='target/network-graphics');parser.add_argument('--binary',default='target/debug/wrong-number');args=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument('--catalogue-test',action='store_true');parser.add_argument('--output',default='target/network-graphics');parser.add_argument('--binary',default='target/debug/wrong-number');args=parser.parse_args()
 out=Path(args.output).resolve();out.mkdir(parents=True,exist_ok=True)
 binary=Path(args.binary).resolve();binary=binary.with_suffix('.exe') if os.name=='nt' else binary
 env=os.environ.copy();env['BEVY_ASSET_ROOT']=str(Path.cwd());env['WGPU_BACKEND']='vulkan'
@@ -12,7 +12,7 @@ processes=[];files=[]
 try:
  for role,flag,name in [('host','--host','Host'),('client','--join','Partner')]:
   capture=out/role;capture.mkdir(exist_ok=True);log=(out/f'{role}.log').open('w');files.append(log)
-  processes.append(subprocess.Popen([str(binary),flag,address,'--name',name,'--network-playtest','--fast-shift','40','--capture-dir',str(capture),'--network-report',str(out/f'{role}.json'),'--resume',str(out/'resume.json')],env=env,stdout=log,stderr=subprocess.STDOUT))
+  processes.append(subprocess.Popen([str(binary),flag,address,'--name',name,'--network-playtest','--fast-shift','40','--capture-dir',str(capture),'--network-report',str(out/f'{role}.json'),'--resume',str(out/'resume.json'),*(['--catalogue-test','--dialogue-test'] if args.catalogue_test else [])],env=env,stdout=log,stderr=subprocess.STDOUT))
   time.sleep(1)
  deadline=time.monotonic()+150
  while any(p.poll() is None for p in processes) and time.monotonic()<deadline:time.sleep(.5)

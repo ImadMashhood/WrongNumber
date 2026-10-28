@@ -40,6 +40,7 @@ enum ResultEvent {
 pub struct Voice {
     pub enabled: bool,
     pub save_clips: bool,
+    pub review_speech: bool,
     pub volume: f32,
     pub input: usize,
     pub output: usize,
@@ -75,6 +76,7 @@ impl Default for Voice {
         Self {
             enabled: false,
             save_clips: false,
+            review_speech: false,
             volume: 0.7,
             input: 0,
             output: 0,
@@ -101,6 +103,9 @@ impl Default for Voice {
 impl Voice {
     pub fn local_action(&mut self, chat: &mut ChatInput, a: &Action) -> bool {
         match a {
+            Action::SpeechReviewToggle => {
+                self.review_speech = !self.review_speech;
+            }
             Action::ChatFocus => {
                 chat.editing = !chat.editing;
             }
@@ -141,7 +146,7 @@ impl Voice {
                     self.epoch.fetch_add(1, Ordering::Relaxed);
                 }
                 self.status = if self.enabled {
-                    "Microphone enabled for hold-V capture; release to preview transcription."
+                    "Microphone enabled for hold-V capture; release to transcribe and send (or enable transcript review)."
                 } else {
                     "Microphone off."
                 }
@@ -652,10 +657,17 @@ pub fn update(
                 }
                 match result {
                     Ok(text) => {
-                        chat.draft = text;
-                        chat.editing = true;
-                        voice.status =
-                            "Transcription ready. Edit it, then press Enter to send.".into();
+                        if voice.review_speech {
+                            chat.draft = text;
+                            chat.editing = true;
+                            voice.status =
+                                "Transcription ready. Edit it, then press Enter to send.".into();
+                        } else {
+                            actions.0.push(Action::Talk { incident: id, text });
+                            chat.draft.clear();
+                            chat.editing = false;
+                            voice.status = "Speech transcribed and sent to the caller.".into();
+                        }
                     }
                     Err(e) => voice.status = e,
                 }
@@ -715,8 +727,14 @@ pub fn update(
     } else {
         keyboard.clear();
     }
-    let active =
-        case.is_some() && game.screen == Screen::Terminal && window.focused && !chat.editing;
+    let active = case.is_some()
+        && game.screen == Screen::Terminal
+        && window.focused
+        && !chat.editing
+        && !game
+            .conversation
+            .and_then(|id| game.dialogue.conversations.get(&id))
+            .is_some_and(|c| c.pending.is_some());
     if !active || !keys.pressed(KeyCode::KeyV) {
         voice.stop.store(true, Ordering::Relaxed);
     }

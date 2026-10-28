@@ -1,0 +1,100 @@
+Critical|E|Unresponsive roommate|My roommate will not wake up and is taking occasional gasping breaths.
+Critical|E|Person collapsed in a shop|A shopper suddenly collapsed and is not responding when staff speak to them.
+Critical|E|Severe difficulty breathing|A person can barely speak because they are struggling to breathe and the problem is getting worse.
+Critical|E|Sudden chest pain with collapse|A person developed strong chest pain, became pale and then collapsed.
+Major|E|Sudden weakness on one side|A person's face and one arm suddenly became weak and their speech sounds different.
+Critical|E|Heavy bleeding after a fall|A person has a deep injury after falling and there is a large amount of blood around them.
+Major|E|Serious head injury|A person hit their head hard and is now confused and repeatedly becoming drowsy.
+Major|E|Seizure that is not stopping|A person is still shaking and unresponsive several minutes after a seizure began.
+Critical|E|Child struggling after choking|A child began choking during a meal and is now struggling to make any sound.
+Critical|E|Severe allergic reaction|A person's lips are swelling and they are having increasing difficulty breathing after eating.
+Major|E|Severe burns from hot liquid|A person has painful burns over a large area after hot liquid spilled onto them.
+Major|E|Worker injured by falling machinery|Heavy equipment fell on a worker and they cannot stand or move normally.
+Major|E|Pedestrian struck by a bicycle|A pedestrian was hit by a bicycle, fell hard and cannot get back up.
+Major|E|Cyclist thrown from a bike|A cyclist was thrown onto the road and is in severe pain and unable to stand.
+Major|E|Person injured in a vehicle collision|An occupant has been hurt in a collision and is confused and in considerable pain.
+Critical|E|Person rescued from water but unresponsive|A person pulled from the water is not responding and is not breathing normally.
+Major|E|Smoke inhalation after leaving a fire|A person who came out of a smoky building is coughing heavily and struggling to breathe.
+Major|E|Dizziness after a chemical exposure|Several workers became dizzy and nauseated after an unexpected chemical release.
+Major|E|Heat illness with confusion|A person working outside in the heat is very confused and cannot remain standing.
+Major|E|Cold exposure with reduced responsiveness|A person found outside in the cold is very drowsy and barely responding to questions.
+Major|E|Severe abdominal pain with fainting|A person has sudden severe abdominal pain and has fainted twice.
+Major|E|Sudden severe headache|A person developed an abrupt extremely painful headache and is becoming confused.
+Major|E|Diabetic person becoming unresponsive|A person with diabetes is confused, sweating and becoming difficult to wake.
+Major|E|Possible poisoning with symptoms|A person swallowed an unknown substance and is now vomiting and unusually drowsy.
+Critical|E|Medication overdose with collapse|A person may have taken too much medication and is now unresponsive.
+Major|E|Person fainted and remains confused|A person fainted and, after waking, cannot answer simple questions normally.
+Major|E|Severe asthma symptoms|A person with asthma is having marked trouble breathing and can only say a few words.
+Major|E|Fall down a full flight of stairs|A person fell down the stairs and has severe pain and cannot move safely.
+Major|E|Elderly person on the floor for hours|An older person has been on the floor for several hours and is weak and confused.
+Major|E|Person with a serious leg injury|A person has a badly injured leg after an accident and cannot put any weight on it.
+Major|E|Crush injury to a hand|A worker's hand was crushed by a heavy object and they are in severe pain.
+Major|E|Deep cut with continuing bleeding|A person has a deep cut and blood continues to soak through material covering it.
+Major|E|Person bitten by an animal with severe injury|An animal bite has caused a large wound and the injured person is pale and shaking.
+Major|E|Eye injury from a flying fragment|A worker was struck in the eye by a fragment and reports sudden loss of vision.
+Major|E|Pregnant person with heavy bleeding|A pregnant person has begun bleeding heavily and feels faint.
+Critical|E|Birth with the baby arriving now|A person in labour says the baby is arriving immediately and no medical professional is present.
+Major|E|Infant unusually unresponsive|A baby is difficult to wake and is not responding in their usual way.
+Major|E|Young child with breathing distress|A young child is breathing with obvious effort and cannot settle or speak normally.
+Major|E|Child with a high fever and reduced awareness|A child with a fever has become unusually drowsy and is not responding normally.
+Major|E|Person coughing blood|A person is coughing up a noticeable amount of blood and feels weak.
+Major|E|Vomiting blood|A person is vomiting blood and is becoming pale and faint.
+Major|E|Serious workplace electric shock|A worker received an electric shock and has collapsed nearby.
+Major|E|Person injured by a collapsing shelf|A heavy shelf fell onto a person and they have severe pain and difficulty moving.
+Major|E|Worsening confusion after a sports impact|A player struck their head during a game and is becoming more confused.
+Major|E|Severe dehydration with collapse|A person who has been ill cannot keep fluids down and has collapsed when trying to stand.
+Major|E|Sudden loss of vision with weakness|A person suddenly cannot see normally and is also weak and disoriented.
+Major|E|A person cannot stop shaking after an injury|An injured person is very pale, shaking and becoming less responsive.
+Major|E|Older person with sudden severe breathlessness|An older person suddenly became extremely short of breath while sitting at home.
+Critical|E|A child pulled from a pool|A child was pulled from the pool and is not responding normally.
+Major|E|Severe back pain after a fall from height|A person fell from a height and has severe back pain and difficulty moving their legs.
+Major|E|Person trapped under a fallen motorbike|A rider is pinned beneath a motorbike and reports severe leg pain.
+Major|E|Passenger becoming unresponsive on a bus|A seated passenger is slumping forward and no longer answers when spoken to.
+Major|E|Person collapsed in a public toilet|A person was found on the floor of a public toilet and is only weakly responsive.
+Major|E|Sudden confusion while driving|A driver stopped after becoming suddenly confused and is now having trouble speaking.
+Major|E|Serious injury from broken glass|A person fell through glass and has several deep wounds with substantial bleeding.
+Major|E|Person with severe pain after a dog attack|A person has multiple bite wounds and is having trouble staying upright after an attack.
+Major|E|Breathing trouble after inhaling fumes|A person exposed to unexpected fumes is wheezing and struggling to speak.
+Major|E|Severe chest pain during exercise|A runner stopped with strong chest pain and is sweating and very short of breath.
+Major|E|Someone fainted during a blood donation|A donor fainted and remains unusually pale and difficult to rouse despite staff being present.
+Major|E|Severe swelling after an insect sting|A person's face and throat began swelling after a sting and their voice has changed.
+Moderate|E|Possible broken ankle after a fall|A person fell awkwardly and has a visibly swollen ankle and cannot walk.
+Moderate|E|Painful shoulder injury|A person injured their shoulder in a fall and cannot move the arm normally.
+Moderate|E|A person cannot stand after a hip injury|An older person fell and cannot get up because of severe hip pain.
+Moderate|E|A worker with a painful machinery burn|A worker touched hot machinery and has a painful blistered burn that needs assessment.
+Moderate|E|Repeated fainting in a crowded venue|A visitor has fainted more than once and remains weak and dizzy.
+Moderate|E|Severe dizziness on a stair landing|A person is too dizzy to stand and is stranded on the stair landing.
+Moderate|E|A person injured while lifting a heavy object|A worker developed sudden severe pain while lifting and cannot move normally.
+Moderate|E|A painful deep splinter injury|A large fragment is embedded in a person's hand and they cannot use it normally.
+Moderate|E|A young person hurt during a sports collision|A player collided with another and has marked pain and cannot continue or walk unaided.
+Moderate|E|A person vomiting repeatedly at a public venue|A person has vomited repeatedly, is very weak and cannot remain standing.
+Moderate|E|A person with a worsening infected wound|A person has a rapidly worsening painful wound and now feels feverish and weak.
+Moderate|E|A person injured in a heavy door|A heavy door slammed onto a person's fingers and they are badly swollen and painful.
+Moderate|E|A passenger injured during hard braking|A bus passenger fell during sudden braking and is in considerable pain.
+Moderate|E|A person with a severe nosebleed and weakness|A person has been bleeding from the nose for a long time and feels increasingly faint.
+Moderate|E|An older resident unable to get off the floor|An older resident fell, is in pain and cannot get up without assistance.
+Moderate|E|A person with persistent painful breathing after a fall|A person fell onto their side and now has persistent pain when breathing.
+Moderate|E|A child injured after playground equipment broke|A child fell from damaged play equipment and cannot move the injured arm normally.
+Moderate|E|A person badly hurt in a kitchen accident|A person has a painful deep hand injury from a kitchen accident and needs assessment.
+Moderate|E|A worker with a painful foot injury|A heavy box fell onto a worker's foot and they cannot walk on it.
+Moderate|E|Someone severely distressed and unable to stay safe|A distressed person says they cannot keep themselves safe and is asking for immediate help.
+Minor|N|Routine medical appointment rescheduling|I need to move next month's routine checkup and have no urgent symptoms.
+Minor|N|Prescription renewal for next month|My regular prescription runs out next month; I am not currently ill or in distress.
+Minor|N|A request for a clinic's opening hours|I only want to know when a clinic opens and have no medical emergency.
+Minor|N|A healed bruise from last week|The old bruise is fading, I feel well and there are no new symptoms or injuries.
+Minor|N|A minor paper cut that has stopped bleeding|The tiny paper cut has stopped bleeding and I otherwise feel completely well.
+Minor|N|A request for a routine vaccination appointment|I want to book a future vaccination and have no current symptoms or injury.
+Minor|N|A request to find a dentist for a checkup|I want a routine dental checkup and have no pain, swelling or current injury.
+Minor|N|A request for directions to a hospital visitor entrance|I am visiting someone and only need directions; no one with me needs medical assistance.
+Minor|N|A question about an old appointment letter|I cannot understand the date on a routine appointment letter and I feel well.
+Minor|N|Mild soreness after ordinary exercise|My muscles feel mildly sore after exercise but I have no injury, weakness or concerning new symptoms.
+Minor|N|A request for a new glasses appointment|I want to arrange a routine eye test and have no sudden vision change or injury.
+Minor|N|A request for a pharmacy's telephone number|I need the pharmacy number for a routine enquiry and no one is currently unwell.
+Minor|N|A complaint that a vitamin tastes unpleasant|I dislike the taste of a normal vitamin; I have no illness or adverse symptoms.
+Minor|N|A request to replace a lost appointment card|I lost my clinic appointment card and need a replacement; there is no urgent health issue.
+Minor|N|A harmless hiccup complaint that has already stopped|I had a brief episode of hiccups that has stopped and I now feel normal.
+Minor|N|A request for a fitness class timetable|I want to ask about a fitness class schedule and am not reporting any illness or injury.
+Minor|N|A question about collecting routine test paperwork|I only want to know where to collect routine paperwork and have no symptoms.
+Minor|N|A request for the date of a dental hygiene visit|I forgot the date of a scheduled hygiene appointment and have no current dental problem.
+Minor|N|A request for a clinic parking permit|I am arranging parking for a future appointment and nobody needs urgent care.
+Minor|N|A complaint about a hospital cafeteria sandwich|I dislike the sandwich I bought while visiting; I have no symptoms or medical problem.

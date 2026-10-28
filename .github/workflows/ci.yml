@@ -28,7 +28,7 @@ jobs:
         run: |
           python tools/caller/playtest.py --output ci-captures/caller-provider
           python tools/net/playtest.py --players 2 --output ci-captures/network-two
-          python tools/net/playtest.py --players 6 --reconnect --dialogue-test --output ci-captures/network-six
+          python tools/net/playtest.py --players 6 --reconnect --dialogue-test --catalogue-test --output ci-captures/network-six
       - name: Graphical solo shift playthrough (software Vulkan)
         if: runner.os == 'Linux'
         timeout-minutes: 10

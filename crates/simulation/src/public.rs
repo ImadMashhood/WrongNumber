@@ -99,6 +99,8 @@ impl Simulation {
                 response_seconds: 300,
                 caller_id: v.caller_id,
                 variation: 0,
+                caller_name: v.caller_name,
+                case_brief: None,
             };
             if incidents.insert(v.id, incident).is_some() {
                 return Err(Error::InvalidSave("Duplicate public incident".into()));
@@ -114,6 +116,7 @@ impl Simulation {
             network: s.network,
             rules: s.rules,
             closures: BTreeMap::new(),
+            catalogue: None,
             presentation_only: true,
         })
     }

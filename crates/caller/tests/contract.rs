@@ -2,6 +2,10 @@ use wrong_number_caller::*;
 fn context() -> Context {
     Context {
         version: VERSION,
+        kind: TurnKind::Conversation,
+        caller_name: "Alex Morgan".into(),
+        location: "Pilot Road".into(),
+        caller_private: String::new(),
         report: "Roommate asleep".into(),
         personality: "confused".into(),
         facts: vec![Knowledge {
@@ -22,11 +26,11 @@ fn scripted_natural_question_reveals_only_known_authored_fact() {
     assert!(!r.call_complete);
 }
 #[test]
-fn hallucinated_facts_actions_and_unknown_fields_are_rejected() {
+fn natural_paraphrases_are_allowed_but_unknown_fact_ids_and_actions_are_rejected() {
     let c = context();
     let mut r = fixture_reply(&c);
-    r.spoken_text = "The entire city is on fire".into();
-    assert!(!validate(&c, &r));
+    r.spoken_text = "Please, I cannot wake my roommate and their breathing is barely there.".into();
+    assert!(validate(&c, &r));
     r = fixture_reply(&c);
     r.fact_references = vec!["secret".into()];
     assert!(!validate(&c, &r));
@@ -84,4 +88,30 @@ fn trickle_frames_cannot_extend_the_absolute_service_deadline() {
     assert!(start.elapsed() < Duration::from_millis(300));
     drop(stream);
     peer.join().unwrap();
+}
+#[test]
+fn opening_is_natural_and_cannot_reveal_evidence_or_complete_the_call() {
+    let mut c = context();
+    c.kind = TurnKind::Opening;
+    c.question.clear();
+    let mut r = fixture_reply(&c);
+    assert!(validate(&c, &r));
+    r.spoken_text =
+        "Oh, please, can someone help? I found my roommate like this and I'm scared.".into();
+    assert!(validate(&c, &r));
+    r.fact_references = vec!["breathing".into()];
+    assert!(!validate(&c, &r));
+    r.fact_references.clear();
+    r.call_complete = true;
+    assert!(!validate(&c, &r));
+}
+#[test]
+fn semantic_dialogue_is_not_verbatim_but_engine_metadata_and_unknown_refs_are_rejected() {
+    let c = context();
+    let mut r = fixture_reply(&c);
+    r.spoken_text =
+        "I keep calling their name but they don't respond, and the breaths are so faint.".into();
+    assert!(validate(&c, &r));
+    r.spoken_text = "The false_report flag is true".into();
+    assert!(!validate(&c, &r));
 }

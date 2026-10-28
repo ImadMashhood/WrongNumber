@@ -51,25 +51,28 @@ pub struct Dialogue {
     workers: Arc<AtomicUsize>,
     last: BTreeMap<u8, Instant>,
 }
+pub fn fixture_mode() -> bool {
+    cfg!(test)
+        || std::env::args().any(|a| {
+            matches!(
+                a.as_str(),
+                "--playtest"
+                    | "--consequence-test"
+                    | "--escalation-test"
+                    | "--conversation-test"
+                    | "--network-playtest"
+                    | "--one-shift"
+                    | "--bot"
+            )
+        })
+}
 impl Default for Dialogue {
     fn default() -> Self {
         let (tx, rx) = mpsc::sync_channel(12);
         Self {
             conversations: BTreeMap::new(),
             service: None,
-            fixture: cfg!(test)
-                || std::env::args().any(|a| {
-                    matches!(
-                        a.as_str(),
-                        "--playtest"
-                            | "--consequence-test"
-                            | "--escalation-test"
-                            | "--conversation-test"
-                            | "--network-playtest"
-                            | "--one-shift"
-                            | "--bot"
-                    )
-                }),
+            fixture: fixture_mode(),
             pending: BTreeMap::new(),
             serial: 0,
             tx,
@@ -110,11 +113,17 @@ impl Dialogue {
 }
 impl Session {
     pub fn talk(&mut self, id: u32, text: String) -> Result<(), String> {
+        self.request_dialogue(id, text, false)
+    }
+    pub fn opening(&mut self, id: u32) -> Result<(), String> {
+        self.request_dialogue(id, String::new(), true)
+    }
+    fn request_dialogue(&mut self, id: u32, text: String, opening: bool) -> Result<(), String> {
         if !self.can_dispatch() || self.conversation != Some(id) || self.call_station != self.seated
         {
             return Err("Answer this call at your workstation first".into());
         }
-        if text.trim().is_empty()
+        if (!opening && text.trim().is_empty())
             || text.len() > 256
             || text.chars().any(|c| c.is_control() && c != '\n')
         {
@@ -133,11 +142,12 @@ impl Session {
                 "Conversation limit reached; use the authored questions or make a decision".into(),
             );
         }
-        if self
-            .dialogue
-            .last
-            .get(&self.local_player)
-            .is_some_and(|at| at.elapsed().as_secs_f32() < 1.0)
+        if !opening
+            && self
+                .dialogue
+                .last
+                .get(&self.local_player)
+                .is_some_and(|at| at.elapsed().as_secs_f32() < 1.0)
         {
             return Err("Give the caller a moment before asking again".into());
         }
@@ -157,7 +167,7 @@ impl Session {
                 c.turns
                     .iter()
                     .rev()
-                    .take(8)
+                    .take(4)
                     .collect::<Vec<_>>()
                     .into_iter()
                     .rev()
@@ -168,12 +178,11 @@ impl Session {
         let context = Context {
             version: wrong_number_caller::VERSION,
             report: i.report.clone(),
-            personality: [
-                "anxious and direct",
-                "dry and evasive",
-                "confused but cooperative",
-            ][(i.caller_id % 3) as usize]
-                .into(),
+            kind: if opening {wrong_number_caller::TurnKind::Opening}else{wrong_number_caller::TurnKind::Conversation},
+            location: i.case_brief.as_ref().map_or_else(||crate::city::address(i.location),|c|c.address.clone()),
+            caller_name: if i.caller_name.is_empty(){"Alex Morgan".into()}else{i.caller_name.clone()},
+            caller_private: i.case_brief.as_ref().map_or_else(||"The supplied report and facts are your only knowledge. Do not invent any extra events.".into(),|c|c.caller_private.clone()),
+            personality: i.case_brief.as_ref().map_or_else(||"An anxious local adult speaking in everyday language.".into(),|c|c.persona.clone()),
             facts: i
                 .facts
                 .iter()
@@ -201,7 +210,9 @@ impl Session {
                 started: Instant::now(),
             },
         );
-        self.dialogue.last.insert(self.local_player, Instant::now());
+        if !opening {
+            self.dialogue.last.insert(self.local_player, Instant::now());
+        }
         let conversation = self.dialogue.conversations.entry(id).or_default();
         conversation.pending = Some(self.local_player);
         conversation.diagnostic = "Caller is thinking… (Cancel stops this response)".into();
@@ -502,5 +513,58 @@ mod required_service_tests {
         assert!(s.sim.call_view(1).unwrap().facts.is_empty());
         assert_eq!(s.conversation, None);
         assert_eq!(s.dialogue.conversations[&1].turns.len(), 1);
+    }
+}
+#[cfg(test)]
+mod opening_test {
+    use super::*;
+    use crate::game::Action;
+    #[test]
+    fn live_answer_requests_an_ai_opening_before_any_player_input() {
+        use std::{io::Write, net::TcpListener};
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let line = wrong_number_caller::read_frame(
+                &mut stream,
+                12000,
+                std::time::Duration::from_secs(2),
+            )
+            .unwrap();
+            let c: Context = serde_json::from_slice(&line).unwrap();
+            assert_eq!(c.kind, wrong_number_caller::TurnKind::Opening);
+            assert!(c.question.is_empty());
+            let response = ServiceReply {
+                reply: wrong_number_caller::Reply {
+                    spoken_text: "Hello? I need help with smoke coming from a dryer!".into(),
+                    emotion: Emotion::Anxious,
+                    proposed_action: Proposal::Opening,
+                    fact_references: vec![],
+                    call_complete: false,
+                },
+                source: "provider".into(),
+            };
+            let mut bytes = serde_json::to_vec(&response).unwrap();
+            bytes.push(b'\n');
+            stream.write_all(&bytes).unwrap();
+        });
+        let mut s = Session::default();
+        s.dialogue.fixture = false;
+        s.dialogue.service = Some(address);
+        s.act(Action::Sit(0));
+        s.tick(10.0);
+        s.act(Action::OpenDesk);
+        s.act(Action::Answer);
+        assert!(s.dialogue.conversations[&1].turns.is_empty());
+        let end = Instant::now() + std::time::Duration::from_secs(2);
+        while s.dialogue.conversations[&1].turns.is_empty() && Instant::now() < end {
+            s.poll_dialogue();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(s.dialogue.conversations[&1].turns[0].question.is_empty());
+        assert_eq!(s.dialogue.conversations[&1].turns[0].source, "provider");
+        assert!(s.sim.call_view(1).unwrap().facts.is_empty());
+        server.join().unwrap();
     }
 }

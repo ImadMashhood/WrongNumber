@@ -65,7 +65,22 @@ fn button(p: &mut ChildSpawnerCommands, label: impl Into<String>, action: Action
                 actions.0.push(action.clone());
             });
     }
-    e.with_children(|p| text(p, label, 14.0, if enabled { TEXT } else { MUTED }));
+    e.with_children(|p| {
+        p.spawn((
+            Node {
+                width: percent(100),
+                min_width: px(0),
+                flex_shrink: 1.0,
+                ..default()
+            },
+            Text::new(label),
+            TextFont {
+                font_size: FontSize::Px(14.0),
+                ..default()
+            },
+            TextColor(if enabled { TEXT } else { MUTED }),
+        ));
+    });
 }
 fn column(width: f32) -> Node {
     Node {
@@ -277,10 +292,10 @@ fn terminal(
         text(p,view.report,25.0,TEXT);
         if view.escalated{text(p,"ESCALATED: structure explosion",17.0,AMBER);}
         if let Some(parent)=view.parent{text(p,format!("Follow-up caused by incident {parent}"),15.0,AMBER);}
-        text(p,format!("Caller: {} | 555-{:04}",["Alex Morgan","Sam Lee","Jordan Ellis","Casey Park","Riley Jones","Taylor Reed"][((view.caller_id.saturating_sub(1))%6) as usize],100+view.caller_id%100),13.0,MUTED);
+        text(p,format!("Caller: {} | 555-{:04}",if view.caller_name.is_empty(){["Alex Morgan","Sam Lee","Jordan Ellis","Casey Park","Riley Jones","Taylor Reed"][((view.caller_id.saturating_sub(1))%6) as usize].to_string()}else{view.caller_name.clone()},100+view.caller_id%100),13.0,MUTED);
         text(p,format!("Previous calls from this caller: {}",view.previous_calls),13.0,MUTED);
         text(p,crate::city::address(view.location),13.0,MUTED);
-        let duration=game.call_duration(game.selected);text(p,format!("Call duration {:02}:{:02} | {}",duration/60,duration%60,view.facts.first().map_or("Type unconfirmed",|f|match f.id.as_str(){"smoke"=>"Reported fire","breathing"=>"Reported medical emergency","window"=>"Reported police incident",_=>"Reported non-emergency"})),13.0,MUTED);
+        let duration=game.call_duration(game.selected);text(p,format!("Call duration {:02}:{:02} | {}",duration/60,duration%60,view.facts.first().map_or("Type unconfirmed",|f|match f.id.as_str(){"smoke"|"fire"=>"Reported fire","breathing"|"medical"=>"Reported medical incident","window"|"police"=>"Reported police incident",_=>"Reported non-emergency"})),13.0,MUTED);
         if game.phase==Phase::AwaitingReview {text(p,"Shift finished. Leave the console and walk through the rear door into the meeting room.",19.0,TEXT);}
         else {
             if view.state==IncidentState::Active {text(p,format!("Response window: {}s",game.sim.incidents()[&game.selected].deadline.saturating_sub(game.sim.now())),13.0,MUTED);}
@@ -358,7 +373,7 @@ fn conversation_ui(
     );
     text(
         p,
-        "Type up to 256 characters. Enter sends. Hold V to speak after enabling your mic; review/edit the recognized text before sending.",
+        "Type and Enter to send, or enable your mic and hold V. Release sends locally transcribed speech; optional transcript review is in Audio settings.",
         12.0,
         MUTED,
     );
@@ -396,6 +411,16 @@ fn audio_ui(
             "Enable microphone (hold V only)"
         },
         Action::MicToggle,
+        true,
+    );
+    button(
+        p,
+        if voice.review_speech {
+            "Speech: review transcript before sending"
+        } else {
+            "Speech: send automatically on release"
+        },
+        Action::SpeechReviewToggle,
         true,
     );
     button(
