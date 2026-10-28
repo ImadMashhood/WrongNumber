@@ -1,0 +1,11 @@
+{
+  "source": "Wrong_Number_Road_Map_Starter.zip",
+  "nodes": 2639,
+  "roads": 1977,
+  "invalid_endpoints": 0,
+  "connected_components": 694,
+  "largest_component_nodes": 144,
+  "routing_ready": false,
+  "scale_confirmed": false,
+  "note": "Scale, station positions, street names, addresses and connections need review. M2 uses authored training positions and grid travel."
+}

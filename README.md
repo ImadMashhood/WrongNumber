@@ -10,7 +10,7 @@ This repository is the project home. The first goal is a small, complete, playab
 
 ## Project status
 
-**M1 implemented.** The repository contains a Bevy startup scene and a renderer-free dispatch simulation with a scripted terminal demo. The office and interactive shift UI are planned for M2. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
+**M2 implemented.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. The imported road graph is being prepared for real routing; M2 travel uses an explicit training grid. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
 
 ## Design pillars
 
@@ -37,7 +37,7 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M0 — Repository and build foundation
 
-- [ ] **Milestone status:** In progress — Linux build verified; Windows/Linux CI pending
+- [x] **Milestone status:** Implemented — Linux launch and Linux/Windows CI verified
 
 **Purpose:** Make changes repeatable and produce a minimal app on target platforms.
 
@@ -51,9 +51,9 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 **Acceptance checks**
 
-- [ ] A new contributor can follow the README to install the Rust toolchain and run the app.
-- [ ] CI gives a clear pass/fail result for the documented checks.
-- [ ] The selected Bevy and Rust versions build together in CI; incompatible versions are not guessed or left implicit.
+- [x] A new contributor can follow the README to install the Rust toolchain and run the app.
+- [x] CI gives a clear pass/fail result for the documented checks.
+- [x] The selected Bevy and Rust versions build together in CI; incompatible versions are not guessed or left implicit.
 
 ### M1 — Headless dispatch simulation
 
@@ -79,25 +79,25 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M2 — First-person dispatch office and playable solo shift
 
-- [ ] **Milestone status:** Not started
+- [x] **Milestone status:** Implemented and locally verified
 
 **Purpose:** Turn the simulation into a complete, understandable game loop.
 
 **Deliverables**
 
-- [ ] A compact navigable office with a player viewpoint, one working desk, call terminal, city map, windows, and a review area.
-- [ ] Interactions for answering, asking scripted questions, reading clues, dispatching or declining, and checking unit availability.
-- [ ] Three response types—police, ambulance, and fire—with distinct capabilities and visible busy/available states.
-- [ ] A compact city with several districts, locations, simple travel times, incident markers, and a stylized skyline.
-- [ ] A complete short shift: preparation, incoming calls, incident outcomes, performance review, and one upgrade choice.
-- [ ] Clear text and visual feedback for action results, incident status, and why score changed.
+- [x] A compact navigable office with a player viewpoint, one working desk, call terminal, city map, windows, and a review area.
+- [x] Interactions for answering, asking scripted questions, reading clues, dispatching or declining, and checking unit availability.
+- [x] Three response types—police, ambulance, and fire—with distinct capabilities and visible busy/available states.
+- [x] A compact city with several districts, locations, simple travel times, incident markers, and a stylized skyline.
+- [x] A complete short shift: preparation, incoming calls, incident outcomes, performance review, and one upgrade choice.
+- [x] Clear text and visual feedback for action results, incident status, and why score changed.
 
 **Acceptance checks**
 
-- [ ] A new player can finish a shift without using developer tools or reading source code.
-- [ ] At least one real and one fake call require different sound decisions.
-- [ ] Dispatching consumes capacity until the unit returns and recovers.
-- [ ] The end-of-shift review agrees with the simulation's recorded command and event history.
+- [x] A new player can finish a shift without using developer tools or reading source code.
+- [x] At least one real and one fake call require different sound decisions.
+- [x] Dispatching consumes capacity until the unit returns and recovers.
+- [x] The end-of-shift review agrees with the simulation's recorded command and event history.
 
 ### M3 — Escalation, city consequences, and replayable content
 
@@ -266,7 +266,9 @@ From the repository directory:
 cargo run --locked
 ```
 
-The M0 build displays a procedural skyline. Press Escape or close the window to exit. To check startup and exit automatically after 60 updates (requires a display and graphics device):
+The M2 build opens the dispatch office. Press **E** at the nearby desk, then **Begin shift**. Use WASD to walk, hold right mouse or use arrows to look, and press Escape to leave a terminal or pause. After the shift, visit the table through the right-hand doorway for your review and upgrades. See [the office guide](docs/office.md) for the full controls and flow.
+
+To check startup and exit automatically after 60 updates (requires a display and graphics device):
 
 ```bash
 cargo run --locked -- --smoke-test
@@ -315,7 +317,17 @@ See [simulation rules and API](docs/simulation.md) for command examples, scoring
 VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json WGPU_BACKEND=vulkan cargo run --locked -- --smoke-test
 ```
 
-CI configuration is committed; platform checks remain pending until GitHub reports their results.
+The M0 and M1 GitHub CI runs passed on Linux and Windows. M2 adds a Linux software-Vulkan graphical playthrough to CI; results for this revision remain pending until GitHub completes it.
+
+## M2 verification and imported map
+
+- 26 local automated tests pass: 19 simulation tests and 7 office/shift lifecycle tests.
+- Formatting, workspace compilation, and Clippy pass.
+- A graphical playthrough using Mesa software Vulkan loaded the map, investigated six calls, earned 210 points, opened the review, bought radios, and verified shorter recovery in the next shift. Screenshots were inspected for readability.
+- The imported road-map starter has 2,639 nodes and 1,977 roads but 694 disconnected weak components. The supplied image is displayed; the graph does not yet drive travel. Run `python3 tools/maps/audit_graph.py` after editing the graph.
+- The map's 4 km width, synthetic street names/addresses, connections, and training station placements need confirmation before road routing. Run upgrades currently last only until the app closes.
+
+See [the office guide](docs/office.md) for controls, map integration boundaries, and the graphical test command.
 
 ## Source brief
 

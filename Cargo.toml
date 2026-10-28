@@ -13,8 +13,11 @@ publish = false
 bevy = { version = "=0.20.0", default-features = false, features = [
     "std", "async_executor", "bevy_asset", "bevy_log", "bevy_window",
     "bevy_winit", "bevy_pbr", "bevy_core_pipeline", "multi_threaded",
-    "x11", "keyboard", "mouse", "png",
+    "x11", "keyboard", "mouse", "png", "ui_bevy_render",
+    "bevy_ui_widgets", "ui_picking", "default_font",
 ] }
+
+wrong-number-sim = { path = "crates/simulation" }
 
 [profile.dev]
 opt-level = 1

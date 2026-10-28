@@ -433,3 +433,55 @@ fn shift_review_matches_logged_outcomes() {
     );
     assert!(review.score_entries.iter().all(|e| !e.reason.is_empty()));
 }
+
+#[test]
+fn shift_configuration_changes_stations_recovery_and_capacity() {
+    let config = ShiftConfig {
+        recovery_seconds: 2,
+        extra_police: true,
+        stations: [Position { x: 2, y: 3 }; 3],
+        ..Default::default()
+    };
+    let mut sim = Simulation::new_with_config(42, config).unwrap();
+    assert_eq!(sim.units().len(), 4);
+    assert!(
+        sim.units()
+            .values()
+            .all(|u| u.station == Position { x: 2, y: 3 }
+                && u.position == u.station
+                && u.recovery_seconds == 2)
+    );
+    investigate(&mut sim, 6);
+    sim.apply(
+        1,
+        Command::Dispatch {
+            unit: 1,
+            incident: 6,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        sim.apply(
+            2,
+            Command::Dispatch {
+                unit: 4,
+                incident: 6
+            }
+        ),
+        Err(Error::IncidentAlreadyAssigned)
+    );
+    assert_eq!(
+        Simulation::load_json(&sim.save_json().unwrap()).unwrap(),
+        sim
+    );
+    assert!(
+        Simulation::new_with_config(
+            42,
+            ShiftConfig {
+                recovery_seconds: 0,
+                ..config
+            }
+        )
+        .is_err()
+    );
+}

@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Linux window dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxkbcommon-dev
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxkbcommon-dev libvulkan1 mesa-vulkan-drivers xvfb xauth
       - uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
@@ -23,3 +23,18 @@ jobs:
       - run: cargo check --locked --workspace --all-targets
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
+      - name: Graphical solo shift playthrough (software Vulkan)
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          export VK_DRIVER_FILES="$(rg --files /usr/share/vulkan/icd.d | rg '/lvp.*\.json$' | head -1)"
+          export WGPU_BACKEND=vulkan
+          xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --playtest --capture-dir ci-captures
+      - name: Save playthrough screenshots
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: solo-office-playthrough
+          path: ci-captures/*.png
+          if-no-files-found: ignore

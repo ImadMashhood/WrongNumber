@@ -1,0 +1,38 @@
+{
+  "name": "Wrong Number \u2014 Initial Traced City",
+  "source_image": "assets/city/map.png",
+  "image_width_px": 1536,
+  "image_height_px": 1024,
+  "map_width_m": 4000.0,
+  "map_height_m": 2666.67,
+  "meters_per_pixel": 2.6041666666666665,
+  "coordinate_system": "image pixels: x right, y down",
+  "border_polygon_px": [
+    [
+      0,
+      0
+    ],
+    [
+      1535,
+      0
+    ],
+    [
+      1535,
+      1023
+    ],
+    [
+      0,
+      1023
+    ],
+    [
+      0,
+      0
+    ]
+  ],
+  "warnings": [
+    "Automatically traced road network; visually verify all bridges, crossings, and road connections.",
+    "Street names and addresses are synthetic.",
+    "Pixel-scale distances are estimates based on specified map width.",
+    "City border is initially image rectangle; edit to set actual jurisdiction."
+  ]
+}

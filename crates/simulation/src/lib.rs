@@ -287,6 +287,24 @@ struct Save {
     simulation: Simulation,
 }
 
+/// Configuration fixed before a shift starts; upgrade effects use this boundary.
+#[derive(Clone, Copy, Debug)]
+pub struct ShiftConfig {
+    pub recovery_seconds: u32,
+    pub extra_police: bool,
+    pub stations: [Position; 3],
+    pub incident_locations: Option<[Position; 6]>,
+}
+impl Default for ShiftConfig {
+    fn default() -> Self {
+        Self {
+            recovery_seconds: 5,
+            extra_police: false,
+            stations: [Position { x: 0, y: 0 }; 3],
+            incident_locations: None,
+        }
+    }
+}
 impl Simulation {
     /// Six authored reports with seeded locations; all calls ring at t=0 in M1.
     pub fn new(seed: u64) -> Self {
@@ -323,6 +341,39 @@ impl Simulation {
             events: vec![],
             score: 0,
         }
+    }
+    pub fn new_with_config(seed: u64, config: ShiftConfig) -> Result<Self, Error> {
+        if !(1..=3600).contains(&config.recovery_seconds)
+            || config
+                .stations
+                .iter()
+                .any(|p| p.x.abs_diff(0) > 100 || p.y.abs_diff(0) > 100)
+        {
+            return Err(Error::InvalidSave("Invalid shift configuration".into()));
+        }
+        let mut sim = Self::new(seed);
+        if let Some(locations) = config.incident_locations {
+            if locations
+                .iter()
+                .any(|p| p.x.abs_diff(0) > 100 || p.y.abs_diff(0) > 100)
+            {
+                return Err(Error::InvalidSave("Invalid incident placement".into()));
+            }
+            for (incident, location) in sim.incidents.values_mut().zip(locations) {
+                incident.location = location;
+            }
+        }
+        for (unit, station) in sim.units.values_mut().zip(config.stations) {
+            unit.station = station;
+            unit.position = station;
+            unit.recovery_seconds = config.recovery_seconds;
+        }
+        if config.extra_police {
+            let mut unit = sim.units[&1].clone();
+            unit.id = 4;
+            sim.units.insert(4, unit);
+        }
+        Ok(sim)
     }
     pub fn now(&self) -> u32 {
         self.now
