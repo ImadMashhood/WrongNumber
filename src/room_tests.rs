@@ -254,3 +254,14 @@ fn text_dialogue_is_owned_by_the_host_and_replicates_only_spoken_evidence() {
     assert_eq!(mirror.sim.call_view(incident).unwrap().facts.len(), 1);
     assert!(!serde_json::to_string(&state).unwrap().contains("\"truth\""));
 }
+
+#[test]
+fn standing_computer_access_is_nearby_and_does_not_claim_a_seat() {
+    let mut r = joined();
+    assert!(act(&mut r, 2, Action::OpenDesk).accepted);
+    assert_eq!(r.game.desk(2).screen, crate::game::Screen::Terminal);
+    assert!(r.game.desk(2).seated.is_none());
+    act(&mut r, 2, Action::Office);
+    r.members.get_mut(&2).unwrap().pose.position = [12.0, 1.65, 4.0];
+    assert!(!act(&mut r, 2, Action::OpenDesk).accepted);
+}

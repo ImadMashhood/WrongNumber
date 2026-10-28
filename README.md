@@ -373,7 +373,7 @@ See [the office guide](docs/office.md) for controls, map integration boundaries,
 
 The office now follows the supplied environment reference: a deeper brick industrial room, tall arched windows looking onto close neighboring buildings in daylight, six unnumbered workstations with simple recognizable equipment, a large live city board, a glass-fronted break room, and a separate rear meeting room. Shared low-poly meshes and small repeating brick/floor textures keep the detail restrained.
 
-Mouse look works while walking and seated. Aim at a chair and press E to sit, then aim at the monitor and press E to use dispatch. Escape returns to seated free-look; Space stands. The rear meeting-room door stays locked during the shift and opens when review becomes available. The wall map and desktop monitors share a live render target driven by the existing simulation.
+Mouse look works while walking and seated. Aim at a nearby monitor and press E to open the desktop while standing. Aim at a chair and press E to sit when ready to receive calls. Escape returns to seated free-look; Space stands. The rear meeting-room door stays locked during the shift and opens when review becomes available. The wall map and desktop monitors share a live render target driven by the existing simulation.
 
 The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. M4 adds simple networked dispatcher avatars; proximity voice remains future work. Road routes now drive the pilot district. The launcher no longer forces CPU rendering. The same 1440×900 room benchmark measured 58.5 FPS on the RTX 3080 versus 3.0 FPS on CPU llvmpipe (300 measured frames after 90 warm-up frames, normal graphics, VSync). This is a single-machine scene measurement. See [the environment guide](docs/environment.md).
 
@@ -386,3 +386,5 @@ The detailed concept and initial requirements are captured in *Wrong Number: Com
 ### Desktop and phone
 
 The computer displays resource availability, cash, projected shift income and damage deductions. Incoming calls open a separate phone window with a caller portrait and conversation. Answer to connect, speak naturally or type, dispatch from the phone, and use its mute or hang-up controls. Hanging up removes the window. Launch through scripts/run-with-ai.sh with your local STT adapter; the task’s normal output launcher already supplies it. Provider replies have a 20-second HTTP budget so the old four-second cutoff no longer disconnects slow openings.
+
+The desktop now has wallpaper, app shortcuts, a taskbar and separate Resources/Sound windows. The phone displays a listening timer and separate measured microphone/caller waveforms. Open **Sound** to adjust the listening limit (3–12 seconds) and noise floor, test speakers, choose an output or replay the last caller. Below-threshold background noise counts as silence and does not prolong a spoken turn.

@@ -1,4 +1,4 @@
-//! Local optional speech. Capture starts only after opt-in and push-to-talk.
+//! Local call-scoped speech, bounded voice activation and measured audio telemetry.
 use crate::{
     game::{Action, Screen, Session},
     ui::Actions,
@@ -19,6 +19,7 @@ use std::{
 };
 #[derive(Resource, Default)]
 pub struct ChatInput {
+    pub hide_resources: bool,
     pub draft: String,
     pub editing: bool,
     pub settings: bool,
@@ -36,12 +37,54 @@ enum ResultEvent {
     Spoken(u32, u32, Result<Vec<u8>, String>),
     Status(String),
 }
+
+pub const WAVE_BINS: usize = 48;
+#[derive(Clone)]
+pub struct AudioTrace {
+    pub levels: [f32; WAVE_BINS],
+    pub elapsed: f32,
+    pub duration: f32,
+    pub quiet: f32,
+    pub rms: f32,
+    pub active: bool,
+    pub state: String,
+    pub completed: u32,
+}
+impl Default for AudioTrace {
+    fn default() -> Self {
+        Self {
+            levels: [0.0; WAVE_BINS],
+            elapsed: 0.0,
+            duration: 0.0,
+            quiet: 0.0,
+            rms: 0.0,
+            active: false,
+            state: "Idle".into(),
+            completed: 0,
+        }
+    }
+}
+impl AudioTrace {
+    fn push(&mut self, rms: f32) {
+        self.levels.rotate_left(1);
+        self.levels[WAVE_BINS - 1] = rms;
+        self.rms = rms;
+    }
+}
+pub fn gate_amplitude(db: i32) -> f32 {
+    10.0_f32.powf(db as f32 / 20.0)
+}
 #[derive(Resource)]
 pub struct Voice {
     pub enabled: bool,
     pub save_clips: bool,
     pub review_speech: bool,
     pub volume: f32,
+    pub gate_db: i32,
+    pub listen_seconds: u32,
+    pub input_trace: Arc<Mutex<AudioTrace>>,
+    pub output_trace: Arc<Mutex<AudioTrace>>,
+    last_reply: Option<(u32, u32, String)>,
     pub input: usize,
     pub output: usize,
     pub inputs: Vec<String>,
@@ -79,6 +122,11 @@ impl Default for Voice {
             save_clips: false,
             review_speech: false,
             volume: 0.7,
+            gate_db: -36,
+            listen_seconds: 12,
+            input_trace: Arc::new(Mutex::new(AudioTrace::default())),
+            output_trace: Arc::new(Mutex::new(AudioTrace::default())),
+            last_reply: None,
             input: 0,
             output: 0,
             inputs: vec!["System default".into()],
@@ -106,6 +154,32 @@ impl Default for Voice {
 impl Voice {
     pub fn local_action(&mut self, chat: &mut ChatInput, a: &Action) -> bool {
         match a {
+            Action::DesktopResources => {
+                chat.hide_resources = !chat.hide_resources;
+            }
+            Action::NoiseGate(up) => {
+                self.gate_db = (self.gate_db + if *up { 3 } else { -3 }).clamp(-60, -18);
+                self.stop.store(true, Ordering::Relaxed);
+            }
+            Action::ListenLimit(up) => {
+                self.listen_seconds =
+                    (self.listen_seconds as i32 + if *up { 1 } else { -1 }).clamp(3, 12) as u32;
+                self.stop.store(true, Ordering::Relaxed);
+            }
+            Action::TestSpeaker if !self.busy.load(Ordering::Relaxed) => {
+                self.speak(
+                    0,
+                    0,
+                    "Speaker test. This is the output used for caller voices.".into(),
+                );
+            }
+            Action::ReplayCaller => {
+                if let Some((shift, id, text)) = self.last_reply.clone() {
+                    self.speak(shift, id, text);
+                } else {
+                    self.status = "No caller reply has arrived yet.".into();
+                }
+            }
             Action::SpeechReviewToggle => {
                 self.review_speech = !self.review_speech;
             }
@@ -204,11 +278,12 @@ impl Voice {
         let busy = self.busy.clone();
         let tx = self.tx.clone();
         let out = self.output;
+        let trace = self.output_trace.clone();
         let volume = self.volume;
         std::thread::spawn(move || {
             let r = std::fs::read(path)
                 .map_err(|e| e.to_string())
-                .and_then(|wav| play(&wav, out, volume, &token, epoch));
+                .and_then(|wav| play(&wav, out, volume, &token, epoch, &trace));
             if let Err(e) = r {
                 let _ = tx.try_send(ResultEvent::Status(e));
             }
@@ -216,6 +291,8 @@ impl Voice {
         });
     }
     fn speak(&mut self, shift: u32, id: u32, text: String) {
+        self.stop.store(true, Ordering::Relaxed);
+        self.output_trace.lock().unwrap().state = "Generating caller speech...".into();
         self.epoch.fetch_add(1, Ordering::Relaxed);
         if self.busy.swap(true, Ordering::Relaxed) {
             self.queued = Some((shift, id, text));
@@ -228,6 +305,7 @@ impl Voice {
         let tx = self.tx.clone();
         let command = self.tts.clone();
         let output = self.output;
+        let trace = self.output_trace.clone();
         let volume = self.volume;
         std::thread::spawn(move || {
             let result = synthesize(command.as_deref(), &text, &epoch, expected);
@@ -235,11 +313,15 @@ impl Voice {
                 match result {
                     Ok(wav) => {
                         let _ = tx.try_send(ResultEvent::Spoken(shift, id, Ok(wav.clone())));
-                        if let Err(e) = play(&wav, output, volume, &epoch, expected) {
+                        if let Err(e) = play(&wav, output, volume, &epoch, expected, &trace) {
+                            trace.lock().unwrap().state = e.clone();
+                            eprintln!("Caller audio: {e}");
                             let _ = tx.try_send(ResultEvent::Status(e));
                         }
                     }
                     Err(e) => {
+                        trace.lock().unwrap().state = e.clone();
+                        eprintln!("Caller speech generation: {e}");
                         let _ = tx.try_send(ResultEvent::Spoken(shift, id, Err(e)));
                     }
                 }
@@ -264,10 +346,13 @@ impl Voice {
         let stop = self.stop.clone();
         let tx = self.tx.clone();
         let input = self.input;
+        let trace = self.input_trace.clone();
+        let threshold = gate_amplitude(self.gate_db);
+        let limit = self.listen_seconds;
         self.recording = true;
         self.status = "Listening… Speak naturally, then pause.".into();
         std::thread::spawn(move || {
-            let result = capture(input, &stop);
+            let result = capture(input, &stop, threshold, limit, &trace);
             let _ = tx.try_send(ResultEvent::Captured(shift, id, result));
         });
     }
@@ -473,7 +558,9 @@ fn play(
     volume: f32,
     token: &AtomicU64,
     expected: u64,
+    trace: &Mutex<AudioTrace>,
 ) -> Result<(), String> {
+    use rodio::Source;
     let host = cpal::default_host();
     let device = if output == 0 {
         host.default_output_device()
@@ -483,21 +570,82 @@ fn play(
             .and_then(|mut ds| ds.nth(output - 1))
     }
     .ok_or("No speaker device; subtitles remain available")?;
+    let device_name = device
+        .description()
+        .map(|d| d.name().to_owned())
+        .unwrap_or_else(|_| "selected device".into());
+    let stream_error = Arc::new(Mutex::new(None));
+    let error = stream_error.clone();
     let sink = rodio::DeviceSinkBuilder::from_device(device)
-        .and_then(|b| b.open_stream())
+        .and_then(|b| {
+            b.with_error_callback(move |e| {
+                *error.lock().unwrap() = Some(format!("Speaker stream failed: {e}"));
+            })
+            .open_stream()
+        })
         .map_err(|_| "Speaker unavailable; subtitles remain available")?;
     let player = rodio::Player::connect_new(sink.mixer());
     player.set_volume(volume);
     let source = rodio::Decoder::try_from(std::io::Cursor::new(wav.to_vec()))
         .map_err(|_| "Invalid speech audio")?;
-    player.append(source);
+    let channels = source.channels();
+    let rate = source.sample_rate();
+    let samples: Vec<f32> = source
+        .take(rate.get() as usize * channels.get() as usize * 26)
+        .collect();
+    if samples.iter().all(|v| v.abs() < 0.00001) {
+        return Err("Generated speech is silent. Try the speaker test.".into());
+    }
+    let chunk = (rate.get() as usize * channels.get() as usize / 50).max(1);
+    let envelope: Vec<f32> = samples
+        .chunks(chunk)
+        .map(|p| (p.iter().map(|v| v * v).sum::<f32>() / p.len() as f32).sqrt() * volume)
+        .collect();
+    {
+        let mut t = trace.lock().unwrap();
+        t.levels = [0.0; WAVE_BINS];
+        t.elapsed = 0.0;
+        t.duration = samples.len() as f32 / (rate.get() as f32 * channels.get() as f32);
+        t.active = true;
+        t.state = format!("Playing on {device_name}");
+    }
+    eprintln!(
+        "Caller playback started: {device_name}, volume {:.0}%",
+        volume * 100.0
+    );
+    player.append(rodio::buffer::SamplesBuffer::new(channels, rate, samples));
+    let mut last = usize::MAX;
     let at = Instant::now();
     while !player.empty() {
+        if let Some(e) = stream_error.lock().unwrap().take() {
+            trace.lock().unwrap().active = false;
+            return Err(e);
+        }
+        let position = player.get_pos().as_secs_f32();
+        let n = (position * 50.0) as usize;
+        if n != last {
+            let mut t = trace.lock().unwrap();
+            t.elapsed = position;
+            t.push(envelope.get(n).copied().unwrap_or(0.0));
+            last = n;
+        }
         if token.load(Ordering::Relaxed) != expected || at.elapsed() > Duration::from_secs(25) {
             player.stop();
             break;
         }
         std::thread::sleep(Duration::from_millis(15));
+    }
+    {
+        let mut t = trace.lock().unwrap();
+        t.active = false;
+        t.rms = 0.0;
+        if token.load(Ordering::Relaxed) == expected {
+            t.completed += 1;
+            t.state = format!("Playback completed / {device_name}");
+            eprintln!("Caller playback completed: {device_name}");
+        } else {
+            t.state = "Playback stopped".into();
+        }
     }
     Ok(())
 }
@@ -510,8 +658,8 @@ struct SpeechGate {
     first: Option<usize>,
 }
 impl SpeechGate {
-    fn frame(&mut self, rms: f32) -> bool {
-        if rms >= 0.01 {
+    fn frame(&mut self, rms: f32, threshold: f32) -> bool {
+        if rms >= threshold {
             self.first.get_or_insert(self.frames);
             self.voiced += 1;
             self.quiet = 0;
@@ -522,7 +670,20 @@ impl SpeechGate {
         self.voiced >= 8 && self.quiet >= 40
     }
 }
-fn capture(input: usize, stop: &AtomicBool) -> Result<Vec<u8>, String> {
+fn capture(
+    input: usize,
+    stop: &AtomicBool,
+    threshold: f32,
+    limit: u32,
+    trace: &Mutex<AudioTrace>,
+) -> Result<Vec<u8>, String> {
+    {
+        let mut t = trace.lock().unwrap();
+        *t = AudioTrace::default();
+        t.duration = limit as f32;
+        t.active = true;
+        t.state = "Listening".into();
+    }
     let host = cpal::default_host();
     let device = if input == 0 {
         host.default_input_device()
@@ -580,7 +741,7 @@ fn capture(input: usize, stop: &AtomicBool) -> Result<Vec<u8>, String> {
     let frame_len = (config.sample_rate / 50) as usize;
     while !stop.load(Ordering::Relaxed)
         && !failed.load(Ordering::Relaxed)
-        && at.elapsed() < Duration::from_secs(12)
+        && at.elapsed() < Duration::from_secs(u64::from(limit))
     {
         let mut done = false;
         {
@@ -589,7 +750,20 @@ fn capture(input: usize, stop: &AtomicBool) -> Result<Vec<u8>, String> {
                 let frame = &buffer[processed..processed + frame_len];
                 let rms = (frame.iter().map(|v| v * v).sum::<f32>() / frame_len as f32).sqrt();
                 processed += frame_len;
-                if gate.frame(rms) {
+                let finish = gate.frame(rms, threshold);
+                {
+                    let mut t = trace.lock().unwrap();
+                    t.push(rms);
+                    t.elapsed = at.elapsed().as_secs_f32();
+                    t.quiet = gate.quiet as f32 * 0.02;
+                    t.state = if gate.voiced >= 8 {
+                        "Speech detected / pause to send"
+                    } else {
+                        "Waiting for speech"
+                    }
+                    .into();
+                }
+                if finish {
                     done = true;
                     break;
                 }
@@ -601,6 +775,11 @@ fn capture(input: usize, stop: &AtomicBool) -> Result<Vec<u8>, String> {
         std::thread::sleep(Duration::from_millis(10));
     }
     drop(stream);
+    {
+        let mut t = trace.lock().unwrap();
+        t.active = false;
+        t.rms = 0.0;
+    }
     if failed.load(Ordering::Relaxed) {
         return Err("Microphone disconnected; unmute to retry.".into());
     }
@@ -677,6 +856,7 @@ pub fn update(
             }
             ResultEvent::Captured(shift, id, result) => {
                 voice.recording = false;
+                voice.input_trace.lock().unwrap().active = false;
                 if case != Some((shift, id)) || !voice.enabled {
                     continue;
                 }
@@ -729,7 +909,7 @@ pub fn update(
             ResultEvent::Spoken(shift, id, result) => match result {
                 Ok(wav) => {
                     voice.store(shift, id, "caller", &wav);
-                    voice.status = "Caller audio / subtitles available.".into();
+                    voice.status = "Caller speech generated.".into();
                 }
                 Err(e) => voice.status = e,
             },
@@ -789,7 +969,10 @@ pub fn update(
             && let Some(t) = c.turns.last()
         {
             voice.last = Some(marker);
-            if !check.automated() && !std::env::args().any(|a| a == "--mute") && voice.volume > 0.0
+            voice.last_reply = Some((shift, id, t.spoken_text.clone()));
+            if (!check.automated() || std::env::args().any(|a| a == "--audible-test"))
+                && !std::env::args().any(|a| a == "--mute")
+                && voice.volume > 0.0
             {
                 voice.speak(shift, id, t.spoken_text.clone());
             }
@@ -835,19 +1018,61 @@ mod tests {
     fn activation_ignores_silence_and_clicks_and_waits_for_a_pause() {
         let mut gate = SpeechGate::default();
         for _ in 0..600 {
-            assert!(!gate.frame(0.001));
+            assert!(!gate.frame(0.001, 0.01));
         }
-        assert!(!gate.frame(0.2));
+        assert!(!gate.frame(0.2, 0.01));
         for _ in 0..80 {
-            assert!(!gate.frame(0.0));
+            assert!(!gate.frame(0.0, 0.01));
         }
         for _ in 0..20 {
-            assert!(!gate.frame(0.03));
+            assert!(!gate.frame(0.03, 0.01));
         }
         for _ in 0..39 {
-            assert!(!gate.frame(0.0));
+            assert!(!gate.frame(0.0, 0.01));
         }
-        assert!(gate.frame(0.0));
+        assert!(gate.frame(0.0, 0.01));
+    }
+    #[test]
+    fn noise_below_selected_floor_does_not_extend_a_spoken_turn() {
+        let mut gate = SpeechGate::default();
+        let threshold = gate_amplitude(-30);
+        for _ in 0..300 {
+            assert!(!gate.frame(0.02, threshold));
+        }
+        assert_eq!(gate.voiced, 0);
+        for _ in 0..12 {
+            assert!(!gate.frame(0.08, threshold));
+        }
+        for _ in 0..39 {
+            assert!(!gate.frame(0.02, threshold));
+        }
+        assert!(gate.frame(0.02, threshold));
+    }
+    #[test]
+    fn listening_controls_are_bounded_and_cancel_the_current_segment() {
+        let mut v = Voice::default();
+        let mut chat = ChatInput::default();
+        for _ in 0..50 {
+            v.local_action(&mut chat, &Action::NoiseGate(true));
+            v.local_action(&mut chat, &Action::ListenLimit(false));
+        }
+        assert_eq!((v.gate_db, v.listen_seconds), (-18, 3));
+        assert!(v.stop.load(Ordering::Relaxed));
+        for _ in 0..50 {
+            v.local_action(&mut chat, &Action::NoiseGate(false));
+            v.local_action(&mut chat, &Action::ListenLimit(true));
+        }
+        assert_eq!((v.gate_db, v.listen_seconds), (-60, 12));
+    }
+    #[test]
+    fn waveform_tracks_samples_without_invented_motion() {
+        let mut t = AudioTrace::default();
+        t.push(0.0);
+        assert!(t.levels.iter().all(|v| *v == 0.0));
+        t.push(0.04);
+        assert_eq!(t.levels[WAVE_BINS - 1], 0.04);
+        t.push(0.0);
+        assert_eq!(t.levels[WAVE_BINS - 2], 0.04);
     }
     #[test]
     fn muting_does_not_cancel_the_callers_speech() {
@@ -864,7 +1089,19 @@ mod tests {
     fn local_speaker_playback() {
         let token = AtomicU64::new(0);
         let wav = synthesize(None, "Wrong Number. Caller audio is connected.", &token, 0).unwrap();
-        play(&wav, 0, 0.7, &token, 0).unwrap();
+        play(&wav, 0, 0.7, &token, 0, &Mutex::new(AudioTrace::default())).unwrap();
+    }
+    #[test]
+    #[ignore = "Requires an actual output device and WRONG_NUMBER_TEST_CALLER_WAV"]
+    fn live_caller_wav_plays_through_game_output() {
+        let path = std::env::var_os("WRONG_NUMBER_TEST_CALLER_WAV").expect("Set caller WAV");
+        let wav = std::fs::read(path).unwrap();
+        let trace = Mutex::new(AudioTrace::default());
+        play(&wav, 0, 0.7, &AtomicU64::new(0), 0, &trace).unwrap();
+        let t = trace.lock().unwrap();
+        assert_eq!(t.completed, 1);
+        assert!(t.duration > 0.2);
+        assert!(t.levels.iter().any(|v| *v > 0.001));
     }
     #[test]
     fn bounded_pcm_wav_roundtrips_and_invalid_audio_is_rejected() {

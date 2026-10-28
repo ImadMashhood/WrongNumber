@@ -38,6 +38,11 @@ pub enum Action {
     SpeechReviewToggle,
     AudioSettings,
     MicToggle,
+    NoiseGate(bool),
+    ListenLimit(bool),
+    TestSpeaker,
+    ReplayCaller,
+    DesktopResources,
     SaveClips,
     InputDevice,
     OutputDevice,
@@ -363,12 +368,14 @@ impl Session {
             Action::BreakDoor => {
                 self.notice = "Break room doorway is open. You can walk through.".into();
             }
-            Action::OpenDesk if self.seated.is_some() => {
-                self.screen = Screen::Terminal;
-                self.notice="Dispatch focus. Escape returns to seated free-look; Space stands when outside focus.".into();
-            }
             Action::OpenDesk => {
-                self.notice = "Sit at this workstation before using its computer.".into();
+                self.screen = Screen::Terminal;
+                self.notice = if self.seated.is_some() {
+                    "Desktop open. Escape returns to the room."
+                } else {
+                    "Desktop open while standing. Take a seat to receive calls."
+                }
+                .into();
             }
             Action::OpenMap => {
                 self.screen = Screen::CityMap;
@@ -916,7 +923,9 @@ mod tests {
     fn seated_free_look_and_focus_do_not_release_the_chair() {
         let mut g = Session::default();
         g.act(Action::OpenDesk);
-        assert_eq!(g.screen, Screen::Office);
+        assert_eq!(g.screen, Screen::Terminal);
+        assert!(g.seated.is_none());
+        g.act(Action::Office);
         g.act(Action::Sit(3));
         assert_eq!(g.screen, Screen::Office);
         g.act(Action::OpenDesk);

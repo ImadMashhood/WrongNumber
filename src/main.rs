@@ -106,6 +106,8 @@ fn main() {
                     routes::refresh,
                     wall_map::refresh,
                     ui::draw,
+                    ui::desktop_fonts,
+                    ui::audio_visuals,
                     ui::scroll_panels,
                     ui::update_hud,
                     ui::hover,

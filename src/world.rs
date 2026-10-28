@@ -113,17 +113,17 @@ pub fn aimed_action(pose: &Transform, game: &Session) -> Option<Action> {
     for (n, &x) in SEATS.iter().enumerate() {
         if game.seated.is_none() {
             add(
-                Vec3::new(x, 0.85, 1.7),
-                Vec3::new(0.85, 1.5, 0.9),
+                Vec3::new(x, 0.75, 1.7),
+                Vec3::new(0.85, 1.0, 0.9),
                 2.5,
                 Action::Sit(n),
             );
         }
-        if game.seated == Some(n) {
+        if game.seated.is_none() || game.seated == Some(n) {
             add(
                 Vec3::new(x, 1.4, -0.39),
                 Vec3::new(1.13, 0.74, 0.15),
-                2.5,
+                3.6,
                 Action::OpenDesk,
             );
             add(
@@ -444,6 +444,15 @@ mod tests {
         let clear =
             Transform::from_xyz(5.7, 1.65, 9.0).looking_at(Vec3::new(5.7, 1.4, 10.7), Vec3::Y);
         assert_eq!(aimed_action(&clear, &game), Some(Action::OpenReview));
+    }
+    #[test]
+    fn standing_player_can_aim_over_chair_at_monitor() {
+        let game = Session::default();
+        for (n, &x) in SEATS.iter().enumerate() {
+            let pose = Transform::from_translation(desk_approach(n))
+                .looking_at(Vec3::new(x, 1.4, -0.39), Vec3::Y);
+            assert_eq!(aimed_action(&pose, &game), Some(Action::OpenDesk));
+        }
     }
     #[test]
     fn all_six_station_approaches_and_break_room_are_accessible() {

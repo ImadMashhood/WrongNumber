@@ -17,7 +17,10 @@ pub struct UiRoot;
 pub struct MapImage(pub Handle<Image>);
 #[derive(Resource)]
 pub struct CallerPortraits(pub Vec<Handle<Image>>);
+#[derive(Resource)]
+pub struct DesktopFont(pub Handle<Font>);
 pub fn load_map(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.insert_resource(DesktopFont(assets.load("fonts/DesktopSans.ttf")));
     commands.insert_resource(MapImage(assets.load("city/map.png")));
     commands.insert_resource(CallerPortraits(
         (0..24)
@@ -248,7 +251,7 @@ fn map(
 fn terminal(
     p: &mut ChildSpawnerCommands,
     game: &Session,
-    _image: &MapImage,
+    image: &MapImage,
     _routes: &crate::routes::RouteOverlay,
     chat: &crate::voice::ChatInput,
     voice: &crate::voice::Voice,
@@ -260,107 +263,221 @@ fn terminal(
         Node {
             width: percent(100),
             height: percent(100),
-            padding: UiRect::all(px(28)),
-            column_gap: px(36),
+            overflow: Overflow::clip(),
+            border_radius: BorderRadius::all(px(8)),
             ..default()
         },
         BackgroundColor(Color::srgb(0.075, 0.13, 0.17)),
     ))
     .with_children(|p| {
+        p.spawn((
+            ImageNode {
+                image: image.0.clone(),
+                color: Color::srgb(0.28, 0.38, 0.47),
+                ..default()
+            },
+            Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                ..default()
+            },
+        ));
         p.spawn(Node {
-            width: percent(34),
-            height: percent(100),
-            min_height: px(0),
-            overflow: Overflow::scroll_y(),
-            min_width: px(0),
+            position_type: PositionType::Absolute,
+            left: px(16),
+            top: px(28),
+            width: px(80),
             flex_direction: FlexDirection::Column,
-            row_gap: px(18),
+            row_gap: px(16),
             ..default()
         })
         .with_children(|p| {
-            text(p, "DISPATCH DESKTOP", 14.0, MUTED);
-            text(p, "Dispatch Center", 26.0, TEXT);
+            button(p, "Resources", Action::DesktopResources, true);
+            button(p, "Sound", Action::AudioSettings, true);
+            button(
+                p,
+                "Exit
+desktop",
+                Action::Office,
+                true,
+            );
+        });
+        p.spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: px(0),
+                right: px(0),
+                bottom: px(0),
+                height: px(52),
+                padding: UiRect::axes(px(16), px(8)),
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgb(0.07, 0.09, 0.13)),
+        ))
+        .with_children(|p| {
+            p.spawn(Node {
+                column_gap: px(10),
+                align_items: AlignItems::Center,
+                ..default()
+            })
+            .with_children(|p| {
+                text(p, "WN", 20.0, TEAL);
+                for (label, action) in [
+                    ("Resources", Action::DesktopResources),
+                    ("Sound", Action::AudioSettings),
+                    ("Room", Action::Office),
+                ] {
+                    p.spawn(Node {
+                        width: px(110),
+                        ..default()
+                    })
+                    .with_children(|p| button(p, label, action, true));
+                }
+                if phone_call(game).is_some() {
+                    text(
+                        p,
+                        if game.conversation.is_some() {
+                            "Phone connected"
+                        } else {
+                            "Incoming call"
+                        },
+                        13.0,
+                        TEXT,
+                    );
+                }
+            });
+            text(
+                p,
+                format!(
+                    "Shift {}    {:02}:{:02}",
+                    game.shift,
+                    game.remaining() / 60,
+                    game.remaining() % 60
+                ),
+                14.0,
+                TEXT,
+            );
+        });
+        if !chat.hide_resources {
             p.spawn((
                 Node {
-                    padding: UiRect::all(px(22)),
+                    position_type: PositionType::Absolute,
+                    left: px(112),
+                    top: px(28),
+                    bottom: px(74),
+                    width: percent(29),
+                    padding: UiRect::all(px(18)),
+                    border_radius: BorderRadius::all(px(10)),
+                    min_height: px(0),
+                    overflow: Overflow::scroll_y(),
+                    min_width: px(0),
                     flex_direction: FlexDirection::Column,
                     row_gap: px(12),
-                    border_radius: BorderRadius::all(px(12)),
                     ..default()
                 },
-                BackgroundColor(PANEL),
+                BackgroundColor(INK.with_alpha(0.96)),
             ))
             .with_children(|p| {
-                text(p, "CASH AVAILABLE", 12.0, MUTED);
-                text(p, format!("$ {}", game.funds), 38.0, TEXT);
-                text(
-                    p,
-                    format!(
-                        "Shift income (projected)   +$ {}",
-                        (100 + game.sim.score()).max(0)
-                    ),
-                    14.0,
-                    TEAL,
-                );
-                text(
-                    p,
-                    format!("Damage deductions         -$ {}", game.damage_assessment()),
-                    14.0,
-                    AMBER,
-                );
-                text(
-                    p,
-                    format!("Net paid at review         $ {}", game.grant()),
-                    13.0,
-                    MUTED,
-                );
-            });
-            text(p, "RESPONSE RESOURCES", 13.0, MUTED);
-            for cap in [Capability::Police, Capability::Medical, Capability::Fire] {
+                text(p, "Resource Monitor", 20.0, TEXT);
+                if game.seated.is_none() {
+                    text(
+                        p,
+                        "Standing view / take a seat to receive calls",
+                        12.0,
+                        MUTED,
+                    );
+                }
+                button(p, "Minimize window", Action::DesktopResources, true);
                 p.spawn((
                     Node {
-                        padding: UiRect::all(px(16)),
+                        padding: UiRect::all(px(22)),
                         flex_direction: FlexDirection::Column,
-                        row_gap: px(8),
-                        border_radius: BorderRadius::all(px(10)),
+                        row_gap: px(12),
+                        border_radius: BorderRadius::all(px(12)),
                         ..default()
                     },
                     BackgroundColor(PANEL),
                 ))
                 .with_children(|p| {
-                    let total = game
-                        .sim
-                        .units()
-                        .values()
-                        .filter(|u| u.capability == cap)
-                        .count();
-                    let free = game
-                        .sim
-                        .units()
-                        .values()
-                        .filter(|u| u.capability == cap && u.state == UnitState::Available)
-                        .count();
+                    text(p, "CASH AVAILABLE", 12.0, MUTED);
+                    text(p, format!("$ {}", game.funds), 38.0, TEXT);
                     text(
                         p,
-                        format!("{}   {free}/{total} available", cap_name(cap)),
-                        17.0,
-                        cap_color(cap),
+                        format!(
+                            "Shift income (projected)   +$ {}",
+                            (100 + game.sim.score()).max(0)
+                        ),
+                        14.0,
+                        TEAL,
                     );
-                    for u in game.sim.units().values().filter(|u| u.capability == cap) {
+                    text(
+                        p,
+                        format!("Damage deductions         -$ {}", game.damage_assessment()),
+                        14.0,
+                        AMBER,
+                    );
+                    text(
+                        p,
+                        format!("Net paid at review         $ {}", game.grant()),
+                        13.0,
+                        MUTED,
+                    );
+                });
+                text(p, "RESPONSE RESOURCES", 13.0, MUTED);
+                for cap in [Capability::Police, Capability::Medical, Capability::Fire] {
+                    p.spawn((
+                        Node {
+                            padding: UiRect::all(px(16)),
+                            flex_direction: FlexDirection::Column,
+                            row_gap: px(8),
+                            border_radius: BorderRadius::all(px(10)),
+                            ..default()
+                        },
+                        BackgroundColor(PANEL),
+                    ))
+                    .with_children(|p| {
+                        let total = game
+                            .sim
+                            .units()
+                            .values()
+                            .filter(|u| u.capability == cap)
+                            .count();
+                        let free = game
+                            .sim
+                            .units()
+                            .values()
+                            .filter(|u| u.capability == cap && u.state == UnitState::Available)
+                            .count();
                         text(
                             p,
-                            format!("Unit {} / {}", u.id, unit_label(&u.state, game.sim.now())),
-                            12.0,
-                            MUTED,
+                            format!("{}   {free}/{total} available", cap_name(cap)),
+                            17.0,
+                            cap_color(cap),
                         );
-                    }
-                });
-            }
-            button(p, "Leave desktop [Esc]", Action::Office, true);
-            if running {
-                button(p, "Finish shift", Action::EndShift, true);
-            }
-        });
+                        for u in game.sim.units().values().filter(|u| u.capability == cap) {
+                            text(
+                                p,
+                                format!("Unit {} / {}", u.id, unit_label(&u.state, game.sim.now())),
+                                12.0,
+                                MUTED,
+                            );
+                        }
+                    });
+                }
+                button(p, "Leave desktop [Esc]", Action::Office, true);
+                if running {
+                    button(
+                        p,
+                        "Finish shift",
+                        Action::EndShift,
+                        game.can_dispatch() || game.multiplayer && game.local_player == 1,
+                    );
+                }
+            });
+        }
         if let Some(id) = phone_call(game) {
             let Ok(view) = game.sim.call_view(id) else {
                 return;
@@ -368,12 +485,15 @@ fn terminal(
             let own = game.conversation == Some(id) && game.call_station == game.seated;
             p.spawn((
                 Node {
-                    width: percent(62),
-                    height: percent(100),
+                    position_type: PositionType::Absolute,
+                    right: px(20),
+                    top: px(28),
+                    bottom: px(74),
+                    width: percent(55),
                     min_height: px(0),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(px(22)),
-                    row_gap: px(14),
+                    padding: UiRect::all(px(18)),
+                    row_gap: px(12),
                     border_radius: BorderRadius::all(px(20)),
                     border: UiRect::all(px(1)),
                     ..default()
@@ -483,6 +603,7 @@ fn terminal(
                             button(p, "Hang up", Action::HangUp, true);
                         });
                     });
+                    audio_meters(p);
                     p.spawn(Node {
                         flex_grow: 1.0,
                         min_height: px(80),
@@ -559,9 +680,36 @@ fn terminal(
                                 );
                             }
                         }
-                        audio_ui(p, voice, chat);
+                        button(p, "Sound settings", Action::AudioSettings, true);
+                        button(p, "Replay caller", Action::ReplayCaller, !voice.speaking);
                     });
                 }
+            });
+        }
+
+        if chat.settings {
+            p.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: px(112),
+                    top: px(44),
+                    bottom: px(74),
+                    width: px(430),
+                    padding: UiRect::all(px(20)),
+                    flex_direction: FlexDirection::Column,
+                    overflow: Overflow::scroll_y(),
+                    row_gap: px(10),
+                    border_radius: BorderRadius::all(px(10)),
+                    border: UiRect::all(px(1)),
+                    ..default()
+                },
+                BackgroundColor(INK),
+                BorderColor::all(TEAL),
+            ))
+            .with_children(|p| {
+                text(p, "Sound settings", 22.0, TEXT);
+                audio_meters(p);
+                audio_ui(p, voice, chat);
             });
         }
     });
@@ -646,6 +794,56 @@ fn audio_ui(
     if !chat.settings {
         return;
     }
+
+    text(
+        p,
+        format!("Noise floor: {} dBFS", voice.gate_db),
+        15.0,
+        TEXT,
+    );
+    text(
+        p,
+        "Audio below this level counts as silence. Raise it if fans or room noise keep the microphone open.",
+        12.0,
+        MUTED,
+    );
+    button(
+        p,
+        "Raise noise floor (+3 dB)",
+        Action::NoiseGate(true),
+        voice.gate_db < -18,
+    );
+    button(
+        p,
+        "Lower noise floor (-3 dB)",
+        Action::NoiseGate(false),
+        voice.gate_db > -60,
+    );
+    text(
+        p,
+        format!("Maximum listening time: {} seconds", voice.listen_seconds),
+        15.0,
+        TEXT,
+    );
+    button(
+        p,
+        "Shorter listening timer",
+        Action::ListenLimit(false),
+        voice.listen_seconds > 3,
+    );
+    button(
+        p,
+        "Longer listening timer",
+        Action::ListenLimit(true),
+        voice.listen_seconds < 12,
+    );
+    button(p, "Test speakers", Action::TestSpeaker, !voice.speaking);
+    button(
+        p,
+        "Replay last caller reply",
+        Action::ReplayCaller,
+        !voice.speaking,
+    );
     button(
         p,
         if voice.enabled {
@@ -926,6 +1124,8 @@ pub fn draw(
                     },
                     BorderColor::all(TEXT.with_alpha(0.6)),
                 ));
+            } else if screen == Screen::Terminal {
+                terminal(p, &game, &image, &routes, &chat, &voice, &portraits);
             } else {
                 p.spawn(Node {
                     height: px(64),
@@ -1108,10 +1308,12 @@ pub fn scroll_panels(
         if node.overflow.y != OverflowAxis::Scroll {
             continue;
         }
-        let Val::Percent(width) = node.width else {
-            continue;
+        let width_key = match node.width {
+            Val::Percent(width) => width as u32,
+            Val::Px(width) => 10_000 + width as u32,
+            _ => continue,
         };
-        let key = (game.screen as u8, width as u32);
+        let key = (game.screen as u8, width_key);
         if node.is_added() {
             position.y = *memory.get(&key).unwrap_or(&0.0);
         }
@@ -1208,5 +1410,118 @@ mod phone_tests {
         assert_eq!(phone_call(&game), game.conversation);
         game.act(Action::HangUp);
         assert_eq!(phone_call(&game), None);
+    }
+}
+
+#[derive(Component)]
+pub struct WaveBar {
+    caller: bool,
+    index: usize,
+}
+#[derive(Component)]
+pub struct AudioReadout(bool);
+fn audio_meters(p: &mut ChildSpawnerCommands) {
+    for caller in [false, true] {
+        p.spawn(Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(3),
+            ..default()
+        })
+        .with_children(|p| {
+            p.spawn((
+                AudioReadout(caller),
+                Text::new(if caller {
+                    "Caller output"
+                } else {
+                    "Your microphone"
+                }),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(MUTED),
+            ));
+            p.spawn((
+                Node {
+                    width: percent(100),
+                    height: px(34),
+                    align_items: AlignItems::Center,
+                    column_gap: px(3),
+                    padding: UiRect::axes(px(6), px(2)),
+                    ..default()
+                },
+                BackgroundColor(PANEL),
+            ))
+            .with_children(|p| {
+                for index in 0..crate::voice::WAVE_BINS {
+                    p.spawn((
+                        WaveBar { caller, index },
+                        Node {
+                            flex_grow: 1.0,
+                            flex_basis: px(0),
+                            height: px(1),
+                            border_radius: BorderRadius::all(px(2)),
+                            ..default()
+                        },
+                        BackgroundColor(if caller { AMBER } else { TEAL }),
+                    ));
+                }
+            });
+        });
+    }
+}
+pub fn audio_visuals(
+    time: Res<Time<Real>>,
+    voice: Res<crate::voice::Voice>,
+    mut last: Local<f64>,
+    mut bars: Query<(&WaveBar, &mut Node)>,
+    mut labels: Query<(&AudioReadout, &mut Text)>,
+) {
+    if time.elapsed_secs_f64() - *last < 0.05 {
+        return;
+    }
+    *last = time.elapsed_secs_f64();
+    let mic = voice.input_trace.lock().unwrap().clone();
+    let caller = voice.output_trace.lock().unwrap().clone();
+    for (bar, mut node) in &mut bars {
+        let trace = if bar.caller { &caller } else { &mic };
+        node.height = px((trace.levels[bar.index].sqrt() * 90.0).clamp(1.0, 30.0));
+    }
+    for (label, mut text) in &mut labels {
+        if label.0 {
+            text.0 = format!(
+                "CALLER  {:.1}s / {:.1}s  |  {}",
+                caller.elapsed, caller.duration, caller.state
+            );
+        } else {
+            let state = if !voice.enabled {
+                "Muted"
+            } else if voice.recording {
+                mic.state.as_str()
+            } else {
+                "Not listening"
+            };
+            let db = 20.0 * mic.rms.max(0.00001).log10();
+            text.0 = format!(
+                "YOU  {:.1}s / {}s  |  {:.0} dB  |  floor {} dB  |  {}",
+                if voice.recording { mic.elapsed } else { 0.0 },
+                voice.listen_seconds,
+                db,
+                voice.gate_db,
+                state
+            );
+        }
+    }
+}
+pub fn desktop_fonts(
+    game: Res<Session>,
+    font: Res<DesktopFont>,
+    mut fonts: Query<&mut TextFont, Added<TextFont>>,
+) {
+    if game.screen == Screen::Terminal {
+        for mut f in &mut fonts {
+            f.font = bevy::text::FontSource::Handle(font.0.clone());
+        }
     }
 }

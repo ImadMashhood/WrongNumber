@@ -332,7 +332,13 @@ impl Room {
             Action::OpenReview if distance(5.7, 10.7) > 3.0 => {
                 Err("Move to the review table".into())
             }
-            Action::OpenDesk | Action::UsePhone if self.game.desk(id).seated.is_none() => {
+            Action::OpenDesk
+                if self.game.desk(id).seated.is_none()
+                    && !world::SEATS.iter().any(|x| distance(*x, -0.39) <= 3.6) =>
+            {
+                Err("Move closer to a computer".into())
+            }
+            Action::UsePhone if self.game.desk(id).seated.is_none() => {
                 Err("Sit before using a workstation".into())
             }
             _ => Ok(()),

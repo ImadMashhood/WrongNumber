@@ -26,6 +26,7 @@ pub struct LaunchCheck {
     stage: u8,
     last: u32,
     route_capture: bool,
+    audio_capture: bool,
     capture_dir: Option<String>,
 }
 impl LaunchCheck {
@@ -50,6 +51,7 @@ impl LaunchCheck {
             stage: 0,
             last: 0,
             route_capture: false,
+            audio_capture: false,
             capture_dir: args
                 .iter()
                 .position(|a| a == "--capture-dir")
@@ -89,11 +91,20 @@ pub fn automate(
     mut player: Single<&mut Transform, With<Player>>,
     mut exit: MessageWriter<AppExit>,
     chat: Res<crate::voice::ChatInput>,
+    voice: Res<crate::voice::Voice>,
     window: Single<Entity, With<Window>>,
     mut keyboard: MessageWriter<bevy::input::keyboard::KeyboardInput>,
 ) {
     // Let asynchronous material pipelines finish before the first room capture.
     if check.playtest && time.elapsed_secs() < 4.0 {
+        return;
+    }
+    if std::env::args().any(|a| a == "--audible-test") && voice.speaking {
+        // Exercise the real UI-to-TTS worker without capturing a human microphone.
+        if voice.output_trace.lock().unwrap().elapsed > 0.8 && !check.audio_capture {
+            check.capture(&mut commands, "caller-waveform");
+            check.audio_capture = true;
+        }
         return;
     }
     check.frames += 1;
@@ -131,6 +142,23 @@ pub fn automate(
                 Transform::from_xyz(-0.5, 1.7, 3.5).looking_at(Vec3::new(6.0, 1.8, 7.0), Vec3::Y)
         }
         56 => check.capture(&mut commands, "room-rear-door"),
+        58 => {
+            **player = Transform::from_translation(crate::world::desk_approach(2))
+                .looking_at(Vec3::new(crate::world::SEATS[2], 1.4, -0.39), Vec3::Y);
+            assert_eq!(
+                crate::world::aimed_action(&player, &game),
+                Some(Action::OpenDesk)
+            );
+            queue.0.push(Action::OpenDesk);
+        }
+        60 => {
+            assert!(game.seated.is_none());
+            assert_eq!(game.screen, Screen::Terminal);
+            check.capture(&mut commands, "desktop-standing");
+        }
+        61 => {
+            queue.0.push(Action::Office);
+        }
         62 => {
             **player = Transform::from_translation(crate::world::desk_approach(2))
                 .looking_at(Vec3::new(crate::world::SEATS[2], 0.9, 1.7), Vec3::Y);
@@ -154,6 +182,15 @@ pub fn automate(
         75 => {
             assert!(images.get(&map.0).is_some());
             check.capture(&mut commands, "m2-terminal");
+        }
+        77 => {
+            queue.0.push(Action::AudioSettings);
+        }
+        79 => {
+            check.capture(&mut commands, "desktop-sound-settings");
+        }
+        80 => {
+            queue.0.push(Action::AudioSettings);
         }
         _ => {}
     }
