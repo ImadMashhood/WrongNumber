@@ -1,26 +1,34 @@
 //! Solo authority for the ten-minute shift and one call line per occupied workstation.
 use bevy::prelude::Resource;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
 use wrong_number_sim::{
     CallState, Command, Error, EventKind, IncidentState, ShiftConfig, Simulation, UnitState,
 };
 pub const SHIFT_SECONDS: u32 = 600;
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Phase {
+    Lobby,
     Running,
     Closing,
     AwaitingReview,
     Review,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Screen {
+    Lobby,
     Office,
     Terminal,
     CityMap,
     Review,
     Pause,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
+    StartShift,
+    OpenLobby,
+    Reconnect,
+    Transfer(u8),
     Sit(usize),
     Stand,
     OpenDesk,
@@ -39,6 +47,10 @@ pub enum Action {
     Decline,
     HangUp,
     Unit(u32),
+    Order {
+        command: Command,
+        expected: Option<u32>,
+    },
     FullResponse,
     EndShift,
     BuyRadio,
@@ -64,9 +76,14 @@ pub struct Session {
     pub notice: String,
     pub dirty: bool,
     pub next_call_at: Option<u32>,
-    previous_screen: Screen,
+    pub(super) previous_screen: Screen,
     elapsed: f32,
     rng: u64,
+    pub local_player: u8,
+    pub multiplayer: bool,
+    pub connected: BTreeSet<u8>,
+    pub desks: BTreeMap<u8, crate::desks::Desk>,
+    pub last_error: Option<String>,
 }
 impl Default for Session {
     fn default() -> Self {
@@ -91,6 +108,11 @@ impl Default for Session {
             previous_screen: Screen::Office,
             elapsed: 0.0,
             rng: 42,
+            local_player: 1,
+            multiplayer: false,
+            connected: BTreeSet::from([1]),
+            desks: BTreeMap::new(),
+            last_error: None,
         }
     }
 }
@@ -127,6 +149,7 @@ impl Session {
     }
     pub fn status(&self) -> &'static str {
         match self.phase {
+            Phase::Lobby => "ROOM LOBBY",
             Phase::Running => "SHIFT LIVE",
             Phase::Closing => "FINISHING RESPONSES",
             Phase::AwaitingReview => "SHIFT COMPLETE",
@@ -149,17 +172,22 @@ impl Session {
         self.sim
             .incidents()
             .values()
-            .filter(|i| i.state == IncidentState::Pending)
-            .min_by_key(|i| (i.parent.is_none(), i.id))
+            .filter(|i| i.state == IncidentState::Pending || self.active_ringing_unclaimed(i.id))
+            .min_by_key(|i| (i.state == IncidentState::Pending, i.parent.is_none(), i.id))
             .map(|i| i.id)
     }
     fn director_ready(&self) -> bool {
+        if self
+            .pending_call()
+            .is_some_and(|id| self.sim.incidents()[&id].state == IncidentState::Active)
+        {
+            return true;
+        }
         let secondary = self
             .pending_call()
             .is_some_and(|id| self.sim.incidents()[&id].parent.is_some());
-        self.sim
-            .director_policy()
-            .is_none_or(|policy| policy.can_deliver(&self.sim, self.shift, secondary))
+        self.scaled_director()
+            .is_none_or(|p| p.can_deliver(&self.sim, self.shift, secondary))
     }
     fn schedule(&mut self) {
         if self.phase != Phase::Running
@@ -227,14 +255,42 @@ impl Session {
         }
     }
     pub fn act(&mut self, action: Action) {
+        self.last_error = None;
         self.dirty = true;
         match action {
+            Action::StartShift if self.phase == Phase::Lobby => {
+                self.phase = Phase::Running;
+                self.screen = Screen::Office;
+                for desk in self.desks.values_mut() {
+                    desk.screen = Screen::Office;
+                }
+                self.notice = "Shared shift started. Take a workstation.".into();
+            }
+            Action::OpenLobby => {
+                self.screen = Screen::Lobby;
+            }
+            Action::Transfer(to) => self.transfer(to),
             Action::Sit(station) if station < 6 && self.seated.is_none() => {
+                if self
+                    .occupied(station)
+                    .is_some_and(|id| id != self.local_player)
+                {
+                    self.last_error = Some("That workstation is occupied".into());
+                    self.notice = self.last_error.clone().unwrap();
+                    return;
+                }
                 self.seated = Some(station);
+                if self.multiplayer && self.conversation.is_some() {
+                    self.call_station = Some(station);
+                }
                 self.notice="Seated. Look around freely; aim at the monitor and press E to focus. Space stands up.".into();
                 self.schedule();
             }
             Action::Stand => {
+                if self.multiplayer && self.ringing.is_some() {
+                    self.ringing = None;
+                    self.call_station = None;
+                }
                 self.seated = None;
                 self.screen = Screen::Office;
                 self.next_call_at = None;
@@ -358,6 +414,33 @@ impl Session {
                     self.end_decision();
                 }
             }
+            Action::Order { command, expected } if self.can_dispatch() => {
+                let (unit, incident) = match command {
+                    Command::Dispatch { unit, incident } | Command::Reroute { unit, incident } => {
+                        (unit, Some(incident))
+                    }
+                    Command::Cancel { unit } => (unit, None),
+                    _ => {
+                        self.last_error = Some("Unsupported responder order".into());
+                        return;
+                    }
+                };
+                if self
+                    .sim
+                    .units()
+                    .get(&unit)
+                    .is_none_or(|u| u.state.assignment() != expected)
+                    || incident.is_some_and(|id| id != self.selected)
+                {
+                    self.last_error =
+                        Some("Unit assignment or selected case changed; refresh status".into());
+                    self.notice = self.last_error.clone().unwrap();
+                    return;
+                }
+                if self.command(command, "Responder order accepted.") && incident.is_some() {
+                    self.end_decision();
+                }
+            }
             Action::Unit(id) if self.can_dispatch() => {
                 let Some(unit) = self.sim.units().get(&id) else {
                     return;
@@ -396,7 +479,12 @@ impl Session {
                     self.end_decision();
                 }
             }
-            Action::EndShift if self.can_dispatch() => {
+            Action::EndShift
+                if self.can_dispatch()
+                    || self.multiplayer
+                        && self.local_player == 1
+                        && matches!(self.phase, Phase::Running | Phase::Closing) =>
+            {
                 self.phase = Phase::Closing;
                 self.next_call_at = None;
                 self.sim.close_unreported();
@@ -413,8 +501,17 @@ impl Session {
             Action::NextShift if self.phase == Phase::Review => {
                 self.shift += 1;
                 self.sim = Self::make_sim(self.shift, self.radio, self.extra_police);
-                self.phase = Phase::Running;
-                self.screen = Screen::Office;
+                self.phase = if self.multiplayer {
+                    Phase::Lobby
+                } else {
+                    Phase::Running
+                };
+                self.screen = if self.multiplayer {
+                    Screen::Lobby
+                } else {
+                    Screen::Office
+                };
+                self.reset_desks();
                 self.seated = None;
                 self.ringing = None;
                 self.conversation = None;
@@ -429,22 +526,24 @@ impl Session {
             Action::Coffee => {
                 self.notice = "Coffee acquired. The shift clock is still running.".into();
             }
-            _ => {}
+            _ => {
+                self.last_error = Some("Action unavailable in the current state".into());
+            }
         }
         self.synchronize_line();
     }
     fn end_decision(&mut self) {
         if self.conversation == Some(self.selected) {
             let _ = self.sim.apply(
-                1,
+                self.local_player,
                 Command::EndCall {
                     incident: self.selected,
                 },
             );
         }
     }
-    fn command(&mut self, command: Command, success: &str) -> bool {
-        let result = self.sim.apply(1, command);
+    pub(super) fn command(&mut self, command: Command, success: &str) -> bool {
+        let result = self.sim.apply(self.local_player, command);
         let succeeded = result.is_ok();
         self.notice = match result {
             Ok(()) => {
@@ -481,6 +580,9 @@ impl Session {
             }
             .into(),
         };
+        if !succeeded {
+            self.last_error = Some(self.notice.clone());
+        }
         succeeded
     }
     fn buy(&mut self, radio: bool) {
@@ -515,7 +617,9 @@ impl Session {
         .into();
     }
     pub fn tick(&mut self, real_seconds: f32) {
-        if !matches!(self.phase, Phase::Running | Phase::Closing) || self.screen == Screen::Pause {
+        if !matches!(self.phase, Phase::Running | Phase::Closing)
+            || (self.screen == Screen::Pause && !self.multiplayer)
+        {
             return;
         }
         self.elapsed += real_seconds;
@@ -548,31 +652,14 @@ impl Session {
                 );
             }
         }
-        self.synchronize_line();
         if self.phase == Phase::Running && self.sim.now() >= SHIFT_SECONDS {
             self.phase = Phase::Closing;
             self.next_call_at = None;
             self.sim.close_unreported();
             self.notice="Dispatch period ended. Finish existing responses, then attend the rear-room review.".into();
         }
-        if self.phase == Phase::Running {
-            self.schedule();
-            if self.next_call_at.is_some_and(|at| self.sim.now() >= at) && self.seated.is_some() {
-                if self.director_ready()
-                    && let Some(id) = self.pending_call()
-                {
-                    self.sim
-                        .activate_configured_call(id)
-                        .expect("Valid authored call deadline");
-                    self.ringing = Some(id);
-                    self.call_station = self.seated;
-                    self.selected = id;
-                    self.notice =
-                        "Incoming call. Aim at the telephone or use the computer to answer.".into();
-                }
-                self.next_call_at = None;
-            }
-        }
+        self.update_line();
+        self.update_other_lines();
         let settled = self
             .sim
             .incidents()
@@ -587,6 +674,29 @@ impl Session {
             self.phase = Phase::AwaitingReview;
             self.funds += self.grant();
             self.notice = "Shift complete. The rear meeting-room door is unlocked.".into();
+        }
+    }
+    pub(super) fn update_line(&mut self) {
+        self.synchronize_line();
+        if self.phase == Phase::Running {
+            self.schedule();
+            if self.next_call_at.is_some_and(|at| self.sim.now() >= at) && self.seated.is_some() {
+                if self.director_ready()
+                    && let Some(id) = self.pending_call()
+                {
+                    if self.sim.incidents()[&id].state == IncidentState::Pending {
+                        self.sim
+                            .activate_configured_call(id)
+                            .expect("Valid authored call deadline");
+                    }
+                    self.ringing = Some(id);
+                    self.call_station = self.seated;
+                    self.selected = id;
+                    self.notice =
+                        "Incoming call. Aim at the telephone or use the computer to answer.".into();
+                }
+                self.next_call_at = None;
+            }
         }
     }
     pub fn damage_assessment(&self) -> i32 {

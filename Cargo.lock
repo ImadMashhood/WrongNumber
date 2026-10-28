@@ -5385,7 +5385,17 @@ dependencies = [
  "bevy",
  "serde",
  "serde_json",
+ "uuid",
+ "wrong-number-net",
  "wrong-number-sim",
+]
+
+[[package]]
+name = "wrong-number-net"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

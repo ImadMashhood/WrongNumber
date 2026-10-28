@@ -289,6 +289,7 @@ fn terminal(
             if view.state==IncidentState::Active {button(p,"Decline response",Action::Decline,running&&game.conversation==Some(game.selected)&&game.call_station==game.seated);}
         }
         button(p,"End conversation",Action::HangUp,game.conversation.is_some()&&game.call_station==game.seated);
+        if game.multiplayer {for id in game.connected.iter().copied().filter(|id|*id!=game.local_player){let d=game.desk(id);button(p,format!("Transfer to dispatcher {id}"),Action::Transfer(id),game.conversation==Some(game.selected)&&d.seated.is_some()&&d.ringing.is_none()&&d.conversation.is_none());}}
         text(p,"ASSIGN / CANCEL / REROUTE",13.0,MUTED);
         let missing:Vec<_>=[Capability::Police,Capability::Medical,Capability::Fire].into_iter().filter(|cap|!game.sim.units().values().any(|u|u.capability==*cap&&u.state==UnitState::Available)).map(cap_name).collect();
         let label=if missing.is_empty(){"Send Full Response".into()}else{format!("Full Response unavailable: {}",missing.join(", "))};
@@ -302,13 +303,75 @@ fn terminal(
     p.spawn((column(39.0),BackgroundColor(PANEL))).with_children(|p| {
         text(p,"CITY OPERATIONS",14.0,MUTED); map(p, game, image, routes);
         text(p,"SHARED RESPONSE CAPACITY",14.0,MUTED);
-        if let Some(policy)=game.sim.director_policy(){let active=game.sim.incidents().values().filter(|i|i.state==IncidentState::Active).count();let limit=policy.active_limit(game.shift);text(p,format!("Active incidents: {active} / {limit}{}",if active>=limit{" / incoming queue held"}else{""}),13.0,MUTED);}
+        if let Some(policy)=game.scaled_director(){let active=game.sim.incidents().values().filter(|i|i.state==IncidentState::Active).count();let limit=policy.active_limit(game.shift);text(p,format!("Active incidents: {active} / {limit}{}",if active>=limit{" / incoming queue held"}else{""}),13.0,MUTED);}
         text(p,format!("Recorded city damage: ${}",game.sim.review().total_damage),14.0,AMBER);
         for cap in [Capability::Police,Capability::Medical,Capability::Fire] {let total=game.sim.units().values().filter(|u|u.capability==cap).count();let available=game.sim.units().values().filter(|u|u.capability==cap&&u.state==UnitState::Available).count();text(p,format!("{}: {available} / {total} available",cap_name(cap)),14.0,cap_color(cap));}
         text(p,format!("Run funding ${} | Recovery {}s",game.funds,if game.radio {crate::city::config().radio_recovery_seconds} else {crate::city::config().recovery_seconds}),12.0,MUTED);
         for u in game.sim.units().values() {text(p,format!("{} {}: {}",cap_name(u.capability),u.id,unit_label(&u.state,game.sim.now())),13.0,cap_color(u.capability));}
         text(p,"Gather evidence. Appropriate refusals earn funding; unnecessary deployments occupy real capacity.",15.0,TEXT);
     });
+}
+fn lobby(p: &mut ChildSpawnerCommands, game: &Session, net: &crate::network::Network) {
+    p.spawn((column(65.0), BackgroundColor(PANEL)))
+        .with_children(|p| {
+            text(p, "DISPATCH ROOM / UP TO SIX PLAYERS", 26.0, TEXT);
+            text(p, format!("{} / {}", net.address, net.status), 16.0, AMBER);
+            for player in &net.players {
+                text(
+                    p,
+                    format!(
+                        "{} / dispatcher {} / {} / {}",
+                        player.name,
+                        player.id,
+                        if player.id == 1 { "HOST" } else { "DISPATCHER" },
+                        if !player.connected {
+                            "disconnected"
+                        } else if player.desk.seated.is_some() {
+                            "at workstation"
+                        } else {
+                            "standing"
+                        }
+                    ),
+                    18.0,
+                    TEXT,
+                );
+            }
+            text(
+                p,
+                format!(
+                    "Room frame {} | RTT {} ms | rejected actions {}",
+                    net.revision, net.rtt_ms, net.rejected
+                ),
+                14.0,
+                MUTED,
+            );
+            if game.phase == Phase::Lobby {
+                button(
+                    p,
+                    "Start shared shift",
+                    Action::StartShift,
+                    net.id == Some(1),
+                );
+            } else {
+                button(
+                    p,
+                    "End shared shift",
+                    Action::EndShift,
+                    net.id == Some(1) && matches!(game.phase, Phase::Running | Phase::Closing),
+                );
+            }
+            button(
+                p,
+                "Return to office / take a seat",
+                Action::Office,
+                net.id.is_some(),
+            );
+            if net.client() && net.id.is_none() {
+                button(p, "Reconnect", Action::Reconnect, true);
+            }
+            button(p, "Leave room / quit", Action::Quit, true);
+        });
+    p.spawn((column(34.0),BackgroundColor(PANEL))).with_children(|p|{text(p,"SHARED AUTHORITY",20.0,TEXT);text(p,"The host owns the clock, incidents, responders and funding. Seat claims and critical actions are validated in order.",16.0,TEXT);text(p,"Use E at a free chair. Open your monitor to answer calls. Transfer a conversation to a connected, seated, idle teammate.",16.0,MUTED);text(p,"Escape opens your local menu; the online shift keeps running.",16.0,AMBER);});
 }
 fn review(p: &mut ChildSpawnerCommands, game: &Session) {
     let result = game.sim.review();
@@ -336,7 +399,10 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session) {
                     "$50 / Improved radios\nRecovery: 15 seconds -> 10 seconds"
                 },
                 Action::BuyRadio,
-                !game.radio && !game.bought_this_review && game.funds >= 50,
+                (!game.multiplayer || game.local_player == 1)
+                    && !game.radio
+                    && !game.bought_this_review
+                    && game.funds >= 50,
             );
             button(
                 p,
@@ -346,9 +412,17 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session) {
                     "$90 / Additional patrol\nA second police unit next shift"
                 },
                 Action::BuyPolice,
-                !game.extra_police && !game.bought_this_review && game.funds >= 90,
+                (!game.multiplayer || game.local_player == 1)
+                    && !game.extra_police
+                    && !game.bought_this_review
+                    && game.funds >= 90,
             );
-            button(p, "Prepare next shift ->", Action::NextShift, true);
+            button(
+                p,
+                "Prepare next shift ->",
+                Action::NextShift,
+                !game.multiplayer || game.local_player == 1,
+            );
             button(p, "Return to office", Action::Office, true);
         });
 }
@@ -358,6 +432,7 @@ pub fn draw(
     mut game: ResMut<Session>,
     image: Res<MapImage>,
     routes: Res<crate::routes::RouteOverlay>,
+    net: Res<crate::network::Network>,
     player: Single<&Transform, With<Player>>,
 ) {
     if !game.dirty {
@@ -454,6 +529,7 @@ pub fn draw(
                     ..default()
                 })
                 .with_children(|p| match screen {
+                    Screen::Lobby => lobby(p, &game, &net),
                     Screen::Terminal => terminal(p, &game, &image, &routes),
                     Screen::CityMap => {
                         p.spawn((column(70.0), BackgroundColor(PANEL)))
@@ -466,8 +542,25 @@ pub fn draw(
                     Screen::Pause => {
                         p.spawn((column(50.0), BackgroundColor(PANEL)))
                             .with_children(|p| {
-                                text(p, "PAUSED", 32.0, TEXT);
-                                text(p, "The shift clock is stopped.", 18.0, MUTED);
+                                text(
+                                    p,
+                                    if net.online() { "ROOM MENU" } else { "PAUSED" },
+                                    32.0,
+                                    TEXT,
+                                );
+                                text(
+                                    p,
+                                    if net.online() {
+                                        "The online shift keeps running."
+                                    } else {
+                                        "The shift clock is stopped."
+                                    },
+                                    18.0,
+                                    MUTED,
+                                );
+                                if net.online() {
+                                    button(p, "Room lobby / players", Action::OpenLobby, true);
+                                }
                                 button(p, "Resume", Action::Resume, true);
                                 button(p, "Quit game", Action::Quit, true);
                             });
@@ -601,6 +694,9 @@ pub fn scroll_panels(
 fn timeline_line(event: &wrong_number_sim::EventKind) -> Option<String> {
     use wrong_number_sim::EventKind::*;
     Some(match event {
+        CallTransferred { incident, from, to } => {
+            format!("Player {from} transferred call {incident} to player {to}")
+        }
         CallArrived { incident } => format!("Call {incident} arrived"),
         CallAccepted { incident, player } => format!("Player {player} answered call {incident}"),
         FactRevealed {

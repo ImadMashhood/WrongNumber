@@ -6,11 +6,11 @@ Players work a shift in a busy dispatch office, investigate calls from unreliabl
 
 The central challenge is sound triage. A refusal can be the right call, while a credible emergency left unanswered can become much worse. Humor comes from callers, player arguments, limited resources, and consequences the game can show and explain.
 
-This repository is the project home. The solo shift is playable; M3 now adds delayed monetary consequences. AI callers, voice features, character creation, and Steam Workshop support come later, after the core loop is fun and reliable.
+This repository is the project home. The offline solo shift and direct-connect co-op prototype are playable; delayed consequences, explosions and safe road closures affect the city. AI callers, voice features, character creation, and Steam Workshop support come later, after the core loop is fun and reliable.
 
 ## Project status
 
-**M2 implemented and spec-reviewed; M3 started.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Milestones below are proposed work and acceptance criteria; they are not claims that features already exist. Scope and technical choices may change as prototypes and playtests provide evidence.
+**M3 finished; M4 implemented and locally verified for 2–6 players.** Play a solo dispatch shift in the office, investigate scripted callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. M4 has passed real multi-process and rendered host/client shifts; the two-physical-PC LAN check remains pending. See [multiplayer setup and verification](docs/multiplayer.md). Milestone checkboxes distinguish delivered work from remaining acceptance checks. Scope and technical choices may change as prototypes and playtests provide evidence.
 
 ## Design pillars
 
@@ -24,7 +24,7 @@ This repository is the project home. The solo shift is playable; M3 now adds del
 
 - **Language and engine:** Rust and Bevy for the Windows/Linux PC game.
 - **Simulation:** typed, data-driven rules for incident truth, deadlines, unit availability, travel, escalation, scoring, and upgrades. Keep game rules testable without opening a rendered scene.
-- **Networking:** server-authoritative shared state. Start with a host running the simulation for a small co-op group; choose the Bevy networking library and versions after a build and multiplayer compatibility spike.
+- **Networking:** server-authoritative shared state over a bounded, versioned TCP/JSON protocol in `crates/net`; reliable commands and public snapshots use background socket workers. See [the M4 decision](docs/multiplayer.md#architecture).
 - **Presentation:** a first-person dispatch office, interactive call terminals, a readable city map, and a stylized skyline. Simulate only the city details that affect decisions; present other activity selectively.
 - **AI and voice:** optional adapters behind a server-side boundary. The game client must not contain paid-provider credentials. Validate all generated output against known scenario facts and allowed actions.
 - **Content:** versioned data files for scenarios and, later, user-created caller packs. Treat imported text and media as untrusted data; never load executable content from a pack.
@@ -135,24 +135,24 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M4 — Cooperative multiplayer vertical slice
 
-- [ ] **Milestone status:** Not started
+- [x] **Milestone status:** Implemented — local 2/6-process shifts and reconnect verified; physical LAN acceptance pending
 
 **Purpose:** Validate that shared decision-making and resource contention work with real players.
 
 **Deliverables**
 
-- [ ] Host and client sessions for two players, followed by a test at the six-player target.
-- [ ] Shared calls and responder pools, call ownership and transfer, player presence, reconnect handling, and clear host authority.
-- [ ] Reliable network commands for dispatch, decline, transfer, upgrades, and other critical decisions; presentation updates can use suitable lower-priority replication.
-- [ ] Lobby setup and a simple way to start and end a cooperative shift.
-- [ ] Network diagnostics for command rejection, latency, disconnects, and authoritative event history.
+- [x] Host and client sessions for two players, followed by a test at the six-player target.
+- [x] Shared calls and responder pools, call ownership and transfer, player presence, reconnect handling, and clear host authority.
+- [x] Reliable network commands for dispatch, decline, transfer, upgrades, and other critical decisions; presentation updates can use suitable lower-priority replication.
+- [x] Lobby setup and a simple way to start and end a cooperative shift.
+- [x] Network diagnostics for command rejection, latency, disconnects, and authoritative event history.
 
 **Acceptance checks**
 
-- [ ] Two players cannot dispatch the same unit at the same time; the host accepts at most one valid allocation.
-- [ ] All players converge on the same incident truth, unit status, event timeline, and shift result.
-- [ ] Disconnecting a client does not corrupt the host simulation; reconnect behavior is documented and tested.
-- [ ] A whole shift can be completed by two players on separate machines.
+- [x] Two players cannot dispatch the same unit at the same time; the host accepts at most one valid allocation.
+- [x] All players converge on the same incident truth, unit status, event timeline, and shift result.
+- [x] Disconnecting a client does not corrupt the host simulation; reconnect behavior is documented and tested.
+- [ ] A whole shift can be completed by two players on separate physical machines (manual LAN check pending; separate OS processes and two rendered clients pass locally).
 
 ### M5 — Caller AI and audio, with robust fallbacks
 
@@ -279,7 +279,7 @@ From the repository directory:
 cargo run --locked
 ```
 
-The shift starts immediately in the break room. Walk behind a dispatch chair, aim at it and press **E** to sit. Look at your monitor and press **E** again to focus dispatch. Calls arrive after 1–10 seconds. **Escape** leaves computer focus while you stay seated; **Space** stands up. Use **F3** for FPS. See [the office guide](docs/office.md) for the complete flow.
+In offline solo, the shift starts immediately in the break room. Walk behind a dispatch chair, aim at it and press **E** to sit. Look at your monitor and press **E** again to focus dispatch. Calls arrive after 1–10 seconds. **Escape** leaves computer focus while you stay seated; **Space** stands up. Use **F3** for FPS. See [the office guide](docs/office.md) for the complete flow.
 
 On Linux, `bash scripts/run.sh` uses normal hardware rendering and selects the NVIDIA Vulkan driver when available. `bash scripts/run.sh --low-graphics` reduces resolution and disables shadows. `--software` explicitly selects Mesa CPU rendering with reduced graphics; it is a slow diagnostic fallback.
 
@@ -298,9 +298,24 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 ```
 
-The first compilation downloads and builds the engine and can take several minutes. Logs print to the terminal; set `RUST_LOG=info` for normal startup diagnostics or `RUST_LOG=debug` for more detail. No API credentials or downloaded assets are needed for M0.
+The first compilation downloads and builds the engine and can take several minutes. Logs print to the terminal; set `RUST_LOG=info` for normal startup diagnostics or `RUST_LOG=debug` for more detail. No API credentials are needed for offline solo or M4 multiplayer.
 
-See [the architecture decision](docs/architecture.md) for boundaries and pending networking decisions, and [asset provenance](assets/README.md) before adding external content. The two-platform CI workflow checks formatting, compilation, Clippy, and test targets; Linux CI also runs the graphical shift under Xvfb with software Vulkan.
+See [the architecture decision](docs/architecture.md) for boundaries and networking decisions, and [asset provenance](assets/README.md) before adding external content. The two-platform CI workflow checks formatting, compilation, Clippy, and test targets; Linux CI also runs the graphical shift under Xvfb with software Vulkan.
+
+## Run co-op (M4)
+
+The host starts a lobby and owns the shared shift. Up to five clients join the host's LAN address; all players need the same commit.
+
+```bash
+# Host
+cargo run --locked -- --host 0.0.0.0:47004 --name Imad
+# Another PC: replace this example with the host's LAN IPv4 address
+cargo run --locked -- --join 192.168.1.50:47004 --name Partner
+```
+
+On Linux, use `bash scripts/run.sh` followed by the same arguments for hardware-driver selection. Click **Return to office / take a seat**, use E at a free chair and monitor, then let the host click **Start shared shift** in the lobby. Escape → Room lobby opens room controls. Online menus keep the clock running. Shared responders are allocated atomically; calls can transfer to a connected, seated, idle teammate. Only the host ends shifts, buys team upgrades and starts the next day.
+
+See [the multiplayer guide](docs/multiplayer.md) for reconnects, testing and the remaining two-PC acceptance checklist. Direct LAN connectivity is implemented; Steam invitations, relay/NAT traversal and voice remain future milestones.
 
 ## Run the M1 simulation demo
 
@@ -350,7 +365,7 @@ The office now follows the supplied environment reference: a deeper brick indust
 
 Mouse look works while walking and seated. Aim at a chair and press E to sit, then aim at the monitor and press E to use dispatch. Escape returns to seated free-look; Space stands. The rear meeting-room door stays locked during the shift and opens when review becomes available. The wall map and desktop monitors share a live render target driven by the existing simulation.
 
-The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. This is a solo environment refinement; networked characters and proximity voice remain in later milestones. Road routes now drive the pilot district. The launcher no longer forces CPU rendering. The same 1440×900 room benchmark measured 58.5 FPS on the RTX 3080 versus 3.0 FPS on CPU llvmpipe (300 measured frames after 90 warm-up frames, normal graphics, VSync). This is a single-machine scene measurement. See [the environment guide](docs/environment.md).
+The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. M4 adds simple networked dispatcher avatars; proximity voice remains future work. Road routes now drive the pilot district. The launcher no longer forces CPU rendering. The same 1440×900 room benchmark measured 58.5 FPS on the RTX 3080 versus 3.0 FPS on CPU llvmpipe (300 measured frames after 90 warm-up frames, normal graphics, VSync). This is a single-machine scene measurement. See [the environment guide](docs/environment.md).
 
 ## Source brief
 

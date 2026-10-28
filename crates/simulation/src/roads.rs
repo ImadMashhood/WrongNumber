@@ -49,6 +49,16 @@ impl Journey {
             .find(|p| p.at_ms >= elapsed.saturating_mul(1000))
             .and_then(|p| p.road)
     }
+    /// Expiry/escalation runs before this tick's movement. Select the road at
+    /// the timestamp that actually produced the stored position.
+    pub fn source_road(&self, position: Position, elapsed: u32) -> Option<u32> {
+        let at = if self.position(elapsed) == position {
+            elapsed
+        } else {
+            elapsed.saturating_sub(1)
+        };
+        self.road_at(at)
+    }
     pub fn position(&self, elapsed: u32) -> Position {
         let ms = elapsed.saturating_mul(1000);
         for pair in self.points.windows(2) {

@@ -11,7 +11,7 @@ use bevy::{
 #[derive(Component)]
 pub struct Beacon(usize);
 #[derive(Component)]
-pub struct Ring;
+pub struct Ring(u32, usize);
 pub fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -40,13 +40,19 @@ pub fn update(
     game: Res<Session>,
     check: Res<LaunchCheck>,
     assets: Res<AssetServer>,
-    rings: Query<Entity, With<Ring>>,
+    rings: Query<(Entity, &Ring)>,
     mut beacons: Query<(&Beacon, &mut Visibility)>,
-    mut previous: Local<Option<(u32, usize)>>,
 ) {
-    let ringing = game.ringing.zip(game.call_station);
+    let ringing: Vec<_> = game
+        .connected
+        .iter()
+        .filter_map(|id| {
+            let desk = game.desk(*id);
+            desk.ringing.zip(desk.call_station)
+        })
+        .collect();
     for (beacon, mut visibility) in &mut beacons {
-        let next = if ringing.is_some_and(|(_, station)| station == beacon.0)
+        let next = if ringing.iter().any(|(_, station)| *station == beacon.0)
             && ((time.elapsed_secs() * 3.0) as u32).is_multiple_of(2)
         {
             Visibility::Visible
@@ -58,23 +64,27 @@ pub fn update(
         }
     }
     let sound = if check.automated()
-        || game.screen == Screen::Pause
+        || (!game.multiplayer && game.screen == Screen::Pause)
         || std::env::args().any(|a| a == "--mute")
     {
-        None
+        vec![]
     } else {
         ringing
     };
-    if *previous == sound {
-        return;
+    for (entity, ring) in &rings {
+        if !sound.contains(&(ring.0, ring.1)) {
+            commands.entity(entity).despawn();
+        }
     }
-    *previous = sound;
-    for entity in &rings {
-        commands.entity(entity).despawn();
-    }
-    if let Some((_, station)) = sound {
+    for (incident, station) in sound {
+        if rings
+            .iter()
+            .any(|(_, ring)| ring.0 == incident && ring.1 == station)
+        {
+            continue;
+        }
         commands.spawn((
-            Ring,
+            Ring(incident, station),
             AudioPlayer::new(assets.load("audio/telephone.wav")),
             PlaybackSettings::LOOP
                 .with_spatial(true)

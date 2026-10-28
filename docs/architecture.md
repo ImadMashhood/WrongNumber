@@ -26,3 +26,12 @@
 
 - M3's next slice stores `ScenarioRules` in authority snapshots and loads authored JSON from `assets/scenarios/m3_rules.json`. A pure `DirectorPolicy` controls solo pressure/budgets; source/child relations and escalation events preserve causal replay.
 - `src/city_effects.rs` consumes new live escalation events for a one-shot office flash and generated spatial boom. It ignores old fast-forwarded/closing events. Map and review views derive urgency and the follow-up link from authority state/events. Runtime road closures and skyline destruction are not yet implemented.
+
+
+## M3 completion and M4 authority decision — 2026-10-28
+
+M3 is complete for this vertical slice: recorded explosions drive facade damage, safe timed closures, rerouting, linked calls and the event review. Earlier “pending” statements above describe historical slices.
+
+M4 adds `crates/net` for bounded background TCP/JSON transport and `src/room.rs` for host-owned membership, player IDs, ordered commands, validated movement and exclusive chairs. `Session` stores independent `Desk` states around one shared simulation. `src/network.rs` integrates the room into Bevy; both the host viewport and clients consume public read-only mirrors, leaving private truth and unrevealed content in authority memory. Simple shared-mesh avatars interpolate remote poses. Offline solo still consumes the same original rules directly.
+
+The TCP spike passed two/six-process full-shift and reconnect checks. It avoids engine-plugin version coupling at the cost of reliable-stream head-of-line blocking and full public snapshot bandwidth. Protocol version 1 includes bounded queues, frame/rate limits, sequence acknowledgements and same-room reconnect tokens. It is a direct LAN prototype with no host migration, account service, relay or voice. See [multiplayer setup and acceptance evidence](multiplayer.md).

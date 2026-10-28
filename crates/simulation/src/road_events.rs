@@ -37,7 +37,7 @@ impl Simulation {
             };
             if u.journey
                 .as_ref()
-                .is_some_and(|j| j.road_at(elapsed) == Some(road))
+                .is_some_and(|j| j.source_road(u.position, elapsed) == Some(road))
                 && !endpoints.contains(&u.position)
             {
                 return Err(Error::NoRoute);
@@ -67,7 +67,10 @@ impl Simulation {
                 }
                 _ => continue,
             };
-            let source = u.journey.as_ref().and_then(|j| j.road_at(elapsed));
+            let source = u
+                .journey
+                .as_ref()
+                .and_then(|j| j.source_road(u.position, elapsed));
             let journey = network.route(u.position, to, u.speed_milli, source)?;
             plans.push((u.id, to, incident, journey));
         }

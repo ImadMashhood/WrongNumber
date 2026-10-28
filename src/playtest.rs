@@ -18,6 +18,7 @@ pub struct LaunchCheck {
     consequence: bool,
     escalation: bool,
     benchmark: bool,
+    network: bool,
     frames: u32,
     stage: u8,
     last: u32,
@@ -35,6 +36,7 @@ impl LaunchCheck {
             consequence: args.iter().any(|a| a == "--consequence-test"),
             escalation: args.iter().any(|a| a == "--escalation-test"),
             benchmark: args.iter().any(|a| a == "--benchmark"),
+            network: args.iter().any(|a| a == "--network-playtest"),
             frames: 0,
             stage: 0,
             last: 0,
@@ -47,7 +49,7 @@ impl LaunchCheck {
         }
     }
     pub fn automated(&self) -> bool {
-        self.playtest || self.benchmark
+        self.playtest || self.benchmark || self.network
     }
     fn capture(&self, commands: &mut Commands, name: &str) {
         if let Some(dir) = &self.capture_dir {

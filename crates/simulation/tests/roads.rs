@@ -266,3 +266,45 @@ fn blast_closures_preserve_connectivity_replan_and_reopen_without_teleporting() 
     );
     Simulation::load_json(&s.save_json().unwrap()).unwrap();
 }
+
+#[test]
+fn expiry_before_movement_uses_the_road_at_the_stored_position() {
+    let mut roads = network();
+    // Cross a junction between consecutive whole-second authority ticks.
+    for road in &mut roads.roads {
+        road.length_mm = 10_000;
+    }
+    let mut s = Simulation::new_with_config(
+        42,
+        ShiftConfig {
+            queued_calls: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    s.enable_roads(
+        roads,
+        [Position { x: 0, y: 0 }; 3],
+        [Position { x: 4, y: 4 }; 6],
+    )
+    .unwrap();
+    s.activate_call(1, 2).unwrap();
+    s.apply(1, Command::AcceptCall { incident: 1 }).unwrap();
+    s.apply(
+        1,
+        Command::Dispatch {
+            unit: 3,
+            incident: 1,
+        },
+    )
+    .unwrap();
+    s.advance(1).unwrap();
+    let unit = &s.units()[&3];
+    let journey = unit.journey.as_ref().unwrap();
+    assert_ne!(journey.road_at(1), journey.source_road(unit.position, 1));
+    s.advance(1).unwrap(); // Expiry used to panic while planning the return.
+    assert_eq!(s.incidents()[&1].state, IncidentState::Expired);
+    s.advance(30).unwrap();
+    assert_eq!(s.units()[&3].state, UnitState::Available);
+    Simulation::load_json(&s.save_json().unwrap()).unwrap();
+}

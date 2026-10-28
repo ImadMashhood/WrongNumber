@@ -1,6 +1,7 @@
 //! Authoritative, renderer-free dispatch rules. Time advances only when requested.
 pub mod consequences;
 pub mod director;
+pub mod public;
 pub mod road_events;
 pub mod roads;
 use consequences::{
@@ -178,6 +179,11 @@ fn default_speed() -> u32 {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventKind {
+    CallTransferred {
+        incident: IncidentId,
+        from: PlayerId,
+        to: PlayerId,
+    },
     RoadClosed {
         incident: IncidentId,
         road: u32,
@@ -252,6 +258,7 @@ pub struct Event {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum Command {
+    TransferCall { incident: IncidentId, to: PlayerId },
     EndCall { incident: IncidentId },
     AcceptCall { incident: IncidentId },
     Ask { incident: IncidentId, fact: String },
@@ -289,7 +296,8 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 /// Safe caller-facing data. Hidden truth, category and unanswered facts are omitted.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CallView {
     pub id: IncidentId,
     pub report: String,
@@ -327,6 +335,8 @@ pub struct ShiftResult {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "UncheckedSimulation")]
 pub struct Simulation {
+    #[serde(skip)]
+    presentation_only: bool,
     now: u32,
     seed: u64,
     incidents: BTreeMap<IncidentId, Incident>,
@@ -360,6 +370,7 @@ impl TryFrom<UncheckedSimulation> for Simulation {
     type Error = Error;
     fn try_from(raw: UncheckedSimulation) -> Result<Self, Error> {
         let sim = Self {
+            presentation_only: false,
             now: raw.now,
             seed: raw.seed,
             incidents: raw.incidents,
@@ -432,6 +443,7 @@ impl Simulation {
         })
         .collect();
         Self {
+            presentation_only: false,
             now: 0,
             seed,
             incidents,
@@ -609,7 +621,9 @@ impl Simulation {
                     u.position,
                     to,
                     u.speed_milli,
-                    u.journey.as_ref().and_then(|j| j.road_at(elapsed)),
+                    u.journey
+                        .as_ref()
+                        .and_then(|j| j.source_road(u.position, elapsed)),
                 )
             })
             .transpose()
@@ -936,10 +950,27 @@ impl Simulation {
     }
     /// Rejected commands have no side effects. Player IDs are 1 through 6.
     pub fn apply(&mut self, player: PlayerId, command: Command) -> Result<(), Error> {
+        if self.presentation_only {
+            return Err(Error::InvalidTransition);
+        }
         if !(1..=6).contains(&player) {
             return Err(Error::InvalidPlayer);
         }
         match command {
+            Command::TransferCall { incident, to } => {
+                if !(1..=6).contains(&to) || to == player {
+                    return Err(Error::InvalidPlayer);
+                }
+                if self.incident(incident)?.call != (CallState::Answered { by: player }) {
+                    return Err(Error::NotCallOwner);
+                }
+                self.incidents.get_mut(&incident).unwrap().call = CallState::Answered { by: to };
+                self.emit(EventKind::CallTransferred {
+                    incident,
+                    from: player,
+                    to,
+                });
+            }
             Command::EndCall { incident } => {
                 let i = self.incident(incident)?;
                 if !matches!(i.call,CallState::Answered{by} if by==player) {
@@ -1146,6 +1177,9 @@ impl Simulation {
     /// One grid cell per second along X then Y; deadlines are exclusive.
     /// Expiry is processed before responder work at the same timestamp.
     pub fn advance(&mut self, seconds: u32) -> Result<(), Error> {
+        if self.presentation_only {
+            return Err(Error::InvalidTransition);
+        }
         if seconds == 0 || seconds > 3600 || self.now.saturating_add(seconds) > 86_400 {
             return Err(Error::InvalidAdvance);
         }
@@ -1297,6 +1331,9 @@ impl Simulation {
     }
     /// Trusted authority snapshot, including hidden truth. Never send this to clients.
     pub fn save_json(&self) -> Result<String, Error> {
+        if self.presentation_only {
+            return Err(Error::InvalidTransition);
+        }
         serde_json::to_string_pretty(&Save {
             version: 1,
             simulation: self.clone(),
@@ -1481,6 +1518,7 @@ impl Simulation {
             last = e.at;
             let valid_player = |player| (1..=6).contains(&player);
             match &e.kind {
+                EventKind::CallTransferred{incident,from,to}=>{if !self.incidents.contains_key(incident)||!valid_player(*from)||!valid_player(*to)||from==to{return Err(invalid());}}
                 EventKind::RoadClosed{incident,road,reopen_at}=>{if self.incidents.get(incident).is_none_or(|i|!i.escalated)||self.network.as_ref().is_none_or(|n|!n.roads.iter().any(|r|r.id==*road))||*reopen_at<=e.at||*reopen_at>e.at+600{return Err(invalid());}}
                 EventKind::RoadReopened{incident,road}=>{if !self.events[..index].iter().any(|e|matches!(e.kind,EventKind::RoadClosed{incident:i,road:r,..} if i==*incident&&r==*road)){return Err(invalid());}}
                 EventKind::IncidentEscalated {

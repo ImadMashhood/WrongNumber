@@ -1,11 +1,20 @@
-//! M2 solo dispatch office, backed by the renderer-free authority simulation.
+//! Offline and host-authoritative cooperative dispatch office.
+mod bot;
 mod city;
 mod city_effects;
+mod desks;
 mod environment;
 mod game;
+mod headless;
+mod net_playtest;
+mod network;
+mod peers;
 mod performance;
 mod phone;
 mod playtest;
+mod room;
+#[cfg(test)]
+mod room_tests;
 mod routes;
 mod ui;
 mod wall_map;
@@ -15,6 +24,14 @@ use game::{Action, Session};
 use ui::Actions;
 
 fn main() {
+    if headless::run_from_args() {
+        return;
+    }
+    let mut net = network::Network::from_args().unwrap_or_else(|error| {
+        eprintln!("Network startup: {error}");
+        std::process::exit(1)
+    });
+    let game = net.initial_game();
     let check = playtest::LaunchCheck::from_args();
     let automated = check.automated();
     let graphics = performance::Graphics::from_args();
@@ -25,8 +42,10 @@ fn main() {
     };
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.48, 0.64, 0.78)))
-        .init_resource::<Session>()
+        .insert_resource(game)
+        .insert_resource(net)
         .init_resource::<Actions>()
+        .init_resource::<net_playtest::NetPlaytest>()
         .insert_resource(check)
         .insert_resource(graphics)
         .init_resource::<performance::Frames>()
@@ -49,6 +68,7 @@ fn main() {
                 routes::setup,
                 environment::setup,
                 world::setup,
+                peers::setup,
                 phone::setup,
                 city_effects::setup,
                 performance::configure,
@@ -58,23 +78,34 @@ fn main() {
         .add_systems(
             Update,
             (
-                performance::measure,
-                ui::scale,
-                world::controls,
-                playtest::automate,
-                apply_actions,
-                world::seat_camera,
-                tick,
-                world::doors,
-                phone::update,
-                city_effects::update,
-                city_effects::damage,
-                routes::refresh,
-                wall_map::refresh,
-                ui::draw,
-                ui::scroll_panels,
-                ui::update_hud,
-                ui::hover,
+                (
+                    network::poll,
+                    performance::measure,
+                    ui::scale,
+                    world::controls,
+                    playtest::automate,
+                    apply_actions,
+                    world::seat_camera,
+                    net_playtest::run,
+                    tick,
+                    network::publish,
+                    network::correct_camera,
+                )
+                    .chain(),
+                (
+                    peers::update,
+                    world::doors,
+                    phone::update,
+                    city_effects::update,
+                    city_effects::damage,
+                    routes::refresh,
+                    wall_map::refresh,
+                    ui::draw,
+                    ui::scroll_panels,
+                    ui::update_hud,
+                    ui::hover,
+                )
+                    .chain(),
             )
                 .chain(),
         )
@@ -84,15 +115,22 @@ fn apply_actions(
     mut queue: ResMut<Actions>,
     mut game: ResMut<Session>,
     mut exit: MessageWriter<AppExit>,
+    mut net: ResMut<network::Network>,
+    player: Single<&Transform, With<world::Player>>,
 ) {
     for action in queue.0.drain(..) {
         if action == Action::Quit {
             exit.write(AppExit::Success);
+        } else if action == Action::Reconnect {
+            if let Err(error) = net.reconnect() {
+                game.notice = error;
+                game.dirty = true;
+            }
         } else {
-            game.act(action);
+            net.action(&mut game, action, network::pose(&player));
         }
     }
 }
-fn tick(time: Res<Time<Real>>, mut game: ResMut<Session>) {
-    game.tick(time.delta_secs());
+fn tick(time: Res<Time<Real>>, mut game: ResMut<Session>, mut net: ResMut<network::Network>) {
+    net.tick(&mut game, time.delta_secs());
 }
