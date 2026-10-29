@@ -257,6 +257,7 @@ impl Room {
     }
     pub fn action(&mut self, id: u8, seq: u64, shift: u32, action: Action) -> Ack {
         let before_shift = self.game.shift;
+        let before_phase = self.game.phase;
         let Some(member) = self.members.get(&id) else {
             return Ack {
                 seq,
@@ -286,6 +287,7 @@ impl Room {
                     | Action::BuyRadio
                     | Action::BuyPolice
                     | Action::NextShift
+                    | Action::NewRun
                     | Action::Quit
             )
         {
@@ -336,7 +338,12 @@ impl Room {
             if matches!(action, Action::Stand) && seat.is_none() {
                 member.pose = member.standing;
             }
-            if matches!(action, Action::NextShift) || self.game.shift != before_shift {
+            if matches!(action, Action::NextShift | Action::NewRun)
+                || self.game.shift != before_shift
+                || (before_phase != Phase::Review
+                    && self.game.phase == Phase::Review
+                    && self.game.break_lobby)
+            {
                 self.ready_holds.clear();
                 for member in self.members.values_mut() {
                     member.pose = Pose::spawn(member.id);
@@ -426,8 +433,11 @@ impl Room {
             self.game.mark_ready(id);
         }
         let shift = self.game.shift;
+        let phase = self.game.phase;
         self.game.tick(seconds);
-        if shift != self.game.shift {
+        if shift != self.game.shift
+            || (phase != Phase::Review && self.game.phase == Phase::Review && self.game.break_lobby)
+        {
             self.ready_holds.clear();
             for m in self.members.values_mut() {
                 m.pose = Pose::spawn(m.id);

@@ -182,23 +182,26 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 
 ### M6 — Progression, accessibility, and repeat play
 
-- [ ] **Milestone status:** Not started
+- [ ] **Milestone status:** Implementation and automated acceptance complete; human conversation/fairness playtest sign-off remains open.
 
 **Purpose:** Improve long-term variety and make the game usable by more players.
 
 **Deliverables**
 
-- [ ] Multiple shifts per run, increasing scenario variety, funding, upgrades, and clear reset boundaries between runs and permanent unlocks.
-- [ ] Accessibility settings for subtitles, text size, color cues, audio levels, input remapping, and reduced screen shake.
-- [ ] Settings and versioned local persistence for progress and preferences.
-- [ ] Playtest sessions that measure whether clues are understandable, decisions feel fair, and shift length supports conversation.
+- [x] Multiple shifts per run, director workload/variety ramp, funding, radio/patrol upgrades, and explicit new-run reset boundaries. A B/A review unlocks a permanent cosmetic profile commendation; it never changes dispatch rules.
+- [x] Accessibility settings for caller subtitles, 100–130% interface/text size, high-contrast text, status labels alongside color cues, audio levels, input remapping, and reduced motion/incident flashes. Camera shake is not used.
+- [x] Versioned, atomic local progress and preference files. Solo and graphical host restore the last shift boundary/review; joining players use host authority. Mid-shift conversations are not resumed.
+- [x] Automated rendered shifts, settings persistence checks, review evidence checks, real local speech playback and multiplayer/reconnect sessions.
+- [ ] Human playtest sessions measuring clue comprehension, perceived fairness and whether ten-minute shifts leave enough conversational time. See [M6 validation protocol](docs/reviews/m6-validation.md).
 
 **Acceptance checks**
 
-- [ ] Players can identify why a call was scored as it was from the review evidence.
-- [ ] Settings persist across restart and can be changed without losing run data.
-- [ ] New runs and upgrades add meaningful choices without invalidating basic scenarios.
-- [ ] Performance and usability targets are written down and measured on representative hardware.
+- [x] Reviews retain per-call point reasons, decisions, timing and damage before the host chooses an upgrade and the next shift. Everyone returns to the break room; the review no longer disappears automatically.
+- [x] Settings persist across restart separately from run data. Unsupported progress versions are preserved and reported.
+- [x] New runs clear team funds/upgrades; career commendations remain cosmetic. Recovery/patrol upgrades retain the original incident and routing rules.
+- [x] Performance and usability targets, automated measurements and remaining human/device checks are recorded in the validation report.
+
+The October 29 polish also adds decorative street traffic, drifting clouds, layered surrounding buildings, façade trim/windows/drainage, distance-filtered brickwork, a simulation-clock day/night cycle and jointed low-poly dispatcher models. Street traffic is cosmetic; emergency units still use the supplied road graph. Pocket TTS now supplies local caller voices; see [local speech setup](docs/local-tts.md).
 
 ### M7 — Caller creation and local content packs
 
@@ -312,7 +315,7 @@ Normal play draws from [300 complaints](docs/design/complaint-catalogue.md), wit
 
 Answer a call, click **Type a question...**, type and press **Enter**. Caller replies, subtitles and evidence use the same authority rules in solo/co-op. Authored question buttons remain available. Live dialogue requires the configured service; it never falls back to scripted replies. The AI writes an opening statement and natural replies from the selected fixed scenario; the host controls truth and outcomes.
 
-Caller speech can use [local Piper neural TTS](docs/local-tts.md), now configured on the development PC, or a replaceable TTS adapter. With a configured local STT adapter, answer the phone and speak naturally. Voice activation sends a local transcription after a short pause; the phone has a mute/unmute button. Optional transcript review lets you edit before pressing Enter. Voice activation is **on during answered calls**; saved audio remains **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
+Caller speech can use [local Pocket neural TTS](docs/local-tts.md), now configured on the development PC, or a replaceable TTS adapter. With a configured local STT adapter, answer the phone and speak naturally. Voice activation sends a local transcription after a short pause; the phone has a mute/unmute button. Optional transcript review lets you edit before pressing Enter. Voice activation is **on during answered calls**; saved audio remains **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
 
 For OpenRouter or another compatible provider, start `cargo run --locked -p wrong-number-caller-server` with a locally configured key and explicit model, then pass `--caller-service 127.0.0.1:47005` to the solo/co-op host. Clients need no key. See [setup, limits, privacy and verification](docs/callers.md); a live GPT-4o request is verified; physical microphone/listening quality still needs playtesting.
 

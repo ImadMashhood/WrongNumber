@@ -8,7 +8,7 @@ Start the game normally. Sit with E, focus your monitor with E and answer a ring
 
 The caller's introduction and replies appear as subtitles and in the shared case transcript. Facts become evidence only after the host validates a reply against that caller's authored knowledge. Replies come from the configured provider. Authored question buttons send their question through that same service; they do not disclose facts offline. Cancelling a pending response prevents its later result from revealing facts. Hanging up, transferring, disconnecting or starting another shift invalidates old responses.
 
-Caller speech uses local `espeak-ng` when installed, otherwise subtitles remain available (audio-device failures do not synthesize a different caller). Linux can install it through the distribution package manager. `--mute` suppresses automatic caller/ring/city audio. Audio settings in the terminal or Escape menu select microphone input, caller output and caller volume. Device choices/volume are session settings; persistence and expanded accessibility settings remain M6.
+The configured launcher uses local Pocket TTS. An unconfigured raw executable can use `espeak-ng` when installed; subtitles remain available if audio fails (audio-device failures do not synthesize a different caller). `--mute` suppresses automatic caller/ring/city audio. Audio settings in the terminal or Escape menu select microphone input, caller output and caller volume. Device choices/volume and accessibility preferences persist separately from M6 run checkpoints.
 
 ## Optional OpenRouter / compatible provider
 
@@ -49,7 +49,7 @@ Implementation references: [OpenRouter structured outputs](https://openrouter.ai
 Speech adapters are executable files invoked directly, without a shell:
 
 - `--stt-command PATH`: receives `INPUT.wav OUTPUT.txt`; writes a UTF-8 question of at most 1024 bytes.
-- `--tts-command PATH`: receives `INPUT.txt OUTPUT.wav`; writes a supported PCM WAV. The configured launcher selects local Piper; without an adapter the executable tries `espeak-ng` with fixed arguments. See [neural TTS setup](local-tts.md).
+- `--tts-command PATH`: receives `INPUT.txt OUTPUT.wav`; writes a supported PCM WAV. The configured launcher selects local Pocket TTS; without an adapter the executable tries `espeak-ng` with fixed arguments. See [neural TTS setup](local-tts.md).
 
 The supplied `tools/speech/transcribe.py` uses Faster Whisper on CPU with a pre-downloaded local model. Create a Python virtual environment, install `tools/speech/requirements.txt`, download a compatible model and use a small executable wrapper that selects that environment and sets `WRONG_NUMBER_STT_MODEL` to its model folder. The script never downloads a model during gameplay. See [Faster Whisper's installation/model documentation](https://github.com/SYSTRAN/faster-whisper). The model/runtime are optional local dependencies and are not committed.
 
@@ -109,4 +109,4 @@ Preferences live in ignored `.wrong-number/settings.json`: voice mode, caller vo
 
 ## Psychology and continuity
 
-The provider now uses contract version 4, including bounded behavioral proposals. See [psychology/investigation](caller-psychology.md) for private state, locked disclosures, public provenance, transfer continuity and session memory. Dispatch and incident deadlines no longer automatically end an answered call. Piper is now the configured faster local speech engine; see [speech setup](local-tts.md).
+The provider now uses contract version 4, including bounded behavioral proposals. See [psychology/investigation](caller-psychology.md) for private state, locked disclosures, public provenance, transfer continuity and session memory. Dispatch and incident deadlines no longer automatically end an answered call. Pocket TTS is now the configured local speech engine; see [speech setup](local-tts.md).

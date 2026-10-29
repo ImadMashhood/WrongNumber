@@ -77,6 +77,7 @@ pub enum Action {
     BuyRadio,
     BuyPolice,
     NextShift,
+    NewRun,
     Coffee,
 }
 #[derive(Resource)]
@@ -647,6 +648,22 @@ impl Session {
             }
             Action::BuyRadio => self.buy(true),
             Action::BuyPolice => self.buy(false),
+            Action::NewRun if self.phase == Phase::Review => {
+                let service = self.dialogue.service;
+                let fixture = self.dialogue.fixture;
+                let multiplayer = self.multiplayer;
+                let connected = self.connected.clone();
+                let player = self.local_player;
+                *self = Self::default();
+                self.dialogue.service = service;
+                self.dialogue.fixture = fixture;
+                self.multiplayer = multiplayer;
+                self.connected = connected;
+                self.local_player = player;
+                self.staging_lobby();
+                self.notice =
+                    "New run: funding and team upgrades reset. Career commendations remain.".into();
+            }
             Action::NextShift if self.phase == Phase::Review => {
                 let service = self.dialogue.service;
                 let fixture = self.dialogue.fixture;
@@ -830,9 +847,17 @@ impl Session {
             self.notice = "Shift complete. The rear meeting-room door is unlocked.".into();
             if self.break_lobby {
                 self.phase = Phase::Review;
-                self.act(Action::NextShift);
-                self.notice =
-                    "Shift complete. Back in the break room; hold E at the door when ready.".into();
+                self.ready.clear();
+                self.seated = None;
+                self.ringing = None;
+                self.conversation = None;
+                self.call_station = None;
+                self.reset_desks();
+                self.screen = Screen::Review;
+                for desk in self.desks.values_mut() {
+                    desk.screen = Screen::Review;
+                }
+                self.notice = "Shift complete. Review the evidence and funding before preparing the next shift.".into();
             }
         }
     }

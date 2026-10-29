@@ -23,6 +23,10 @@ struct Report {
 }
 pub fn run_from_args() -> bool {
     let args: Vec<_> = std::env::args().collect();
+    if args.iter().any(|a| a == "--progress-test") {
+        crate::progression::check_launch();
+        return true;
+    }
     if !args.iter().any(|a| a == "--headless-host" || a == "--bot") {
         return false;
     }

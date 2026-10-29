@@ -155,9 +155,10 @@ pub fn build(b: &mut Builder) {
     b.block(
         Paint::Plastic,
         Vec3::new(0.0, -9.0, 0.0),
-        Vec3::new(65.0, 0.2, 65.0),
+        Vec3::new(160.0, 0.2, 160.0),
     );
     b.commands.spawn((
+        super::street::Sun,
         DirectionalLight {
             illuminance: 6_000.0,
             shadow_maps_enabled: true,

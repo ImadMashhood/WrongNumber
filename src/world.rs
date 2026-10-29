@@ -89,7 +89,13 @@ pub fn seat_camera(
     mut seating: ResMut<Seating>,
     mut player: Single<&mut Transform, With<Player>>,
     mut shift: Local<u32>,
+    mut last_phase: Local<Option<Phase>>,
 ) {
+    if game.break_lobby && game.phase == Phase::Review && *last_phase != Some(Phase::Review) {
+        seating.stand(&mut player);
+        **player = break_spawn();
+    }
+    *last_phase = Some(game.phase);
     if *shift != game.shift {
         if *shift != 0 {
             seating.stand(&mut player);

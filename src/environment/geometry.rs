@@ -1,6 +1,6 @@
 use bevy::{
     asset::RenderAssetUsages,
-    image::{ImageAddressMode, ImageSampler, ImageSamplerDescriptor},
+    image::{ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
     mesh::{Indices, VertexAttributeValues},
     prelude::*,
     render::render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat},
@@ -92,9 +92,43 @@ impl Palette {
                 TextureFormat::Rgba8UnormSrgb,
                 RenderAssetUsages::default(),
             );
+            // Real mip levels prevent tiny mortar lines shimmering at street distance.
+            let mut all = data.clone();
+            let mut level = data;
+            let mut width = 128usize;
+            let mut levels = 1;
+            while width > 1 {
+                let next_width = width / 2;
+                let mut next = vec![0u8; next_width * next_width * 4];
+                for y in 0..next_width {
+                    for x in 0..next_width {
+                        for c in 0..4 {
+                            let mut sum = 0u32;
+                            for dy in 0..2 {
+                                for dx in 0..2 {
+                                    sum += u32::from(
+                                        level[((2 * y + dy) * width + 2 * x + dx) * 4 + c],
+                                    );
+                                }
+                            }
+                            next[(y * next_width + x) * 4 + c] = (sum / 4) as u8;
+                        }
+                    }
+                }
+                all.extend_from_slice(&next);
+                level = next;
+                width = next_width;
+                levels += 1;
+            }
+            image.data = Some(all);
+            image.texture_descriptor.mip_level_count = levels;
             image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
                 address_mode_u: ImageAddressMode::Repeat,
                 address_mode_v: ImageAddressMode::Repeat,
+                mag_filter: ImageFilterMode::Linear,
+                min_filter: ImageFilterMode::Linear,
+                mipmap_filter: ImageFilterMode::Linear,
+                anisotropy_clamp: 8,
                 ..default()
             });
             let mut material = materials.get_mut(&out[index]).unwrap();
@@ -137,9 +171,36 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
         self.rotated(p, pos, size, Quat::IDENTITY)
     }
     pub fn rotated(&mut self, p: Paint, pos: Vec3, size: Vec3, rotation: Quat) -> Entity {
+        let mesh = if matches!(p, Paint::Brick) {
+            let mut mesh = Mesh::from(Cuboid::default());
+            let normals = match mesh.attribute(Mesh::ATTRIBUTE_NORMAL).unwrap() {
+                VertexAttributeValues::Float32x3(v) => v.clone(),
+                _ => unreachable!(),
+            };
+            let vertices = match mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap() {
+                VertexAttributeValues::Float32x3(v) => v.clone(),
+                _ => unreachable!(),
+            };
+            if let Some(VertexAttributeValues::Float32x2(uvs)) =
+                mesh.attribute_mut(Mesh::ATTRIBUTE_UV_0)
+            {
+                for ((uv, n), v) in uvs.iter_mut().zip(normals).zip(vertices) {
+                    *uv = if n[1].abs() > 0.5 {
+                        [v[0] * size.x / 0.72, v[2] * size.z / 0.72]
+                    } else if n[0].abs() > 0.5 {
+                        [v[2] * size.z / 0.72, -v[1] * size.y / 0.72]
+                    } else {
+                        [v[0] * size.x / 0.72, -v[1] * size.y / 0.72]
+                    };
+                }
+            }
+            self.meshes.add(mesh)
+        } else {
+            self.cube.clone()
+        };
         self.commands
             .spawn((
-                Mesh3d(self.cube.clone()),
+                Mesh3d(mesh),
                 MeshMaterial3d(self.palette.get(p)),
                 Transform::from_translation(pos)
                     .with_scale(size)

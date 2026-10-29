@@ -174,6 +174,13 @@ impl Network {
         if let Link::Host { room, .. } = &mut self.link {
             room.game.dialogue.service = service;
         }
+        if !self.client() {
+            if let Link::Host { room, .. } = &mut self.link {
+                crate::progression::restore(&mut room.game);
+            } else {
+                crate::progression::restore(&mut game);
+            }
+        }
         match &mut self.link {
             Link::Host { room, .. } => {
                 let state = room.snapshot();
@@ -190,6 +197,7 @@ impl Network {
             _ => {}
         }
         if matches!(self.link, Link::Solo)
+            && game.phase != crate::game::Phase::Review
             && !std::env::args().any(|a| {
                 matches!(
                     a.as_str(),
@@ -354,11 +362,11 @@ impl Network {
                             if let Some(id) = self.id
                                 && state.revision > self.revision
                             {
-                                let old = (game.shift, game.seated);
+                                let old = (game.shift, game.seated, game.phase);
                                 match room::apply_snapshot(game, &state, id) {
                                     Ok(()) => {
                                         self.revision = state.revision;
-                                        if old != (game.shift, game.seated)
+                                        if old != (game.shift, game.seated, game.phase)
                                             && let Some(p) =
                                                 state.players.iter().find(|p| p.id == id)
                                         {
@@ -449,9 +457,9 @@ impl Network {
                     self.elapsed = 0.0;
                     self.changed = false;
                     let state = room.snapshot();
-                    let old = (game.shift, game.seated);
+                    let old = (game.shift, game.seated, game.phase);
                     room::apply_snapshot(game, &state, 1).unwrap();
-                    if old != (game.shift, game.seated) {
+                    if old != (game.shift, game.seated, game.phase) {
                         self.correction = Some(room.members[&1].pose);
                     }
                     self.players = state.players.clone();

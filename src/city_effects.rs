@@ -41,6 +41,7 @@ pub fn update(
     time: Res<Time<Real>>,
     game: Res<Session>,
     check: Res<LaunchCheck>,
+    prefs: Res<crate::frontend::Preferences>,
     assets: Res<AssetServer>,
     mut state: ResMut<CityEffects>,
     mut flashes: Query<&mut BackgroundColor, With<Flash>>,
@@ -80,12 +81,14 @@ pub fn update(
         }
     }
     state.cursor = game.sim.events().len();
-    let alpha =
-        if game.screen == Screen::Office && !std::env::args().any(|a| a == "--reduced-effects") {
-            (state.remaining / 0.8).powi(3) * 0.32 * state.intensity
-        } else {
-            0.0
-        };
+    let alpha = if game.screen == Screen::Office
+        && !prefs.reduced_motion
+        && !std::env::args().any(|a| a == "--reduced-effects")
+    {
+        (state.remaining / 0.8).powi(3) * 0.32 * state.intensity
+    } else {
+        0.0
+    };
     let next = BackgroundColor(Color::srgba(1.0, 0.72, 0.35, alpha));
     for mut color in &mut flashes {
         if *color != next {

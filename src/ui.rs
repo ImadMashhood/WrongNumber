@@ -269,6 +269,7 @@ pub fn map_units(game: Res<Session>, mut units: Query<(&MapUnit, &mut Node)>) {
         }
     }
 }
+#[allow(clippy::too_many_arguments)]
 fn terminal(
     p: &mut ChildSpawnerCommands,
     game: &Session,
@@ -277,6 +278,7 @@ fn terminal(
     chat: &crate::voice::ChatInput,
     voice: &crate::voice::Voice,
     portraits: &CallerPortraits,
+    prefs: &crate::frontend::Preferences,
 ) {
     let running = matches!(game.phase, Phase::Running | Phase::Closing);
     p.spawn((
@@ -624,7 +626,7 @@ fn terminal(
             })
             .with_children(|p| {
                 if let Some(id) = phone_call(game) {
-                    dispatch_phone(p, game, chat, voice, portraits, id);
+                    dispatch_phone(p, game, chat, voice, portraits, id, prefs.subtitles);
                 } else {
                     card(p, |p| {
                         text(p, "Dispatch phone", 18.0, TEXT);
@@ -712,6 +714,7 @@ fn dispatch_phone(
     voice: &crate::voice::Voice,
     portraits: &CallerPortraits,
     id: u32,
+    subtitles: bool,
 ) {
     let Ok(view) = game.sim.call_view(id) else {
         return;
@@ -864,20 +867,22 @@ fn dispatch_phone(
                         if !turn.question.is_empty() {
                             text(p, format!("YOU\n{}", turn.question), 13.0, MUTED);
                         }
-                        text(
-                            p,
-                            format!(
-                                "{}\n{}",
-                                if view.caller_name.is_empty() {
-                                    "CALLER"
-                                } else {
-                                    &view.caller_name
-                                },
-                                turn.spoken_text
-                            ),
-                            15.0,
-                            TEXT,
-                        );
+                        if subtitles {
+                            text(
+                                p,
+                                format!(
+                                    "{}\n{}",
+                                    if view.caller_name.is_empty() {
+                                        "CALLER"
+                                    } else {
+                                        &view.caller_name
+                                    },
+                                    turn.spoken_text
+                                ),
+                                15.0,
+                                TEXT,
+                            );
+                        }
                     }
                     if c.pending == Some(game.local_player) {
                         button(
@@ -1259,6 +1264,8 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session, voice: &crate::voice::Vo
                 Action::NextShift,
                 !game.multiplayer || game.local_player == 1,
             );
+            button(p, "Start new run / reset funding & upgrades", Action::NewRun, !game.multiplayer || game.local_player == 1);
+            text(p, "Progress saves at shift boundaries. New runs keep career commendations, never team upgrades.", 14.0, MUTED);
             button(p, "Return to office", Action::Office, true);
         });
 }
@@ -1310,6 +1317,7 @@ pub fn draw(
     portraits: Res<CallerPortraits>,
     mut rendered: Local<Option<(Screen, String)>>,
     menu: Res<crate::frontend::Frontend>,
+    prefs: Res<crate::frontend::Preferences>,
 ) {
     if menu.visible {
         *rendered = None;
@@ -1392,7 +1400,7 @@ pub fn draw(
                     BorderColor::all(TEXT.with_alpha(0.6)),
                 ));
             } else if screen == Screen::Terminal {
-                terminal(p, &game, &image, &routes, &chat, &voice, &portraits);
+                terminal(p, &game, &image, &routes, &chat, &voice, &portraits, &prefs);
             } else {
                 p.spawn(Node {
                     height: px(64),
@@ -1461,7 +1469,7 @@ pub fn draw(
                         });
                     }
                     Screen::Terminal => {
-                        terminal(p, &game, &image, &routes, &chat, &voice, &portraits)
+                        terminal(p, &game, &image, &routes, &chat, &voice, &portraits, &prefs)
                     }
                     Screen::CityMap => {
                         p.spawn((column(70.0), BackgroundColor(PANEL)))
@@ -1589,10 +1597,15 @@ pub fn hover(
     }
 }
 
-pub fn scale(window: Single<&Window>, mut scale: ResMut<UiScale>) {
+pub fn scale(
+    window: Single<&Window>,
+    prefs: Res<crate::frontend::Preferences>,
+    mut scale: ResMut<UiScale>,
+) {
     let value = (window.width() / 1440.0)
         .min(window.height() / 900.0)
-        .clamp(0.65, 1.25);
+        .clamp(0.65, 1.25)
+        * prefs.text_scale;
     if (scale.0 - value).abs() > 0.001 {
         scale.0 = value;
     }
@@ -2034,5 +2047,29 @@ pub fn ready_progress(
             },
             (ready.elapsed / 1.5).clamp(0.0, 1.0) * 100.0
         );
+    }
+}
+
+/// Apply contrast to newly created text and react to settings without rebuilding layout.
+#[derive(Component)]
+pub struct OriginalTextColor(Color);
+pub fn accessibility(
+    mut commands: Commands,
+    prefs: Res<crate::frontend::Preferences>,
+    mut texts: Query<(Entity, &mut TextColor, Option<&OriginalTextColor>)>,
+) {
+    for (entity, mut color, original) in &mut texts {
+        let base = original.map_or(color.0, |v| v.0);
+        if original.is_none() {
+            commands.entity(entity).insert(OriginalTextColor(base));
+        }
+        let next = if prefs.high_contrast {
+            Color::WHITE
+        } else {
+            base
+        };
+        if color.0 != next {
+            color.0 = next;
+        }
     }
 }

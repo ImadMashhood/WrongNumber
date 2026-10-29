@@ -16,6 +16,7 @@ mod peers;
 mod performance;
 mod phone;
 mod playtest;
+mod progression;
 mod room;
 #[cfg(test)]
 mod room_tests;
@@ -61,6 +62,7 @@ fn main() {
         .insert_resource(menu)
         .insert_resource(net)
         .init_resource::<Actions>()
+        .init_resource::<progression::Progress>()
         .init_resource::<world::ReadyInput>()
         .init_resource::<voice::Voice>()
         .init_resource::<voice::ChatInput>()
@@ -109,15 +111,16 @@ fn main() {
                     voice::update,
                     playtest::automate,
                     apply_actions,
-                    world::seat_camera,
+                    (world::seat_camera, environment::street::preview).chain(),
                     net_playtest::run,
                     tick,
                     network::publish,
+                    progression::update,
                     network::correct_camera,
                 )
                     .chain(),
                 (
-                    peers::update,
+                    (peers::update, environment::street::update).chain(),
                     world::doors,
                     phone::update,
                     ambience::update,
@@ -129,7 +132,7 @@ fn main() {
                     ui::draw,
                     frontend::draw,
                     frontend::verify,
-                    ui::desktop_fonts,
+                    (ui::desktop_fonts, ui::accessibility).chain(),
                     ui::desktop_values,
                     ui::audio_visuals,
                     ui::map_units,

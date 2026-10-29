@@ -1,19 +1,31 @@
 # Local neural caller voices
 
-The default on the development PC is now **Piper**, using a resident CPU model for much lower delay. Kokoro remains an optional installed alternative. There are no per-call speech API charges. Dialogue still uses the configured AI provider. Model/runtime installation requires internet once; synthesis during gameplay is local.
+The development launcher now selects **Pocket TTS 4.0.1**, one of the local engines named in Scam With Your Friends’ official 0.1.95 notes. This integration uses Kyutai’s **english_18m_2026-10** model on CPU, with two inference threads. It does not claim to reproduce the other game’s exact settings or voice assets. Whisper still handles microphone transcription; the configured cloud provider still writes dialogue.
 
 ```sh
-python3 tools/speech/install_piper.py
+python3 tools/speech/install_pocket.py
 bash scripts/run.sh
 ```
 
-Keep using the AI launcher for live callers; it delegates to the same game launcher. The installer creates a Python environment, downloads the pinned LibriTTS-R medium model/config, verifies SHA-256 hashes, and writes ignored `.wrong-number/speech.env`. This PC is already configured. Re-running `install_kokoro.py` selects Kokoro instead; engine failures never silently switch engines.
+The installer is for the current Linux CPU setup. It installs pinned Pocket/PyTorch versions into an isolated environment, downloads model dependencies, exports eight stock voice embeddings and runs a real synthesis check before atomically selecting the engine in ignored `.wrong-number/speech.env`. Internet is needed for installation only. Gameplay sets `HF_HUB_OFFLINE=1`; the warmed process uses cached models and local voice embeddings. No caller text/audio is sent to a speech API, and no speech API key is required.
 
-A warm background process loads the model once per launch. Piper assigns the 50 recurring caller IDs to 50 stable stock speaker IDs. Parodies do not clone their real-world inspirations. The service binds only loopback, requires a private per-launch token, bounds input to 512 UTF-8 bytes and WAV output to 2 MB, and logs timings rather than transcripts. It stops with the launcher. The game permits external synthesis up to 20 seconds and audio up to 60 seconds.
+The 50 personas map deterministically across eight stock voices: alba, anna, charles, george, jane, paul, marius and vera. They are not 50 unique voices, and parodies do not clone the celebrities they reference. Voice embeddings stay warm throughout a session. Missing models or synthesis failures produce visible errors, not an automatic engine switch.
 
-The same two test lines that took Kokoro 4–5 seconds generated in **0.466 seconds each** with Piper (including adapter/HTTP overhead), producing about 6.3 seconds of speech. Shorter actual in-game fixture lines generated in 0.08–0.21 seconds. These are machine-specific measurements; model and speaking duration differ. Dialogue-provider and transcription time are separate. Actual game playback was also exercised. Output routing can be set to Scarlett Solo in Settings.
+The larger April model measured 3.9–4.7 seconds for the same two caller samples; the selected small model measured approximately 1.9–2.6 seconds for 9–10.5 seconds of spoken output on this PC. The old Piper was faster at about 0.47 seconds, so this is a different voice-quality/latency tradeoff, not a claim that Pocket beats Piper on speed. These measurements exclude the dialogue provider and STT. The adapter currently generates a whole WAV before playback; upstream Pocket supports streaming, but this game adapter does not yet stream.
 
-The optional neural check uses `WRONG_NUMBER_TTS_ENGINE=piper <venv-python> tools/speech/check_kokoro.py --models <piper-model-directory> --output <directory>`. The shared daemon/check retains its original filename but supports both engines.
+The loopback service requires a private per-launch token, accepts at most 512 UTF-8 text bytes, bounds WAV output to 2 MB, logs timings rather than transcripts, and exits with the launcher. The game retains its 20-second external synthesis deadline and 60-second audio limit. It never changes the no-offline-caller-fallback rule.
+
+Validation: `WRONG_NUMBER_TTS_ENGINE=pocket <venv-python> tools/speech/check_kokoro.py --models <pocket-model-directory> --output <directory>`. The shared adapter/check retains its historical filename but now supports Pocket, Piper and Kokoro.
+
+## Sources and attribution
+
+- [Official game patch notes](https://steamcommunity.com/app/4954910?l=swedish): Pocket TTS, MOSS TTS Nano and Qwen3 are selectable voice models.
+- [Pocket TTS source/API](https://github.com/kyutai-labs/pocket-tts) and [model card](https://huggingface.co/kyutai/pocket-tts): MIT model/code licensing; see upstream notices when packaging. Runtime dependencies have their own licenses.
+- [Kyutai voice repository](https://huggingface.co/kyutai/tts-voices): Alba MacKenna casual voice, CC BY 4.0. Anna/Charles/George/Jane/Paul/Vera are VCTK voices, CC BY 4.0, from the [CSTR VCTK Corpus](https://datashare.ed.ac.uk/handle/10283/3443), with the enhanced source recordings supplied by Kyutai. Marius is a volunteer voice donation, CC0. The game derives local voice embeddings from these source recordings. Noncommercial EARS/Expresso voices are not selected.
+
+## Previously installed alternatives
+
+Piper and Kokoro remain explicitly selectable by their installers, never automatic fallbacks. Their models are local and not committed. The older Piper benchmark remains useful as a speed baseline.
 
 ## Sources and licenses
 

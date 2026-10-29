@@ -36,6 +36,11 @@ const LABELS: [&str; 8] = [
 #[derive(Resource, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Preferences {
+    pub version: u32,
+    pub text_scale: f32,
+    pub subtitles: bool,
+    pub high_contrast: bool,
+    pub reduced_motion: bool,
     pub sensitivity: f32,
     pub invert_y: bool,
     pub keys: [String; 8],
@@ -56,6 +61,11 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            version: 1,
+            text_scale: 1.0,
+            subtitles: true,
+            high_contrast: false,
+            reduced_motion: false,
             sensitivity: 1.0,
             invert_y: false,
             keys: [
@@ -138,6 +148,11 @@ impl Preferences {
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
+        p.text_scale = if p.text_scale.is_finite() {
+            p.text_scale.clamp(1.0, 1.3)
+        } else {
+            1.0
+        };
         p.sensitivity = if p.sensitivity.is_finite() {
             p.sensitivity.clamp(0.2, 3.0)
         } else {
@@ -245,6 +260,10 @@ pub enum MenuAction {
     Leave,
     Quit,
     Sensitivity(bool),
+    TextScale,
+    Subtitles,
+    Contrast,
+    Motion,
     Invert,
     RingVolume(bool),
     AmbientVolume(bool),
@@ -274,7 +293,7 @@ pub struct Frontend {
     pub rebind: Option<usize>,
     pub actions: Vec<MenuAction>,
     pub dirty: bool,
-    in_game: bool,
+    pub(crate) in_game: bool,
     return_screen: Screen,
     clipboard: Option<Mutex<arboard::Clipboard>>,
     pending: Option<Mutex<std::sync::mpsc::Receiver<Result<Network, String>>>>,
@@ -576,6 +595,26 @@ pub fn update(
                     let _ = tx.send(Network::from_options(args));
                 });
             }
+            MenuAction::TextScale => {
+                prefs.text_scale = if prefs.text_scale >= 1.29 {
+                    1.0
+                } else {
+                    prefs.text_scale + 0.1
+                };
+                save = true;
+            }
+            MenuAction::Subtitles => {
+                prefs.subtitles = !prefs.subtitles;
+                save = true;
+            }
+            MenuAction::Contrast => {
+                prefs.high_contrast = !prefs.high_contrast;
+                save = true;
+            }
+            MenuAction::Motion => {
+                prefs.reduced_motion = !prefs.reduced_motion;
+                save = true;
+            }
             MenuAction::Sensitivity(up) => {
                 prefs.sensitivity =
                     (prefs.sensitivity + if up { 0.1 } else { -0.1 }).clamp(0.2, 3.0);
@@ -756,6 +795,7 @@ fn field(p: &mut ChildSpawnerCommands, menu: &Frontend, label: &str, f: Field, v
         MenuAction::Field(f),
     );
 }
+#[allow(clippy::too_many_arguments)]
 pub fn draw(
     mut commands: Commands,
     mut menu: ResMut<Frontend>,
@@ -764,6 +804,7 @@ pub fn draw(
     chat: Res<ChatInput>,
     mut game: ResMut<Session>,
     mut previous_voice: Local<String>,
+    progress: Res<crate::progression::Progress>,
 ) {
     if !menu.visible {
         return;
@@ -839,6 +880,12 @@ pub fn draw(
                         button(p, format!("Fullscreen: {}", on_off(prefs.fullscreen)), MenuAction::Fullscreen);
                         button(p, format!("VSync: {}", on_off(prefs.vsync)), MenuAction::Vsync);
                         button(p, format!("Show FPS: {}", on_off(prefs.show_fps)), MenuAction::Fps);
+                        text(p, "ACCESSIBILITY", 22.0, white);
+                        button(p, format!("Interface size: {:.0}%", prefs.text_scale*100.0), MenuAction::TextScale);
+                        button(p, format!("Caller subtitles: {}", on_off(prefs.subtitles)), MenuAction::Subtitles);
+                        button(p, format!("High contrast: {}", on_off(prefs.high_contrast)), MenuAction::Contrast);
+                        button(p, format!("Reduced motion: {}", on_off(prefs.reduced_motion)), MenuAction::Motion);
+                        text(p, "Status labels accompany colors. Reduced motion freezes drifting clouds and avatar walk animation; camera shake is never used.", 14.0, muted);
                         button(p, "Reset settings to defaults", MenuAction::Reset);
                     }
                 }
@@ -858,6 +905,11 @@ pub fn draw(
                     ui::audio_ui(p, &voice, &chat);
                 } else {
                     text(p, "ONE ROOM. SIX DISPATCHERS.", 24.0, white);
+                    text(p, format!("Career: {} completed shifts", progress.career.completed), 16.0, muted);
+                    if progress.career.commendation {text(p, "★ COMMENDED DISPATCHER", 22.0, Color::srgb(1.0,0.78,0.25));}
+                    else {text(p, "Earn a B or A review to unlock the permanent Commended Dispatcher profile badge.", 14.0, muted);}
+                    text(p, &progress.status, 14.0, muted);
+                    text(p, "Solo / Host resumes your saved run at its last shift boundary. New runs reset team funding and upgrades; your cosmetic career badge remains.", 14.0, muted);
                     text(p, "Listen to callers. Find out what is happening. Send the right response.\n\nThe creator is the host and controls when the shared shift starts. Joining players do not need an AI API key.", 18.0, muted);
                     text(p, "Direct internet hosting\nJoin codes contain the host address; they do not provide matchmaking or bypass router settings.", 16.0, muted);
                 }
@@ -961,10 +1013,22 @@ pub fn verify(
             assert_eq!(prefs.voice_mode, 1);
             capture(&mut commands, "settings");
         }
+        128 => click(&mut commands, MenuAction::TextScale),
+        130 => click(&mut commands, MenuAction::Contrast),
+        132 => click(&mut commands, MenuAction::Motion),
+        134 => click(&mut commands, MenuAction::Subtitles),
         135 => click(&mut commands, MenuAction::Sensitivity(true)),
         145 => {
             assert!(prefs.sensitivity > 1.0);
-            assert_eq!(Preferences::load().voice_mode, 1);
+            let saved = Preferences::load();
+            assert_eq!(saved.voice_mode, 1);
+            assert!(
+                saved.text_scale > 1.0
+                    && saved.high_contrast
+                    && saved.reduced_motion
+                    && !saved.subtitles
+            );
+            capture(&mut commands, "accessibility");
             click(&mut commands, MenuAction::Back);
         }
         155 => click(&mut commands, MenuAction::Page(Page::Code)),

@@ -39,15 +39,37 @@ def validate_request(value):
 
 def serve(model_dir, state):
     import numpy as np
-    import onnxruntime as rt
     import wave
     logging.disable(logging.CRITICAL)
-    options = rt.SessionOptions()
-    options.intra_op_num_threads = 2
-    options.inter_op_num_threads = 1
-    options.log_severity_level = 3
     backend = os.environ.get("WRONG_NUMBER_TTS_ENGINE", "kokoro")
-    if backend == "piper":
+    if backend != "pocket":
+        import onnxruntime as rt
+        options = rt.SessionOptions()
+        options.intra_op_num_threads = 2
+        options.inter_op_num_threads = 1
+        options.log_severity_level = 3
+    if backend == "pocket":
+        os.environ["HF_HOME"] = str(model_dir / "cache")
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        import torch
+        from pocket_tts import TTSModel
+        from install_pocket import LANGUAGE, VOICES as POCKET_VOICES
+        torch.set_num_threads(2)
+        torch.set_num_interop_threads(1)
+        engine = TTSModel.load_model(language=LANGUAGE)
+        voices = {v: engine.get_state_for_audio_prompt(str(model_dir / (v + ".safetensors"))) for v in POCKET_VOICES}
+        def render(text, caller):
+            voice = POCKET_VOICES[(caller - 1000) % len(POCKET_VOICES)] if 1000 <= caller < 1050 else POCKET_VOICES[0]
+            samples = engine.generate_audio(voices[voice], text).cpu().numpy()
+            if not len(samples) or not np.isfinite(samples).all():
+                raise ValueError("Invalid synthesized samples")
+            pcm = (np.clip(samples, -1, 1) * 32767).astype('<i2')
+            buffer = io.BytesIO()
+            with wave.open(buffer, "wb") as wav:
+                wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(engine.sample_rate)
+                wav.writeframes(pcm.tobytes())
+            return buffer.getvalue(), len(samples) / engine.sample_rate, voice
+    elif backend == "piper":
         from piper import PiperVoice, SynthesisConfig
         from piper.config import PiperConfig
         model = model_dir / "en_US-libritts_r-medium.onnx"

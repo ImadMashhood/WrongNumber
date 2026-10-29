@@ -338,13 +338,21 @@ fn completed_shift_returns_all_players_to_breakroom_and_clears_votes() {
     act(&mut r, 1, Action::EndShift);
     for _ in 0..700 {
         r.tick(1.0);
-        if r.game.shift == 2 {
+        if r.game.phase == Phase::Review {
             break;
         }
     }
+    assert_eq!(r.game.shift, 1);
+    assert_eq!(r.game.phase, Phase::Review);
+    assert_eq!(r.game.screen, crate::game::Screen::Review);
+    assert!(r.game.ready.is_empty());
+    assert!(
+        !r.action(2, r.members[&2].last_seq + 1, 1, Action::NextShift)
+            .accepted
+    );
+    act(&mut r, 1, Action::NextShift);
     assert_eq!(r.game.shift, 2);
     assert_eq!(r.game.phase, Phase::Lobby);
-    assert!(r.game.ready.is_empty());
     for m in r.members.values() {
         assert_eq!(m.pose.position, crate::room::Pose::spawn(m.id).position);
         assert!(r.game.desk(m.id).seated.is_none());
