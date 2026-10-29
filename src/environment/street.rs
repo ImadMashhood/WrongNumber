@@ -59,8 +59,12 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
             2 => Paint::Cream,
             _ => Paint::Floor,
         },
-        Vec3::new(center.x, bottom + height / 2.0, center.y),
-        Vec3::new(size.x, height, size.y),
+        Vec3::new(
+            center.x,
+            bottom + (height + if detailed { 3.0 } else { 0.0 }) / 2.0,
+            center.y,
+        ),
+        Vec3::new(size.x, height - if detailed { 3.0 } else { 0.0 }, size.y),
     );
     b.block(
         Paint::Cream,
@@ -72,6 +76,19 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
         Vec3::new(center.x + 1.0, bottom + height + 0.7, center.y),
         Vec3::new(2.8, 1.2, 2.2),
     );
+    if detailed {
+        // Recess the ground floor so glass looks into actual space, not a solid facade.
+        b.block(
+            Paint::Plaster,
+            Vec3::new(center.x, bottom + 1.5, center.y),
+            Vec3::new(size.x - 5.0, 3.0, size.y - 5.0),
+        );
+        b.block(
+            Paint::Floor,
+            Vec3::new(center.x, bottom + 0.12, center.y),
+            Vec3::new(size.x, 0.18, size.y),
+        );
+    }
     for face in 0..4 {
         let (rot, width) = match face {
             0 => (Quat::IDENTITY, size.x),
@@ -91,6 +108,83 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
                             bottom + 1.6 + row as f32 * 3.0,
                             0.0,
                         );
+                if row == 0 && detailed {
+                    let style = (col as u32 + seed + face as u32) % 4;
+                    let at = |x, y, z| pos + rot * Vec3::new(x, y, z);
+                    // Separate door and display window, with visible frame and handle.
+                    for x in [-1.42, 0.55, 1.42] {
+                        b.rotated(
+                            Paint::Metal,
+                            at(x, -0.12, 0.12),
+                            Vec3::new(0.10, 2.85, 0.15),
+                            rot,
+                        );
+                    }
+                    b.rotated(
+                        Paint::Metal,
+                        at(0., 1.3, 0.12),
+                        Vec3::new(2.95, 0.12, 0.15),
+                        rot,
+                    );
+                    b.rotated(
+                        Paint::Glass,
+                        at(-0.43, -0.12, 0.13),
+                        Vec3::new(1.84, 2.72, 0.025),
+                        rot,
+                    );
+                    b.rotated(
+                        Paint::Glass,
+                        at(0.99, -0.12, 0.14),
+                        Vec3::new(0.78, 2.72, 0.025),
+                        rot,
+                    );
+                    b.rotated(
+                        Paint::Cream,
+                        at(0.68, -0.18, 0.23),
+                        Vec3::new(0.045, 0.36, 0.08),
+                        rot,
+                    );
+                    b.rotated(
+                        if style.is_multiple_of(2) {
+                            Paint::Green
+                        } else {
+                            Paint::Red
+                        },
+                        at(0., 1.63, 0.35),
+                        Vec3::new(2.95, 0.20, 0.8),
+                        rot,
+                    );
+                    b.rotated(
+                        Paint::Wood,
+                        at(-0.35, -0.68, -1.3),
+                        Vec3::new(1.7, 0.65, 0.55),
+                        rot,
+                    );
+                    b.rotated(
+                        Paint::Paper,
+                        at(-0.35, -0.32, -1.3),
+                        Vec3::new(1.8, 0.06, 0.65),
+                        rot,
+                    );
+                    // Bakery display, books, cafe stools or florist pots.
+                    for n in 0..3 {
+                        let x = -0.95 + n as f32 * 0.55;
+                        let (paint, size) = match style {
+                            0 => (Paint::Cream, Vec3::new(0.32, 0.20, 0.3)),
+                            1 => (Paint::Red, Vec3::new(0.16, 0.40, 0.25)),
+                            2 => (Paint::Warm, Vec3::new(0.12, 0.18, 0.12)),
+                            _ => (Paint::Green, Vec3::new(0.27, 0.5, 0.27)),
+                        };
+                        b.rotated(paint, at(x, -0.25 + size.y / 2., -1.3), size, rot);
+                    }
+                    b.rotated(
+                        Paint::Warm,
+                        at(0., 1.17, -1.2),
+                        Vec3::new(0.6, 0.06, 0.4),
+                        rot,
+                    );
+                    continue;
+                }
                 b.rotated(Paint::Metal, pos, Vec3::new(1.22, 1.75, 0.12), rot);
                 b.rotated(
                     if city_hash(row, col, face as u32 ^ seed) % 100 < 27 {
@@ -102,36 +196,6 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
                     Vec3::new(1.06, 1.58, 0.035),
                     rot,
                 );
-                if row == 0 && detailed {
-                    b.rotated(
-                        Paint::Metal,
-                        pos + normal * 0.12,
-                        Vec3::new(2.55, 2.45, 0.15),
-                        rot,
-                    );
-                    b.rotated(
-                        Paint::Cool,
-                        pos + normal * 0.22,
-                        Vec3::new(2.35, 2.20, 0.04),
-                        rot,
-                    );
-                    b.rotated(
-                        if (col as u32 + seed).is_multiple_of(2) {
-                            Paint::Green
-                        } else {
-                            Paint::Red
-                        },
-                        pos + rot * Vec3::new(0.0, 1.65, 0.4),
-                        Vec3::new(2.8, 0.25, 0.9),
-                        rot,
-                    );
-                    b.rotated(
-                        Paint::Cream,
-                        pos + rot * Vec3::new(0.0, 1.3, 0.2),
-                        Vec3::new(2.3, 0.28, 0.06),
-                        rot,
-                    );
-                }
                 if detailed {
                     b.rotated(
                         Paint::Cream,
@@ -438,48 +502,9 @@ pub fn build(b: &mut Builder) {
                     Visibility::Visible,
                 ))
                 .id();
-            for (paint, pos, size) in [
-                (
-                    if i % 3 == 0 {
-                        Paint::Red
-                    } else if i % 3 == 1 {
-                        Paint::Cool
-                    } else {
-                        Paint::Cream
-                    },
-                    Vec3::new(0.0, 0.55, 0.0),
-                    Vec3::new(1.5, 0.55, 3.2),
-                ),
-                (
-                    Paint::Plastic,
-                    Vec3::new(0.0, 1.03, -0.1),
-                    Vec3::new(1.3, 0.55, 1.7),
-                ),
-            ] {
-                let e = b.block(paint, pos, size);
-                b.commands.entity(root).add_child(e);
-            }
-            for x in [-0.75, 0.75] {
-                for z in [-1.0, 1.0] {
-                    let e = b.round(
-                        Paint::Metal,
-                        Vec3::new(x, 0.31, z),
-                        Vec3::new(0.58, 0.18, 0.58),
-                    );
-                    b.commands.entity(e).insert(
-                        Transform::from_xyz(x, 0.31, z)
-                            .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2))
-                            .with_scale(Vec3::new(0.58, 0.18, 0.58)),
-                    );
-                    b.commands.entity(root).add_child(e);
-                }
-            }
-            for x in [-0.5, 0.5] {
-                for (z, paint) in [(-1.61, Paint::Warm), (1.61, Paint::Red)] {
-                    let e = b.block(paint, Vec3::new(x, 0.55, z), Vec3::new(0.25, 0.15, 0.025));
-                    b.commands.entity(root).add_child(e);
-                }
-            }
+            let old = b.parent.replace(root);
+            vehicle(b, i);
+            b.parent = old;
         }
     }
 }
@@ -492,33 +517,106 @@ fn parked_car(b: &mut Builder, p: Vec3, yaw: f32, kind: u32) {
         ))
         .id();
     let old = b.parent.replace(root);
+    vehicle(b, kind);
+    b.parent = old;
+}
+/// Six distinct silhouettes shared by moving traffic and parking bays.
+fn vehicle(b: &mut Builder, kind: u32) {
+    let variant = kind % 6;
+    let (length, height, cabin, back): (f32, f32, f32, f32) = match variant {
+        0 => (3.5, 0.6, 1.7, 0.),    // sedan
+        1 => (2.9, 0.55, 1.55, 0.),  // compact hatch
+        2 => (4.2, 0.8, 2.8, 0.),    // SUV
+        3 => (4.6, 0.7, 3.5, 0.6),   // panel van
+        4 => (4.4, 0.65, 1.6, -0.7), // pickup
+        _ => (5.3, 0.85, 4.5, 0.45), // minibus
+    };
+    let paint = match kind % 5 {
+        0 => Paint::Red,
+        1 => Paint::Cool,
+        2 => Paint::Cream,
+        3 => Paint::Green,
+        _ => Paint::Plaster,
+    };
     b.block(
-        match kind % 4 {
-            0 => Paint::Red,
-            1 => Paint::Cool,
-            2 => Paint::Cream,
-            _ => Paint::Green,
-        },
-        Vec3::new(0.0, 0.55, 0.0),
-        Vec3::new(1.65, 0.65, 3.5),
+        paint,
+        Vec3::new(0., 0.35 + height / 2., 0.),
+        Vec3::new(1.65, height, length),
     );
     b.block(
         Paint::Plastic,
-        Vec3::new(0.0, 1.05, -0.1),
-        Vec3::new(1.4, 0.6, 1.9),
+        Vec3::new(
+            0.,
+            0.35 + height + 0.3 + back.max(0.) / 2.,
+            if variant == 4 { -0.7 } else { 0. },
+        ),
+        Vec3::new(1.42, 0.6 + back.max(0.), cabin),
     );
-    for x in [-0.8, 0.8] {
-        for z in [-1.1, 1.1] {
-            b.block(
+    b.block(
+        paint,
+        Vec3::new(
+            0.,
+            0.99 + height + back.max(0.),
+            if variant == 4 { -0.7 } else { 0. },
+        ),
+        Vec3::new(1.47, 0.08, cabin),
+    );
+    if variant == 3 {
+        b.block(paint, Vec3::new(0., 1.35, 0.8), Vec3::new(1.6, 1.4, 2.6));
+    }
+    if variant == 4 {
+        for x in [-0.75, 0.75] {
+            b.block(paint, Vec3::new(x, 1.0, 1.0), Vec3::new(0.15, 0.45, 1.8));
+        }
+    }
+    if variant == 5 {
+        for z in [-1.5, -0.5, 0.5, 1.5] {
+            for x in [-0.73, 0.73] {
+                b.block(paint, Vec3::new(x, 1.5, z), Vec3::new(0.04, 0.85, 0.07));
+            }
+        }
+    }
+    for x in [-0.81, 0.81] {
+        for z in [-length * 0.31, length * 0.31] {
+            b.rotated(
                 Paint::Metal,
-                Vec3::new(x, 0.3, z),
-                Vec3::new(0.18, 0.5, 0.5),
+                Vec3::new(x, 0.34, z),
+                Vec3::new(0.62, 0.20, 0.62),
+                Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
             );
         }
     }
-    b.parent = old;
+    for x in [-0.54, 0.54] {
+        for (z, paint) in [
+            (-length / 2. - 0.02, Paint::Warm),
+            (length / 2. + 0.02, Paint::Red),
+        ] {
+            b.block(paint, Vec3::new(x, 0.7, z), Vec3::new(0.26, 0.15, 0.03));
+        }
+    }
 }
 fn outskirts(b: &mut Builder) {
+    // Paired end-frontages occlude the ends of each road; staggered far blocks close the vista.
+    for road in GRID {
+        for end in [-104., 128.] {
+            for side in [-1., 1.] {
+                for swap in [false, true] {
+                    let c = if swap {
+                        Vec2::new(end, road + side * 17.)
+                    } else {
+                        Vec2::new(road + side * 17., end)
+                    };
+                    building(
+                        b,
+                        c,
+                        Vec2::new(24., 24.),
+                        26. + (city_hash(c.x as i32, c.y as i32, 4) % 20) as f32,
+                        false,
+                    );
+                }
+            }
+        }
+    }
     for i in 0..64 {
         let a = i as f32 * std::f32::consts::TAU / 64.0;
         let radius = 145.0 + (city_hash(i, 5, 0) % 35) as f32;
@@ -701,6 +799,7 @@ pub fn update(
     mut clear: ResMut<ClearColor>,
     sky: Query<&MeshMaterial3d<StandardMaterial>, With<Sky>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sun_clock: Local<(u32, f32)>,
 ) {
     let seconds = time.elapsed_secs();
     for (car, mut t) in &mut traffic {
@@ -727,7 +826,13 @@ pub fn update(
     {
         22.0
     } else {
-        clock_hour(game.sim.now())
+        let target = game.sim.now() as f32;
+        if sun_clock.0 != game.shift || (sun_clock.1 - target).abs() > 3. {
+            *sun_clock = (game.shift, target);
+        }
+        // Ease the integer host clock continuously instead of moving shadows in one-second jumps.
+        sun_clock.1 += (target - sun_clock.1) * (1. - (-time.delta_secs() * 3.).exp());
+        8.0 + sun_clock.1 / 600.0 * 14.0
     };
     let daylight = (((hour - 6.0) / 24.0 * std::f32::consts::TAU).sin() * 2.0).clamp(0.0, 1.0);
     for (mut light, mut t) in &mut sun {
@@ -1006,6 +1111,7 @@ mod tests {
     }
 }
 
+#[cfg(test)]
 fn clock_hour(seconds: u32) -> f32 {
     8.0 + (seconds as f32 / 600.0).clamp(0., 1.) * 14.0
 }

@@ -1,13 +1,8 @@
 //! Pooled low-poly props and articulated, host-simulated hit reactions.
-use crate::{game::Session, office_fun::LINKS};
+use crate::game::Session;
 use bevy::prelude::*;
 #[derive(Component)]
 pub struct Toy(u8);
-#[derive(Component)]
-pub struct Bone {
-    owner: u8,
-    index: usize,
-}
 pub fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -20,7 +15,6 @@ pub fn setup(
     let paper = materials.add(Color::srgb(0.85, 0.83, 0.7));
     let ceramic = materials.add(Color::srgb(0.22, 0.42, 0.48));
     let cardboard = materials.add(Color::srgb(0.46, 0.29, 0.13));
-    let head = meshes.add(Sphere::new(1.0).mesh().uv(8, 6));
     for prop in crate::office_fun::Playground::default().props {
         commands
             .spawn((
@@ -91,53 +85,8 @@ pub fn setup(
                 }
             });
     }
-    for owner in (1..=6).chain(100..105) {
-        let skin = materials.add(crate::peers::skin_color(owner));
-        let uniform = materials.add(crate::peers::shirt_color(owner));
-        for index in 0..=LINKS.len() {
-            commands
-                .spawn((
-                    Bone { owner, index },
-                    Mesh3d(if index == LINKS.len() {
-                        head.clone()
-                    } else {
-                        cube.clone()
-                    }),
-                    MeshMaterial3d(if index == LINKS.len() || matches!(index, 3 | 5) {
-                        skin.clone()
-                    } else if index >= 6 {
-                        dark.clone()
-                    } else {
-                        uniform.clone()
-                    }),
-                    Transform::default(),
-                    Visibility::Hidden,
-                ))
-                .with_children(|parent| {
-                    if index == LINKS.len() {
-                        for (pos, size) in [
-                            (Vec3::new(0.0, 0.65, 0.15), Vec3::new(1.85, 0.45, 1.5)),
-                            (Vec3::new(-1.05, 0.05, 0.0), Vec3::new(0.35, 0.8, 0.7)),
-                            (Vec3::new(-0.38, 0.15, -0.94), Vec3::new(0.15, 0.12, 0.1)),
-                            (Vec3::new(0.38, 0.15, -0.94), Vec3::new(0.15, 0.12, 0.1)),
-                        ] {
-                            parent.spawn((
-                                Mesh3d(cube.clone()),
-                                MeshMaterial3d(dark.clone()),
-                                Transform::from_translation(pos).with_scale(size),
-                            ));
-                        }
-                    }
-                });
-        }
-    }
 }
-pub fn update(
-    game: Res<Session>,
-    time: Res<Time>,
-    mut props: Query<(&Toy, &mut Transform), Without<Bone>>,
-    mut bones: Query<(&Bone, &mut Transform, &mut Visibility), Without<Toy>>,
-) {
+pub fn update(game: Res<Session>, time: Res<Time>, mut props: Query<(&Toy, &mut Transform)>) {
     for (toy, mut transform) in &mut props {
         if let Some(p) = game.fun.props.iter().find(|p| p.id == toy.0) {
             transform.translation = transform
@@ -149,40 +98,6 @@ pub fn update(
                 Quat::from_rotation_z(p.spin)
             };
         }
-    }
-    for (bone, mut transform, mut visible) in &mut bones {
-        let Some(doll) = game.fun.dolls.get(&bone.owner) else {
-            *visible = Visibility::Hidden;
-            continue;
-        };
-        let old = *transform;
-        let blend = if *visible == Visibility::Hidden {
-            1.0
-        } else {
-            (time.delta_secs() * 24.0).min(1.0)
-        };
-        *visible = Visibility::Visible;
-        if bone.index == LINKS.len() {
-            transform.translation = doll.points[0];
-            transform.scale = Vec3::new(0.155, 0.19, 0.145);
-            transform.rotation = Quat::from_rotation_arc(
-                Vec3::Y,
-                (doll.points[0] - doll.points[1]).normalize_or_zero(),
-            );
-        } else {
-            let (a, b) = LINKS[bone.index];
-            let delta = doll.points[b] - doll.points[a];
-            transform.translation = (doll.points[a] + doll.points[b]) * 0.5;
-            transform.rotation = Quat::from_rotation_arc(Vec3::Y, delta.normalize_or_zero());
-            let width = if bone.index == 1 { 0.45 } else { 0.11 };
-            transform.scale = Vec3::new(
-                width,
-                delta.length().max(0.01),
-                if bone.index == 1 { 0.27 } else { 0.14 },
-            );
-        }
-        transform.translation = old.translation.lerp(transform.translation, blend);
-        transform.rotation = old.rotation.slerp(transform.rotation, blend);
     }
 }
 

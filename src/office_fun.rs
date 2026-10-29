@@ -38,6 +38,10 @@ pub struct Doll {
     pub remaining: f32,
     #[serde(default)]
     clutch: f32,
+    rest: [Vec3; 11],
+    recovery: Option<[Vec3; 11]>,
+    delay: f32,
+    anchor: Vec3,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Playground {
@@ -51,6 +55,8 @@ pub struct Playground {
     pub jumps: BTreeMap<u8, f32>,
     #[serde(skip)]
     pub bodies: Vec<(u8, Pose)>,
+    #[serde(skip)]
+    pub recovered: BTreeMap<u8, Vec3>,
     #[serde(default)]
     serial: u32,
     #[serde(default)]
@@ -69,6 +75,8 @@ pub struct Strike {
     pub kick: bool,
     pub left: bool,
     pub target: u8,
+    pub hit: Vec3,
+    pub serial: u32,
 }
 impl Default for Playground {
     fn default() -> Self {
@@ -78,6 +86,7 @@ impl Default for Playground {
             slap_counts: Default::default(),
             jumps: Default::default(),
             bodies: Vec::new(),
+            recovered: BTreeMap::new(),
             serial: if cfg!(test) {
                 0
             } else {
@@ -231,6 +240,16 @@ impl Playground {
                         kick: *kick,
                         left: *left,
                         target: *target,
+                        hit: Vec3::new(
+                            center.x,
+                            if *kick {
+                                0.78
+                            } else {
+                                (origin.y + forward(pose).y * delta.length()).clamp(0.5, 1.72)
+                            },
+                            center.z,
+                        ),
+                        serial: self.serial,
                     },
                 );
                 let count = self
@@ -246,7 +265,8 @@ impl Playground {
                     } else {
                         forward(pose) * 8.0
                     };
-                    let mut doll = Doll::new(victim, impulse);
+                    let mut doll = Doll::new(victim, impulse).fitted(*target);
+                    doll.delay = 0.22;
                     if *kick {
                         doll.clutch = 0.55;
                     }
@@ -343,9 +363,75 @@ impl Playground {
             *t > 0.0
         });
         self.dolls.retain(|id, d| {
+            if d.delay > 0. {
+                d.delay -= STEP;
+                return true;
+            }
             d.remaining -= STEP;
-            if !players.iter().any(|(p, _)| p == id) || d.remaining <= 0.0 {
+            if !players.iter().any(|(p, _)| p == id) {
                 return false;
+            }
+            if d.remaining <= 0.0 {
+                self.recovered.insert(*id, d.anchor);
+                return false;
+            }
+            if d.remaining < 1.15 {
+                if d.recovery.is_none() {
+                    let fallen = Vec2::new(d.points[2].x, d.points[2].z);
+                    let mut candidates = Vec::new();
+                    for x in -6..=6 {
+                        for z in -6..=6 {
+                            let p = fallen + Vec2::new(x as f32 * 0.4, z as f32 * 0.4);
+                            if crate::world::walkable(p, phase)
+                                && !crate::colliders::overlaps(
+                                    Vec3::new(p.x, 0.9, p.y),
+                                    Vec3::new(0.3, 0.8, 0.3),
+                                )
+                            {
+                                candidates
+                                    .push((p.distance_squared(fallen), Vec3::new(p.x, 0., p.y)));
+                            }
+                        }
+                    }
+                    candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
+                    if let Some((_, anchor)) = candidates.first() {
+                        let offset = *anchor - d.anchor;
+                        d.rest = d.rest.map(|p| p + offset);
+                        d.anchor = *anchor;
+                    }
+                }
+                let start = *d.recovery.get_or_insert(d.points);
+                let t = (1.0 - d.remaining / 1.15).clamp(0.0, 1.0);
+                let right = (d.rest[9] - d.rest[7]).normalize_or_zero();
+                let forward = -right.cross(Vec3::Y);
+                let mut kneel = d.rest;
+                for point in kneel.iter_mut().take(3) {
+                    *point -= Vec3::Y * 0.48;
+                    *point += forward * 0.22;
+                }
+                for (elbow, hand, side) in [(3, 4, -1.), (5, 6, 1.)] {
+                    kneel[hand] = d.anchor + right * side * 0.30 + forward * 0.48 + Vec3::Y * 0.14;
+                    kneel[elbow] = (kneel[1] + kneel[hand]) * 0.5 + right * side * 0.15;
+                }
+                for (knee, foot, side) in [(7, 8, -1.), (9, 10, 1.)] {
+                    kneel[knee] = d.anchor + right * side * 0.15 + forward * 0.2 + Vec3::Y * 0.14;
+                    kneel[foot] = d.anchor + right * side * 0.15 - forward * 0.25 + Vec3::Y * 0.13;
+                }
+                let phase = if t < 0.48 {
+                    t / 0.48
+                } else {
+                    (t - 0.48) / 0.52
+                };
+                let smooth = phase * phase * (3. - 2. * phase);
+                for i in 0..11 {
+                    d.points[i] = if t < 0.48 {
+                        start[i].lerp(kneel[i], smooth)
+                    } else {
+                        kneel[i].lerp(d.rest[i], smooth)
+                    };
+                    d.points[i].y = d.points[i].y.max(0.12);
+                }
+                return true;
             }
             for i in 0..11 {
                 let old = d.points[i];
@@ -372,6 +458,34 @@ impl Playground {
                     }
                     if pb.y >= 0.12 && !solid(pb, phase) {
                         d.points[b] = pb;
+                    }
+                }
+            }
+            // Tendon-like distance limits prevent inverted elbows/knees and a folding spine.
+            // Torso/head stay stiff; extremities retain controlled flexion.
+            for _ in 0..4 {
+                for (a, b, min, max, stiffness) in [
+                    (0, 2, 0.72, 0.84, 0.95),
+                    (3, 5, 0.38, 0.72, 0.75),
+                    (7, 9, 0.20, 0.40, 0.8),
+                    (1, 4, 0.30, 0.60, 0.65),
+                    (1, 6, 0.30, 0.60, 0.65),
+                    (2, 8, 0.38, 0.70, 0.85),
+                    (2, 10, 0.38, 0.70, 0.85),
+                    (1, 7, 0.70, 0.94, 0.65),
+                    (1, 9, 0.70, 0.94, 0.65),
+                ] {
+                    let delta = d.points[b] - d.points[a];
+                    let len = delta.length();
+                    if len > 0.0001 {
+                        let correction =
+                            delta * ((len - len.clamp(min, max)) / len) * 0.5 * stiffness;
+                        for (i, p) in [(a, d.points[a] + correction), (b, d.points[b] - correction)]
+                        {
+                            if p.y >= 0.12 && !solid(p, phase) {
+                                d.points[i] = p;
+                            }
+                        }
                     }
                 }
             }
@@ -454,7 +568,7 @@ impl Playground {
                 continue;
             }
             self.immunity.insert(id, 6.0);
-            self.dolls.insert(id, Doll::new(pose, impulse));
+            self.dolls.insert(id, Doll::new(pose, impulse).fitted(id));
             for p in &mut self.props {
                 if p.held == Some(id) {
                     p.held = None;
@@ -466,6 +580,20 @@ impl Playground {
     }
 }
 impl Doll {
+    fn fitted(mut self, id: u8) -> Self {
+        let origin = self.rest[2] - Vec3::Y * 0.78;
+        let facing = (self.rest[5] - self.rest[3]).normalize_or_zero();
+        let yaw = (-facing.z).atan2(facing.x);
+        let rest = crate::peers::standing(id, 0., false, false)
+            .map(|p| origin + Quat::from_rotation_y(yaw) * p);
+        for (i, p) in rest.iter().enumerate() {
+            self.previous[i] += *p - self.points[i];
+        }
+        self.points = rest;
+        self.rest = rest;
+        self.lengths = LINKS.map(|(a, b)| rest[a].distance(rest[b]));
+        self
+    }
     pub(crate) fn new(pose: Pose, impulse: Vec3) -> Self {
         let origin = Vec3::new(pose.position[0], 0.0, pose.position[2]);
         let rot = Quat::from_rotation_y(pose.yaw);
@@ -493,6 +621,10 @@ impl Doll {
             lengths,
             remaining: 2.6,
             clutch: 0.0,
+            rest: points,
+            recovery: None,
+            delay: 0.,
+            anchor: origin,
         }
     }
 }
@@ -505,6 +637,40 @@ pub fn apply(game: &mut Session, id: u8, pose: Pose, a: &Action) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn knockdown_has_contact_delay_bounded_joints_and_continuous_recovery() {
+        let pose = Pose {
+            position: [0., 1.65, 4.],
+            yaw: 0.,
+            pitch: 0.,
+        };
+        let mut fun = Playground::default();
+        let mut d = Doll::new(pose, Vec3::new(3., 4., 0.)).fitted(2);
+        d.delay = 0.22;
+        let rest = d.rest;
+        fun.dolls.insert(2, d);
+        for _ in 0..20 {
+            fun.tick(STEP, &[(2, pose)], Phase::Running);
+        }
+        assert_eq!(fun.dolls[&2].points, rest);
+        let mut saw_recovery = false;
+        for _ in 0..350 {
+            let before = fun.dolls.get(&2).map(|d| d.points);
+            fun.tick(STEP, &[(2, pose)], Phase::Running);
+            if let Some(d) = fun.dolls.get(&2) {
+                assert!(d.points.iter().all(|p| p.is_finite()));
+                if d.recovery.is_some() {
+                    saw_recovery = true;
+                    if let Some(b) = before {
+                        assert!(b[0].distance(d.points[0]) < 0.15);
+                    }
+                }
+            }
+        }
+        assert!(saw_recovery);
+        assert!(!fun.down(2));
+    }
+
     fn pose(x: f32, z: f32) -> Pose {
         Pose {
             position: [x, 1.65, z],

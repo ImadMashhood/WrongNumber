@@ -22,7 +22,7 @@ See the [caller psychology and investigation design](docs/caller-psychology.md) 
 2. **The simulation owns the truth.** Caller dialogue can be mistaken or deceptive, but it cannot change an incident's established facts.
 3. **Consequences are visible and traceable.** Important simulation events appear in the map, the city, and the shift review.
 4. **Coordination matters.** Players share calls and limited response units; simultaneous actions must resolve consistently.
-5. **Disconnections stay real.** Lost players leave the room; failed AI connections end the caller conversation without bot or scripted substitution.
+5. **Disconnections stay real.** Lost players leave the room; AI failures leave the phone line open with a retry error, without bot or scripted substitution.
 
 ## Proposed technical direction
 
@@ -425,3 +425,14 @@ The desktop now has wallpaper, app shortcuts, a taskbar and separate Resources/S
 - [x] Caller social-intent prompt improvements and one bounded live rewrite for recognized incoherent or unsupported replies. No scripted replacement and no automatic hangup.
 
 Protocol **10** requires all peers to update. Caller prompts are compiled into the caller service: restart the game/service after updating. The exterior is decorative scenery; authoritative dispatch continues on the supplied road graph.
+
+### Character and street revision (protocol 11)
+
+- [x] One persistent visual rig through standing, hits, knockdown and animated recovery; retained colors/accessories and more varied faces/builds/heights.
+- [x] Aimed slaps, pelvis-directed kicks, impact foley, constrained limbs and recovery onto nearby clear floor.
+- [x] Separated pedestrian circuits with smooth turning; six traffic/parked vehicle silhouettes.
+- [x] Transparent shop fronts with doors, counters/displays; paired road-end buildings and smooth sun/shadow motion.
+- [x] Glass-safe interaction outlines and removal of detached NPC ear geometry.
+- [x] Fixed caller observation-time/knowledge-limit facts and multi-question response coverage, with live regression cases.
+
+Restart the game and caller service using the normal launcher after updating. All multiplayer peers need protocol 11. OpenRouter outages/rate limits leave calls open for retry. See the latest [gameplay-loop review](docs/reviews/gameplay-loop.md) for validation and remaining limits.

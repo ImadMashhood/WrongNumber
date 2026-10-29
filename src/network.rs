@@ -368,11 +368,22 @@ impl Network {
                             if let Some(id) = self.id
                                 && state.revision > self.revision
                             {
-                                let old = (game.shift, game.seated, game.phase);
+                                let old = (
+                                    game.shift,
+                                    game.seated,
+                                    game.phase,
+                                    game.fun.down(game.local_player),
+                                );
                                 match room::apply_snapshot(game, &state, id) {
                                     Ok(()) => {
                                         self.revision = state.revision;
-                                        if old != (game.shift, game.seated, game.phase)
+                                        if old
+                                            != (
+                                                game.shift,
+                                                game.seated,
+                                                game.phase,
+                                                game.fun.down(game.local_player),
+                                            )
                                             && let Some(p) =
                                                 state.players.iter().find(|p| p.id == id)
                                         {
@@ -476,9 +487,21 @@ impl Network {
                     self.elapsed = 0.0;
                     self.changed = false;
                     let state = room.snapshot();
-                    let old = (game.shift, game.seated, game.phase);
+                    let old = (
+                        game.shift,
+                        game.seated,
+                        game.phase,
+                        game.fun.down(game.local_player),
+                    );
                     room::apply_snapshot(game, &state, 1).unwrap();
-                    if old != (game.shift, game.seated, game.phase) {
+                    if old
+                        != (
+                            game.shift,
+                            game.seated,
+                            game.phase,
+                            game.fun.down(game.local_player),
+                        )
+                    {
                         self.correction = Some(room.members[&1].pose);
                     }
                     self.players = state.players.clone();

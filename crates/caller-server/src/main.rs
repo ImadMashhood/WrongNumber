@@ -29,7 +29,7 @@ fn schema(c: &Context) -> serde_json::Value {
             properties["behavior"]["properties"][field] = serde_json::json!({"type":"null"});
         }
     } else {
-        properties["fact_references"]["maxItems"] = serde_json::json!(3);
+        properties["fact_references"]["maxItems"] = serde_json::json!(8);
         if c.facts.is_empty() {
             properties["fact_references"]["maxItems"] = serde_json::json!(0);
         } else {
@@ -47,6 +47,21 @@ fn schema(c: &Context) -> serde_json::Value {
 fn quality_issue(c: &Context, r: &Reply) -> Option<&'static str> {
     let q = c.question.to_lowercase();
     let reply = r.spoken_text.to_lowercase();
+    if [
+        "i already told you",
+        "what more do you need",
+        "as i already said",
+    ]
+    .iter()
+    .any(|v| reply.contains(v))
+        && ["where", "when", "how long", "details", "did you"]
+            .iter()
+            .any(|v| q.contains(v))
+    {
+        return Some(
+            "The dispatcher asked for details. Answer each new question using supplied facts, including location/timing when asked. State unknown details plainly. Do not complain that you already answered or repeat the initial report.",
+        );
+    }
     let social = [
         "are you single",
         "flirting",
@@ -253,13 +268,16 @@ impl Provider {
                 messages.push(serde_json::json!({"role":"system","content":hint}));
             }
         }
+        if c.kind == TurnKind::Conversation {
+            messages.push(serde_json::json!({"role":"system","content":"Before writing dialogue, identify the concrete questions in the latest user message. Answer every one from the provided facts; use a brief explicit unknown where information is absent. Do not treat requests for details as hostility. Use up to four short sentences if needed. Do not repeat the initial report in place of an answer. Fact references must include only the IDs supporting what you actually say (at most eight)."}));
+        }
         if feedback.is_some() {
             messages.push(serde_json::json!({"role":"system","content":"Your previous attempt failed validation or duplicated earlier wording and was not delivered. Obey the response schema exactly. For Opening: fact_references must be [], call_complete false, and all three behavior fields must be null. For Conversation: behavior.quote must be an exact excerpt from the latest dispatcher message or null; IDs must come from the supplied facts. Write a genuinely different in-character response to the latest dispatcher message. Change the conversational move, not just the first two words. Acknowledge frustration, explain a misunderstanding, ask one useful question, or establish a personal boundary as appropriate. Preserve all incident facts. Return the required JSON."}));
         }
         if let Some(reason) = feedback {
             messages.push(serde_json::json!({"role":"system","content":format!("FINAL REWRITE REQUIREMENT: {reason} The latest dispatcher message is the one you must answer. Keep the reply brief and natural.")}));
         }
-        let mut body = serde_json::json!({"model":self.model,"messages":messages,"max_tokens":256,"temperature":0.85,"response_format":schema(c),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
+        let mut body = serde_json::json!({"model":self.model,"messages":messages,"max_tokens":384,"temperature":0.85,"response_format":schema(c),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
         if !self.endpoint.starts_with("https://openrouter.ai/") {
             body.as_object_mut()?.remove("provider");
         }
@@ -450,7 +468,7 @@ mod tests {
                 let mut bytes = vec![0; len];
                 reader.read_exact(&mut bytes).unwrap();
                 let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-                assert_eq!(body["max_tokens"], 256);
+                assert_eq!(body["max_tokens"], 384);
                 assert_eq!(body["response_format"]["type"], "json_schema");
                 let mut c: Context =
                     serde_json::from_str(body["messages"][1]["content"].as_str().unwrap()).unwrap();

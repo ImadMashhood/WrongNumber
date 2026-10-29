@@ -470,6 +470,13 @@ impl Room {
             .map(|(id, m)| (*id, m.pose))
             .collect();
         self.game.fun.tick(seconds, &poses, self.game.phase);
+        for (id, p) in std::mem::take(&mut self.game.fun.recovered) {
+            if id >= 100 {
+                self.game.fun.staff.recover(id, p);
+            } else if let Some(m) = self.members.get_mut(&id) {
+                m.pose.position = [p.x, 1.65, p.z];
+            }
+        }
         let now = std::time::Instant::now();
         let mut completed = vec![];
         self.ready_holds.retain(|id, (start, last)| {

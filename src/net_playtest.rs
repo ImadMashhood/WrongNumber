@@ -68,7 +68,7 @@ pub fn run(
     mut game: ResMut<Session>,
     mut player: Single<&mut Transform, With<Player>>,
     buttons: Query<(Entity, &UiAction)>,
-    avatars: Query<&Visibility, With<crate::peers::Avatar>>,
+    avatars: Query<&Visibility, With<crate::peers::PlayerAvatar>>,
     mut commands: Commands,
     mut exit: MessageWriter<AppExit>,
     mut queue: ResMut<Actions>,

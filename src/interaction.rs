@@ -11,12 +11,22 @@ pub fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMateri
         ..default()
     })));
 }
+#[allow(clippy::too_many_arguments)]
 pub fn outline(
     mut commands: Commands,
     game: Res<crate::game::Session>,
     camera: Single<&Transform, With<crate::world::Player>>,
     material: Res<OutlineMaterial>,
-    objects: Query<(&Mesh3d, &GlobalTransform, &InheritedVisibility), Without<Outline>>,
+    materials: Res<Assets<StandardMaterial>>,
+    objects: Query<
+        (
+            &Mesh3d,
+            &MeshMaterial3d<StandardMaterial>,
+            &GlobalTransform,
+            &InheritedVisibility,
+        ),
+        Without<Outline>,
+    >,
     old: Query<Entity, With<Outline>>,
     mut previous: Local<Option<crate::game::Action>>,
 ) {
@@ -63,8 +73,11 @@ pub fn outline(
         _ => None,
     };
     if let Some((center, size)) = bounds {
-        for (mesh, global, visible) in &objects {
-            if visible.get()
+        for (mesh, surface, global, visible) in &objects {
+            if materials
+                .get(&surface.0)
+                .is_some_and(|m| matches!(m.alpha_mode, AlphaMode::Opaque | AlphaMode::Mask(_)))
+                && visible.get()
                 && (global.translation() - center)
                     .abs()
                     .cmple(size / 2.0)

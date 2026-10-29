@@ -54,7 +54,21 @@ fn generated_truth_distinguishes_false_reports_from_genuine_minor_complaints() {
             assert_eq!(i.truth, Truth::Benign);
             assert_eq!(i.consequence, consequences::ConsequenceModel::default());
         }
-        assert_eq!(i.facts.len(), 3);
+        let fake = i.case_brief.as_ref().unwrap().false_report;
+        assert_eq!(i.facts.len(), if fake { 3 } else { 5 });
+        if !fake {
+            assert!(
+                i.facts
+                    .iter()
+                    .any(|f| f.id == "timing" && f.answer.contains("before calling"))
+            );
+            assert!(
+                i.facts
+                    .iter()
+                    .filter(|f| f.id == "timing" || f.id == "limits")
+                    .all(|f| f.evidence == Evidence::Unclear)
+            );
+        }
         assert!(i.caller_name.len() > 3);
     }
 }

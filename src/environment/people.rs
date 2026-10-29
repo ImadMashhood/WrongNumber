@@ -1,26 +1,13 @@
 //! Decorative walkers only: no desk ownership, calls, money or simulation actions.
 use super::geometry::{Builder, Paint};
 use bevy::prelude::*;
-#[derive(Component)]
-pub struct Walker {
-    index: u8,
-    staff: bool,
-}
-#[derive(Component)]
-pub struct WalkingLimb {
-    side: f32,
-    joint: bool,
-    arm: bool,
-    staff: bool,
-    index: u8,
-}
 pub const ROW_Z: f32 = -4.6;
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct StaffState {
     pub position: Vec3,
     pub yaw: f32,
-    seated: bool,
-    moving: bool,
+    pub seated: bool,
+    pub moving: bool,
     wait: f32,
     seat: usize,
     returning: bool,
@@ -108,6 +95,16 @@ impl Default for StaffCrowd {
     }
 }
 impl StaffCrowd {
+    pub fn recover(&mut self, id: u8, p: Vec3) {
+        if let Some(m) = self.members.get_mut((id - 100) as usize) {
+            m.position = p;
+            m.seated = false;
+            m.moving = false;
+            m.wait = 2.0;
+            m.route.clear();
+        }
+    }
+
     fn new(mut rng: u64) -> Self {
         if rng == 0 {
             rng = 1;
@@ -247,157 +244,6 @@ pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
         b.chair(Vec3::new(*x, 0.0, 1.05), 0.0);
         b.parent = old;
     }
-    for staff in [false, true] {
-        for i in 0..if staff { 5 } else { 20 } {
-            let root = b
-                .commands
-                .spawn((
-                    Walker { index: i, staff },
-                    Transform::default(),
-                    Visibility::Visible,
-                ))
-                .id();
-            let old = b.parent.replace(root);
-            b.block(
-                if i % 3 == 0 {
-                    Paint::Cool
-                } else if i % 3 == 1 {
-                    Paint::Green
-                } else {
-                    Paint::Red
-                },
-                Vec3::new(0.0, 1.12, 0.0),
-                Vec3::new(0.42, 0.53, 0.25),
-            );
-            b.round(
-                Paint::Cream,
-                Vec3::new(0.0, 1.58, 0.0),
-                Vec3::new(0.28, 0.32, 0.27),
-            );
-            b.block(
-                Paint::Metal,
-                Vec3::new(0.0, 1.73, 0.03),
-                Vec3::new(0.29, 0.08, 0.25),
-            );
-            if staff {
-                b.block(
-                    Paint::Paper,
-                    Vec3::new(0.1, 1.17, -0.135),
-                    Vec3::new(0.09, 0.12, 0.012),
-                );
-            }
-            for x in [-0.055, 0.055] {
-                b.block(
-                    Paint::Metal,
-                    Vec3::new(x, 1.62, -0.137),
-                    Vec3::new(0.025, 0.025, 0.012),
-                );
-            }
-            b.parent = Some(root);
-            b.block(
-                Paint::Metal,
-                Vec3::new(0.0, 0.84, 0.0),
-                Vec3::new(0.41, 0.10, 0.26),
-            );
-            b.round(
-                Paint::Cream,
-                Vec3::new(0.0, 1.42, 0.0),
-                Vec3::new(0.12, 0.16, 0.12),
-            );
-            b.block(
-                Paint::Cream,
-                Vec3::new(0.0, 1.58, -0.15),
-                Vec3::new(0.055, 0.07, 0.045),
-            );
-            for side in [-1.0, 1.0] {
-                b.round(
-                    Paint::Cream,
-                    Vec3::new(side * 0.145, 1.6, 0.0),
-                    Vec3::new(0.065, 0.10, 0.06),
-                );
-                for arm in [false, true] {
-                    let upper = if arm { 0.25 } else { 0.34 };
-                    let lower = if arm { 0.25 } else { 0.34 };
-                    let limb = b
-                        .commands
-                        .spawn((
-                            WalkingLimb {
-                                side,
-                                joint: false,
-                                arm,
-                                staff,
-                                index: i,
-                            },
-                            Transform::from_xyz(
-                                side * if arm { 0.29 } else { 0.12 },
-                                if arm { 1.32 } else { 0.82 },
-                                0.0,
-                            ),
-                            Visibility::Inherited,
-                        ))
-                        .id();
-                    b.commands.entity(root).add_child(limb);
-                    b.parent = Some(limb);
-                    b.round(
-                        if arm { Paint::Cream } else { Paint::Plastic },
-                        Vec3::ZERO,
-                        Vec3::splat(0.16),
-                    );
-                    b.block(
-                        if arm {
-                            if i % 3 == 0 {
-                                Paint::Cool
-                            } else if i % 3 == 1 {
-                                Paint::Green
-                            } else {
-                                Paint::Red
-                            }
-                        } else {
-                            Paint::Plastic
-                        },
-                        Vec3::new(0.0, -upper / 2.0, 0.0),
-                        Vec3::new(0.16, upper, 0.18),
-                    );
-                    let joint = b
-                        .commands
-                        .spawn((
-                            WalkingLimb {
-                                side,
-                                joint: true,
-                                arm,
-                                staff,
-                                index: i,
-                            },
-                            Transform::from_xyz(0.0, -upper, 0.0),
-                            Visibility::Inherited,
-                        ))
-                        .id();
-                    b.commands.entity(limb).add_child(joint);
-                    b.parent = Some(joint);
-                    b.round(
-                        if arm { Paint::Cream } else { Paint::Plastic },
-                        Vec3::ZERO,
-                        Vec3::splat(0.14),
-                    );
-                    b.block(
-                        if arm { Paint::Cream } else { Paint::Plastic },
-                        Vec3::new(0.0, -lower / 2.0, 0.0),
-                        Vec3::new(0.13, lower, 0.15),
-                    );
-                    b.block(
-                        if arm { Paint::Cream } else { Paint::Metal },
-                        Vec3::new(0.0, -lower, if arm { 0.0 } else { -0.07 }),
-                        if arm {
-                            Vec3::new(0.13, 0.1, 0.12)
-                        } else {
-                            Vec3::new(0.19, 0.12, 0.31)
-                        },
-                    );
-                }
-            }
-            b.parent = old;
-        }
-    }
 }
 pub fn rectangle(distance: f32, min: Vec2, max: Vec2) -> (Vec3, f32) {
     let w = max.x - min.x;
@@ -414,96 +260,41 @@ pub fn rectangle(distance: f32, min: Vec2, max: Vec2) -> (Vec3, f32) {
     };
     (Vec3::new(p.x, 0.0, p.y), (-dir.x).atan2(-dir.y))
 }
-pub fn update(
-    time: Res<Time>,
-    prefs: Res<crate::frontend::Preferences>,
-    game: Res<crate::game::Session>,
-    mut walkers: Query<(&Walker, &mut Transform, &mut Visibility), Without<WalkingLimb>>,
-    mut limbs: Query<(&WalkingLimb, &mut Transform), Without<Walker>>,
-) {
-    let t = time.elapsed_secs()
-        + if std::env::args().any(|a| a == "--polish-test") {
-            20.0
-        } else {
-            0.0
-        };
-    let crowd = &game.fun.staff;
-    for (w, mut pose, mut visible) in &mut walkers {
-        *visible = if w.staff && game.fun.down(100 + w.index) {
-            Visibility::Hidden
-        } else {
-            Visibility::Visible
-        };
-        let (mut p, yaw) = if w.staff {
-            let m = &crowd.members[w.index as usize];
-            (m.position, m.yaw)
-        } else {
-            rectangle(
-                t * 1.25 + w.index as f32 * 12.3,
-                if w.index.is_multiple_of(2) {
-                    Vec2::new(-67.5, -9.5)
-                } else {
-                    Vec2::new(-9.5, -67.5)
-                },
-                if w.index.is_multiple_of(2) {
-                    Vec2::new(-24.5, 33.5)
-                } else {
-                    Vec2::new(33.5, -24.5)
-                },
-            )
-        };
-        if !w.staff {
-            p.y = super::street::ROAD_Y + 0.14;
-        }
-        let blend =
-            if w.staff && pose.translation != Vec3::ZERO && pose.translation.distance(p) < 1.0 {
-                (time.delta_secs() * 14.0).min(1.0)
-            } else {
-                1.0
-            };
-        pose.translation = pose.translation.lerp(p, blend);
-        pose.rotation = pose.rotation.slerp(Quat::from_rotation_y(yaw), blend);
-    }
-    for (limb, mut pose) in &mut limbs {
-        let seated = limb.staff && crowd.members[limb.index as usize].seated;
-        let angle = if limb.joint {
-            if seated {
-                if limb.arm { 1.1 } else { -1.45 }
-            } else {
-                if limb.arm {
-                    0.2
-                } else {
-                    if prefs.reduced_motion
-                        || (limb.staff && !crowd.members[limb.index as usize].moving)
-                    {
-                        0.0
-                    } else {
-                        -(t * 6.0 + limb.side * 1.57).sin().max(0.0) * 0.5
-                    }
-                }
-            }
-        } else if seated {
-            if limb.arm {
-                0.25 + if prefs.reduced_motion {
-                    0.0
-                } else {
-                    (t * 9.0 + limb.side).sin() * 0.05
-                }
-            } else {
-                1.45
-            }
-        } else if prefs.reduced_motion || (limb.staff && !crowd.members[limb.index as usize].moving)
-        {
-            0.0
-        } else {
-            (t * 6.0).sin() * 0.35 * limb.side * if limb.arm { -1.0 } else { 1.0 }
-        };
-        pose.rotation = Quat::from_rotation_x(angle);
-    }
+/// Disjoint sidewalk circuits, evenly spaced: no opposing/crossing pedestrian streams.
+pub fn pedestrian(index: u8, seconds: f32) -> (Vec3, f32) {
+    let center = if index < 10 {
+        Vec2::new(-46., 12.)
+    } else {
+        Vec2::new(12., -46.)
+    };
+    let d = seconds * 1.45 + (index % 10) as f32 * 17.6;
+    let (mut p, _) = rectangle(d, center - Vec2::splat(22.), center + Vec2::splat(22.));
+    // A short look-ahead steers through the corner before changing heading.
+    let (ahead, _) = rectangle(
+        d + 0.65,
+        center - Vec2::splat(22.),
+        center + Vec2::splat(22.),
+    );
+    let dir = ahead - p;
+    p.y = super::street::ROAD_Y + 0.14;
+    (p, (-dir.x).atan2(-dir.z))
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pedestrian_circuits_keep_clearance_and_stay_on_sidewalks() {
+        for tick in 0..1000 {
+            let positions: Vec<_> = (0..20)
+                .map(|i| pedestrian(i, tick as f32 * 0.5).0)
+                .collect();
+            for (i, a) in positions.iter().enumerate() {
+                for b in &positions[i + 1..] {
+                    assert!(a.distance(*b) > 1.0);
+                }
+            }
+        }
+    }
     #[test]
     fn thrown_prop_knocks_down_staff_and_snapshot_preserves_it() {
         let mut toys = crate::office_fun::Playground::default();

@@ -171,7 +171,7 @@ pub fn validate(c: &Context, r: &Reply) -> bool {
         || r.spoken_text.trim().is_empty()
         || r.spoken_text.len() > 512
         || r.spoken_text.chars().any(|ch| ch.is_control())
-        || r.fact_references.len() > 3
+        || r.fact_references.len() > 8
     {
         return false;
     }

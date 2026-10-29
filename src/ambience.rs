@@ -218,6 +218,77 @@ pub fn city_update(
         }));
     }
 }
+/// Brief dry impact foley, separate from the continuous city bed.
+fn impact(kick: bool) -> Vec<u8> {
+    let rate = 16000u32;
+    let count = if kick { 4800 } else { 2400 };
+    let mut samples = Vec::new();
+    let mut rng = 17u32;
+    let mut filtered = 0.;
+    for i in 0..count {
+        let t = i as f32 / rate as f32;
+        rng = rng.wrapping_mul(1664525).wrapping_add(1013904223);
+        let noise = (rng >> 8) as f32 / 16777216. * 2. - 1.;
+        filtered = filtered * 0.55 + noise * 0.45;
+        let attack = (t / 0.003).min(1.);
+        let decay = (-t * if kick { 20. } else { 38. }).exp();
+        let body = (t * std::f32::consts::TAU * if kick { 85. } else { 180. }).sin();
+        let sample = ((filtered * 0.5 + body * 0.45) * attack * decay * 28000.) as i16;
+        samples.extend(sample.to_le_bytes());
+    }
+    let mut wav = Vec::new();
+    wav.extend(b"RIFF");
+    wav.extend((36 + samples.len() as u32).to_le_bytes());
+    wav.extend(b"WAVEfmt ");
+    wav.extend(16u32.to_le_bytes());
+    wav.extend(1u16.to_le_bytes());
+    wav.extend(1u16.to_le_bytes());
+    wav.extend(rate.to_le_bytes());
+    wav.extend((rate * 2).to_le_bytes());
+    wav.extend(2u16.to_le_bytes());
+    wav.extend(16u16.to_le_bytes());
+    wav.extend(b"data");
+    wav.extend((samples.len() as u32).to_le_bytes());
+    wav.extend(samples);
+    wav
+}
+pub fn impacts(
+    mut commands: Commands,
+    game: Res<crate::game::Session>,
+    prefs: Res<crate::frontend::Preferences>,
+    mut sources: ResMut<Assets<AudioSource>>,
+    mut cache: Local<Option<[Handle<AudioSource>; 2]>>,
+    mut seen: Local<std::collections::BTreeMap<u8, u32>>,
+    camera: Single<&Transform, With<crate::world::Player>>,
+) {
+    let handles = cache.get_or_insert_with(|| {
+        [
+            sources.add(AudioSource {
+                bytes: impact(false).into(),
+            }),
+            sources.add(AudioSource {
+                bytes: impact(true).into(),
+            }),
+        ]
+    });
+    for (id, s) in &game.fun.strikes {
+        if seen.get(id) == Some(&s.serial) || s.remaining > 0.48 {
+            continue;
+        }
+        seen.insert(*id, s.serial);
+        if std::env::args().any(|a| a == "--mute" || a == "--benchmark") {
+            continue;
+        }
+        let distance = camera.translation.distance(s.hit);
+        commands.spawn((
+            AudioPlayer::new(handles[usize::from(s.kick)].clone()),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(
+                prefs.ambient_volume * 0.75 / (1. + distance * 0.2),
+            )),
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

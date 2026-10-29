@@ -152,3 +152,24 @@ fn repeated_lines_and_cosmetic_rewrites_are_detected_but_new_reactions_are_allow
         "You're right, I haven't explained myself. I passed on a rumour without checking it."
     ));
 }
+
+#[test]
+fn multi_question_answer_can_reference_all_four_known_details() {
+    let mut c = context();
+    c.facts = (0..4)
+        .map(|i| Knowledge {
+            id: format!("detail{i}"),
+            question: "Detail?".into(),
+            answer: "Known detail".into(),
+        })
+        .collect();
+    let mut r = fixture_reply(&context());
+    r.spoken_text =
+        "It is at 12 Main Street. I noticed it three minutes ago. I do not know who went inside."
+            .into();
+    r.fact_references = c.facts.iter().map(|f| f.id.clone()).collect();
+    r.behavior = Default::default();
+    assert!(validate(&c, &r));
+    r.fact_references.push("invented".into());
+    assert!(!validate(&c, &r));
+}

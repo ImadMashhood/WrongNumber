@@ -244,7 +244,7 @@ impl Simulation {
             Severity::Major => 300,
             Severity::Critical => 180,
         };
-        let facts = vec![
+        let mut facts = vec![
             Fact {
                 id: capability_id.into(),
                 question: "What exactly have you seen or noticed?".into(),
@@ -268,6 +268,19 @@ impl Simulation {
                 evidence: Evidence::Unclear,
             },
         ];
+        if !fake {
+            // These are fixed observations, not invented by the language model on each turn.
+            facts.push(Fact {
+                id: "timing".into(), question: "When did you notice this? How long has it been happening?".into(),
+                answer: format!("I first noticed it about {} minutes before calling. I do not know the exact time it started.", 1 + (roll >> 24) % 5),
+                evidence: Evidence::Unclear,
+            });
+            facts.push(Fact {
+                id: "limits".into(), question: "What else do you know? Did you see how it started or anyone else involved?".into(),
+                answer: "I cannot establish the cause, what happened before I noticed it, or anyone's identity beyond my original observation. Anything I have not described is unknown, not confirmed absent.".into(),
+                evidence: Evidence::Unclear,
+            });
+        }
         self.incidents.insert(
             id,
             Incident {

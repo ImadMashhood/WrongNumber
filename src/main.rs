@@ -131,17 +131,17 @@ fn main() {
                     .chain(),
                 (
                     (
+                        peers::preview,
                         peers::update,
                         environment::street::update,
                         environment::street::emergency,
-                        environment::people::update,
                         office_props::preview,
                         office_props::update,
                     )
                         .chain(),
                     (world::doors, wardrobe::update, interaction::outline).chain(),
                     phone::update,
-                    (ambience::update, ambience::city_update).chain(),
+                    (ambience::update, ambience::city_update, ambience::impacts).chain(),
                     city_effects::update,
                     city_effects::damage,
                     routes::refresh,
