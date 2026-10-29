@@ -124,10 +124,10 @@ impl Session {
             return Err("Answer this call at your workstation first".into());
         }
         if (!opening && text.trim().is_empty())
-            || text.len() > 256
+            || text.len() > 1024
             || text.chars().any(|c| c.is_control() && c != '\n')
         {
-            return Err("Use 1–256 characters".into());
+            return Err("Use 1–1024 characters".into());
         }
         if self.dialogue.pending.contains_key(&id) {
             return Err("Wait for the caller or cancel the pending response".into());
@@ -167,7 +167,7 @@ impl Session {
                 c.turns
                     .iter()
                     .rev()
-                    .take(4)
+                    .take(8)
                     .collect::<Vec<_>>()
                     .into_iter()
                     .rev()
@@ -176,6 +176,7 @@ impl Session {
             })
             .unwrap_or_default();
         let context = Context {
+            previous_reply_hashes: self.dialogue.conversations.get(&id).map(|c|c.turns.iter().map(|t|wrong_number_caller::reply_hash(&t.spoken_text)).collect()).unwrap_or_default(),
             version: wrong_number_caller::VERSION,
             report: i.report.clone(),
             kind: if opening {wrong_number_caller::TurnKind::Opening}else{wrong_number_caller::TurnKind::Conversation},
@@ -299,6 +300,11 @@ impl Session {
         let (reply, source) = match response {
             Ok(r)
                 if wrong_number_caller::validate(&p.context, &r.reply)
+                    && (self.dialogue.fixture
+                        || !wrong_number_caller::repeated_reply(
+                            &p.context,
+                            &r.reply.spoken_text,
+                        ))
                     && (r.source == "provider"
                         || self.dialogue.fixture && r.source == "test fixture") =>
             {
@@ -462,7 +468,7 @@ mod tests {
     fn hung_response_drops_the_caller_and_limits_are_enforced() {
         let mut s = answered();
         assert!(s.talk(2, "what happened".into()).is_err());
-        assert!(s.talk(1, "x".repeat(257)).is_err());
+        assert!(s.talk(1, "x".repeat(1025)).is_err());
         s.talk(1, "What can you see?".into()).unwrap();
         assert!(s.talk(1, "another?".into()).is_err());
         let empty: Vec<_> = s.dialogue.rx.lock().unwrap().try_iter().collect();

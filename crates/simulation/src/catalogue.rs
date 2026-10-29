@@ -179,48 +179,10 @@ impl Simulation {
             }
         }
         let id = self.incidents.keys().next_back().copied().unwrap_or(0) + 1;
-        let names = [
-            "Alex Morgan",
-            "Sam Lee",
-            "Jordan Ellis",
-            "Casey Park",
-            "Riley Jones",
-            "Taylor Reed",
-            "Jamie Bell",
-            "Morgan Vale",
-            "Avery Brooks",
-            "Robin Lane",
-            "Drew Chen",
-            "Cameron Shah",
-            "Quinn Rivera",
-            "Blair Quinn",
-            "Jess Nolan",
-            "Parker Wells",
-            "Reese Turner",
-            "Skyler Young",
-            "Rowan Clarke",
-            "Emery Patel",
-            "Hayden Ross",
-            "Charlie Flynn",
-            "Frankie Cole",
-            "Dakota Hayes",
-        ];
-        let personalities = [
-            "frightened and trying to stay precise",
-            "irritated and impatient but cooperative",
-            "quiet, embarrassed and hesitant",
-            "chatty and easily distracted",
-            "dryly sarcastic under stress",
-            "breathless and talking in short bursts",
-            "calm but unsure what details matter",
-            "anxious and repeating the important detail",
-        ];
-        let caller_index = (roll % names.len() as u64) as usize;
-        let name = names[caller_index].to_string();
-        let persona = format!(
-            "{name}. Personality: {}. An adult local caller, with no specialist emergency-service knowledge. Keep this identity and manner stable.",
-            personalities[caller_index % personalities.len()]
-        );
+        let caller_index = (roll % crate::callers::cast().len() as u64) as usize;
+        let caller = &crate::callers::cast()[caller_index];
+        let name = caller.name.clone();
+        let persona = caller.brief();
         let false_kinds = [
             (
                 "You deliberately invented the claimed event as a prank. Maintain the reported story initially; if the dispatcher asks for direct verification, admit what you actually know. Do not invent additional victims, weapons or hazards.",
@@ -363,7 +325,7 @@ impl Simulation {
                 i.caller_name.len() <= 80
                     && i.case_brief.as_ref().is_none_or(|c| {
                         complaints().iter().any(|v| v.id == c.catalogue_id)
-                            && c.persona.len() <= 400
+                            && c.persona.len() <= 1600
                             && c.caller_private.len() <= 512
                             && c.address.len() <= 160
                             && (!c.false_report || i.truth == Truth::Benign)
@@ -388,6 +350,9 @@ impl Simulation {
         let mut i = scenarios::incidents(&mut rng).remove(4);
         let id = self.incidents.keys().next_back().copied().unwrap_or(0) + 1;
         i.id = id;
+        let caller = &crate::callers::cast()[((self.seed ^ u64::from(id)) % 50) as usize];
+        i.caller_id = caller.id;
+        i.caller_name = caller.name.clone();
         i.location = location;
         i.state = IncidentState::Pending;
         i.call = CallState::Queued;
@@ -398,7 +363,7 @@ impl Simulation {
             catalogue_id: 217,
             false_report: false,
             severity: Severity::Major,
-            persona: "An anxious adult witness near the structure explosion.".into(),
+            persona: crate::callers::cast()[((self.seed ^ u64::from(id)) % 50) as usize].brief(),
             caller_private: "The explosion really happened. Only describe the supplied observations; do not invent additional incidents.".into(),
             address,
             can_explode: false,

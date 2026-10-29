@@ -388,3 +388,11 @@ The detailed concept and initial requirements are captured in *Wrong Number: Com
 The computer displays resource availability, cash, projected shift income and damage deductions. Incoming calls open a separate phone window with a caller portrait and conversation. Answer to connect, speak naturally or type, dispatch from the phone, and use its mute or hang-up controls. Hanging up removes the window. Launch through scripts/run-with-ai.sh with your local STT adapter; the task’s normal output launcher already supplies it. Provider replies have a 20-second HTTP budget so the old four-second cutoff no longer disconnects slow openings.
 
 The desktop now has wallpaper, app shortcuts, a taskbar and separate Resources/Sound windows. The phone displays a listening timer and separate measured microphone/caller waveforms. Open **Sound** to adjust the listening limit (3–12 seconds) and noise floor, test speakers, choose an output or replay the last caller. Below-threshold background noise counts as silence and does not prolong a spoken turn.
+
+### Recurring callers and conversation fixes
+
+- 50 saved fictional identities: 40 original people and 10 clearly labelled public-persona parodies, with backstories, voices, motivations and stress reactions. Read the [cast bible](docs/design/caller-cast.md).
+- Character selection is random and independent of complaint severity/truth; each character keeps a stable ID and portrait.
+- Conversation history uses actual chat roles. Exact/cosmetic repeats get one live rewrite, charged against the same budget; there is no scripted fallback.
+- Microphone noise floor: -90 to 0 dBFS. Speech sends after two continuous seconds below it, or at the hard 12-second maximum. The time cap submits even below-threshold audio to local Whisper.
+- Clock/audio updates no longer rebuild the phone window. Explicit content changes are laid out before being swapped onscreen.

@@ -21,18 +21,61 @@ fn schema(kind: TurnKind) -> serde_json::Value {
     serde_json::json!({"type":"json_schema","json_schema":{"name":"caller_reply","strict":true,"schema":{"type":"object","additionalProperties":false,"required":["spoken_text","emotion","proposed_action","fact_references","call_complete"],"properties":{"spoken_text":{"type":"string"},"emotion":{"type":"string","enum":["Calm","Anxious","Confused","Dry"]},"proposed_action":{"type":"string","enum":actions},"fact_references":{"type":"array","items":{"type":"string"}},"call_complete":{"type":"boolean"}}}}})
 }
 impl Provider {
-    fn respond(&self, c: &Context) -> Option<Reply> {
+    fn respond(&self, c: &Context, mut reserve: impl FnMut() -> bool) -> Option<Reply> {
+        let started = Instant::now();
+        for attempt in 0..2 {
+            let remaining = Duration::from_secs(20).checked_sub(started.elapsed())?;
+            if remaining < Duration::from_secs(1) || !reserve() {
+                return None;
+            }
+            let reply = self.respond_once(c, attempt == 1, remaining)?;
+            if !repeated_reply(c, &reply.spoken_text) {
+                return Some(reply);
+            }
+            eprintln!(
+                "Caller repeated prior wording; {}.",
+                if attempt == 0 {
+                    "requesting one live rewrite"
+                } else {
+                    "disconnecting after repeated rewrite"
+                }
+            );
+        }
+        None
+    }
+    fn respond_once(&self, c: &Context, rewrite: bool, remaining: Duration) -> Option<Reply> {
         let system = include_str!("../../../assets/prompts/caller-system.txt");
-        let mut body = serde_json::json!({"model":self.model,"messages":[{"role":"system","content":system},{"role":"user","content":serde_json::to_string(c).ok()?}],"max_tokens":256,"temperature":0.65,"response_format":schema(c.kind),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
+        // Use real conversational roles instead of burying the exchange inside one JSON string.
+        // The brief remains the first user message for strict fixture inspection.
+        let mut brief = serde_json::to_value(c).ok()?;
+        brief["history"] = serde_json::json!([]);
+        let mut messages = vec![
+            serde_json::json!({"role":"system","content":system}),
+            serde_json::json!({"role":"user","content":brief.to_string()}),
+        ];
+        for (question, answer) in &c.history {
+            if !question.is_empty() {
+                messages.push(serde_json::json!({"role":"user","content":question}));
+            }
+            messages.push(serde_json::json!({"role":"assistant","content":answer}));
+        }
+        if c.kind == TurnKind::Conversation {
+            messages.push(serde_json::json!({"role":"user","content":c.question}));
+        }
+        if rewrite {
+            messages.push(serde_json::json!({"role":"system","content":"Your previous attempt duplicated earlier wording and was not delivered. Write a genuinely different in-character response to the latest dispatcher message. Change the conversational move, not just the first two words. Acknowledge frustration, explain a misunderstanding, ask one useful question, or establish a personal boundary as appropriate. Preserve all incident facts. Return the required JSON."}));
+        }
+        let mut body = serde_json::json!({"model":self.model,"messages":messages,"max_tokens":256,"temperature":0.85,"response_format":schema(c.kind),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
         if !self.endpoint.starts_with("https://openrouter.ai/") {
             body.as_object_mut()?.remove("provider");
         }
-        if serde_json::to_vec(&body).ok()?.len() > 12_000 {
+        if serde_json::to_vec(&body).ok()?.len() > 32_000 {
             return None;
         }
         let response = self
             .client
             .post(&self.endpoint)
+            .timeout(remaining)
             .bearer_auth(&self.key)
             .json(&body)
             .send()
@@ -146,29 +189,25 @@ fn main() {
         std::thread::spawn(move || {
             let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
             let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
-            let read = read_frame(&mut stream, 12_000, Duration::from_secs(2));
+            let read = read_frame(&mut stream, 20_000, Duration::from_secs(2));
             if let Ok(line) = read
                 && let Ok(c) = serde_json::from_slice::<Context>(&line)
                 && valid_context(&c)
             {
-                let allowed = {
+                let reserve = || {
                     let mut l = limits.lock().unwrap();
                     if l.0.elapsed() >= Duration::from_secs(60) {
                         l.0 = Instant::now();
                         l.1 = 0;
                     }
-                    let ok = l.1 < 30 && l.2 < max;
-                    if ok {
+                    let allowed = l.1 < 30 && l.2 < max;
+                    if allowed {
                         l.1 += 1;
                         l.2 += 1;
                     }
-                    ok
+                    allowed
                 };
-                let reply = if allowed {
-                    provider.as_ref().and_then(|p| p.respond(&c))
-                } else {
-                    None
-                };
+                let reply = provider.as_ref().and_then(|p| p.respond(&c, reserve));
                 if let Some(reply) = reply {
                     let response = ServiceReply {
                         reply,
@@ -239,6 +278,7 @@ mod tests {
     }
     fn context() -> Context {
         Context {
+            previous_reply_hashes: vec![],
             version: VERSION,
             kind: TurnKind::Conversation,
             caller_name: "Alex Morgan".into(),
@@ -258,10 +298,10 @@ mod tests {
     #[test]
     fn compatible_http_adapter_accepts_only_a_valid_structured_response() {
         let (p, t) = fixture(false);
-        assert!(p.respond(&context()).is_some());
+        assert!(p.respond(&context(), || true).is_some());
         t.join().unwrap();
         let (p, t) = fixture(true);
-        assert!(p.respond(&context()).is_none());
+        assert!(p.respond(&context(), || true).is_none());
         t.join().unwrap();
     }
 }

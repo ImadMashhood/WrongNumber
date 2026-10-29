@@ -122,7 +122,7 @@ impl Default for Voice {
             save_clips: false,
             review_speech: false,
             volume: 0.7,
-            gate_db: -36,
+            gate_db: -48,
             listen_seconds: 12,
             input_trace: Arc::new(Mutex::new(AudioTrace::default())),
             output_trace: Arc::new(Mutex::new(AudioTrace::default())),
@@ -158,7 +158,7 @@ impl Voice {
                 chat.hide_resources = !chat.hide_resources;
             }
             Action::NoiseGate(up) => {
-                self.gate_db = (self.gate_db + if *up { 3 } else { -3 }).clamp(-60, -18);
+                self.gate_db = (self.gate_db + if *up { 3 } else { -3 }).clamp(-90, 0);
                 self.stop.store(true, Ordering::Relaxed);
             }
             Action::ListenLimit(up) => {
@@ -540,7 +540,7 @@ pub fn transcribe(
     run_command(cmd, &output, 20, token, expected)?;
     let text = std::fs::read_to_string(output).map_err(|_| "No transcription produced")?;
     let text = text.trim().to_string();
-    if text.is_empty() || text.len() > 256 || text.chars().any(|c| c.is_control()) {
+    if text.is_empty() || text.len() > 1024 || text.chars().any(|c| c.is_control()) {
         return Err("No usable speech recognized; type your question instead".into());
     }
     Ok(text)
@@ -667,8 +667,27 @@ impl SpeechGate {
             self.quiet += 1;
         }
         self.frames += 1;
-        self.voiced >= 8 && self.quiet >= 40
+        self.voiced >= 8 && self.quiet >= 100
     }
+}
+fn segment_bounds(
+    samples: usize,
+    rate: u32,
+    limit: u32,
+    gate: &SpeechGate,
+    forced: bool,
+    cancelled: bool,
+) -> Option<(usize, usize)> {
+    if cancelled || samples == 0 || (!forced && gate.voiced < 8) {
+        return None;
+    }
+    let end = samples.min(rate as usize * limit as usize);
+    let begin = if forced {
+        0
+    } else {
+        gate.first.unwrap_or(0).saturating_sub(10) * (rate / 50) as usize
+    };
+    Some((begin.min(end), end))
 }
 fn capture(
     input: usize,
@@ -705,7 +724,7 @@ fn capture(
         ($ty:ty,$convert:expr) => {{
             let data = data.clone();
             let channels = usize::from(config.channels);
-            let cap = config.sample_rate as usize * 12;
+            let cap = config.sample_rate as usize * limit as usize;
             device.build_input_stream(
                 &config,
                 move |samples: &[$ty], _| {
@@ -774,22 +793,32 @@ fn capture(
         }
         std::thread::sleep(Duration::from_millis(10));
     }
+    let timed_out = at.elapsed() >= Duration::from_secs(u64::from(limit));
     drop(stream);
     {
         let mut t = trace.lock().unwrap();
         t.active = false;
         t.rms = 0.0;
+        if timed_out {
+            t.elapsed = limit as f32;
+            t.state = "Hard cutoff / sending recording to Whisper".into();
+        }
     }
     if failed.load(Ordering::Relaxed) {
         return Err("Microphone disconnected; unmute to retry.".into());
     }
-    if stop.load(Ordering::Relaxed) || gate.voiced < 8 {
-        return Ok(Vec::new());
-    }
     let data = data.lock().unwrap();
-    let begin = gate.first.unwrap_or(0).saturating_sub(10) * frame_len;
-    let end = processed.min(data.len());
-    let data = &data[begin.min(end)..end];
+    let Some((begin, end)) = segment_bounds(
+        data.len(),
+        config.sample_rate,
+        limit,
+        &gate,
+        timed_out,
+        stop.load(Ordering::Relaxed),
+    ) else {
+        return Ok(Vec::new());
+    };
+    let data = &data[begin..end];
     let pcm: Vec<i16> = (0..(data.len() * 16000 / config.sample_rate as usize))
         .map(|n| {
             let ix = n * config.sample_rate as usize / 16000;
@@ -841,6 +870,7 @@ pub fn update(
     if game.screen != Screen::Terminal {
         chat.editing = false;
     }
+    let mut submitted_this_frame = false;
     let events: Vec<_> = voice.rx.lock().unwrap().try_iter().collect();
     for e in events {
         match e {
@@ -898,6 +928,7 @@ pub fn update(
                                 "Transcription ready. Edit it, then press Enter to send.".into();
                         } else {
                             actions.0.push(Action::Talk { incident: id, text });
+                            submitted_this_frame = true;
                             chat.draft.clear();
                             chat.editing = false;
                             voice.status = "Speech transcribed and sent to the caller.".into();
@@ -949,7 +980,7 @@ pub fn update(
                 _ => {
                     if let Some(t) = &e.text {
                         for c in t.chars().filter(|c| !c.is_control()) {
-                            if chat.draft.len() + c.len_utf8() <= 256 {
+                            if chat.draft.len() + c.len_utf8() <= 1024 {
                                 chat.draft.push(c);
                             }
                         }
@@ -980,7 +1011,8 @@ pub fn update(
     }
     // Start listening only AFTER scheduling new caller audio. This prevents the
     // microphone worker from cancelling or recording the opening/reply.
-    let active = case.is_some()
+    let active = !submitted_this_frame
+        && case.is_some()
         && game.screen == Screen::Terminal
         && window.focused
         && !chat.editing
@@ -1027,7 +1059,7 @@ mod tests {
         for _ in 0..20 {
             assert!(!gate.frame(0.03, 0.01));
         }
-        for _ in 0..39 {
+        for _ in 0..99 {
             assert!(!gate.frame(0.0, 0.01));
         }
         assert!(gate.frame(0.0, 0.01));
@@ -1043,7 +1075,7 @@ mod tests {
         for _ in 0..12 {
             assert!(!gate.frame(0.08, threshold));
         }
-        for _ in 0..39 {
+        for _ in 0..99 {
             assert!(!gate.frame(0.02, threshold));
         }
         assert!(gate.frame(0.02, threshold));
@@ -1056,13 +1088,44 @@ mod tests {
             v.local_action(&mut chat, &Action::NoiseGate(true));
             v.local_action(&mut chat, &Action::ListenLimit(false));
         }
-        assert_eq!((v.gate_db, v.listen_seconds), (-18, 3));
+        assert_eq!((v.gate_db, v.listen_seconds), (0, 3));
         assert!(v.stop.load(Ordering::Relaxed));
         for _ in 0..50 {
             v.local_action(&mut chat, &Action::NoiseGate(false));
             v.local_action(&mut chat, &Action::ListenLimit(true));
         }
-        assert_eq!((v.gate_db, v.listen_seconds), (-60, 12));
+        assert_eq!((v.gate_db, v.listen_seconds), (-90, 12));
+    }
+    #[test]
+    fn hard_limit_submits_below_threshold_audio_and_never_exceeds_twelve_seconds() {
+        let gate = SpeechGate::default();
+        assert_eq!(
+            segment_bounds(16000 * 13, 16000, 12, &gate, true, false),
+            Some((0, 192000))
+        );
+        assert_eq!(
+            segment_bounds(16000 * 12, 16000, 12, &gate, false, false),
+            None
+        );
+        assert_eq!(
+            segment_bounds(16000 * 12, 16000, 12, &gate, true, true),
+            None
+        );
+    }
+    #[test]
+    fn a_short_pause_does_not_send_and_speech_resets_the_two_second_wait() {
+        let mut gate = SpeechGate::default();
+        for _ in 0..12 {
+            assert!(!gate.frame(0.1, 0.01));
+        }
+        for _ in 0..99 {
+            assert!(!gate.frame(0.0, 0.01));
+        }
+        assert!(!gate.frame(0.1, 0.01));
+        for _ in 0..99 {
+            assert!(!gate.frame(0.0, 0.01));
+        }
+        assert!(gate.frame(0.0, 0.01));
     }
     #[test]
     fn waveform_tracks_samples_without_invented_motion() {

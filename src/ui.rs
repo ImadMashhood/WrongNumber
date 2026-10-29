@@ -13,6 +13,8 @@ use wrong_number_sim::{CallState, Capability, IncidentState, UnitState};
 pub struct Actions(pub Vec<Action>);
 #[derive(Component)]
 pub struct UiRoot;
+#[derive(Component)]
+pub struct PendingUi;
 #[derive(Resource)]
 pub struct MapImage(pub Handle<Image>);
 #[derive(Resource)]
@@ -23,7 +25,7 @@ pub fn load_map(mut commands: Commands, assets: Res<AssetServer>) {
     commands.insert_resource(DesktopFont(assets.load("fonts/DesktopSans.ttf")));
     commands.insert_resource(MapImage(assets.load("city/map.png")));
     commands.insert_resource(CallerPortraits(
-        (0..24)
+        (0..50)
             .map(|n| assets.load(format!("callers/{n:02}.png")))
             .collect(),
     ));
@@ -349,17 +351,7 @@ desktop",
                     );
                 }
             });
-            text(
-                p,
-                format!(
-                    "Shift {}    {:02}:{:02}",
-                    game.shift,
-                    game.remaining() / 60,
-                    game.remaining() % 60
-                ),
-                14.0,
-                TEXT,
-            );
+            live_text(p, DesktopLive::Clock, 14.0, TEXT);
         });
         if !chat.hide_resources {
             p.spawn((
@@ -403,28 +395,10 @@ desktop",
                 ))
                 .with_children(|p| {
                     text(p, "CASH AVAILABLE", 12.0, MUTED);
-                    text(p, format!("$ {}", game.funds), 38.0, TEXT);
-                    text(
-                        p,
-                        format!(
-                            "Shift income (projected)   +$ {}",
-                            (100 + game.sim.score()).max(0)
-                        ),
-                        14.0,
-                        TEAL,
-                    );
-                    text(
-                        p,
-                        format!("Damage deductions         -$ {}", game.damage_assessment()),
-                        14.0,
-                        AMBER,
-                    );
-                    text(
-                        p,
-                        format!("Net paid at review         $ {}", game.grant()),
-                        13.0,
-                        MUTED,
-                    );
+                    live_text(p, DesktopLive::Cash, 38.0, TEXT);
+                    live_text(p, DesktopLive::Income, 14.0, TEAL);
+                    live_text(p, DesktopLive::Loss, 14.0, AMBER);
+                    live_text(p, DesktopLive::Grant, 13.0, MUTED);
                 });
                 text(p, "RESPONSE RESOURCES", 13.0, MUTED);
                 for cap in [Capability::Police, Capability::Medical, Capability::Fire] {
@@ -458,12 +432,7 @@ desktop",
                             cap_color(cap),
                         );
                         for u in game.sim.units().values().filter(|u| u.capability == cap) {
-                            text(
-                                p,
-                                format!("Unit {} / {}", u.id, unit_label(&u.state, game.sim.now())),
-                                12.0,
-                                MUTED,
-                            );
+                            live_text(p, DesktopLive::Unit(u.id), 12.0, MUTED);
                         }
                     });
                 }
@@ -509,7 +478,10 @@ desktop",
                 })
                 .with_children(|p| {
                     p.spawn((
-                        ImageNode::new(portraits.0[(view.caller_id as usize) % 24].clone()),
+                        ImageNode::new(
+                            portraits.0[(view.caller_id.saturating_sub(1000) as usize) % 50]
+                                .clone(),
+                        ),
                         Node {
                             width: px(96),
                             height: px(96),
@@ -543,17 +515,7 @@ desktop",
                             23.0,
                             TEXT,
                         );
-                        text(
-                            p,
-                            format!(
-                                "555-{:04}  /  {:02}:{:02}",
-                                100 + view.caller_id % 100,
-                                game.call_duration(id) / 60,
-                                game.call_duration(id) % 60
-                            ),
-                            13.0,
-                            MUTED,
-                        );
+                        live_text(p, DesktopLive::Call(id, view.caller_id), 13.0, MUTED);
                     });
                 });
                 if !own {
@@ -725,7 +687,7 @@ fn conversation_ui(
     p: &mut ChildSpawnerCommands,
     game: &Session,
     chat: &crate::voice::ChatInput,
-    voice: &crate::voice::Voice,
+    _voice: &crate::voice::Voice,
 ) {
     text(p, "CONVERSATION", 12.0, MUTED);
     if let Some(c) = game.dialogue.conversations.get(&game.selected) {
@@ -765,16 +727,11 @@ fn conversation_ui(
     );
     text(
         p,
-        "Speak naturally, then pause to send. Your microphone pauses while the caller speaks. You can also type a message.",
+        "Speak naturally; pause for two seconds to send. The time limit always submits. Your microphone pauses while the caller speaks. You can also type a message.",
         12.0,
         MUTED,
     );
-    text(
-        p,
-        &voice.status,
-        12.0,
-        if voice.recording { AMBER } else { MUTED },
-    );
+    live_text(p, DesktopLive::Voice, 12.0, AMBER);
 }
 fn audio_ui(
     p: &mut ChildSpawnerCommands,
@@ -811,13 +768,13 @@ fn audio_ui(
         p,
         "Raise noise floor (+3 dB)",
         Action::NoiseGate(true),
-        voice.gate_db < -18,
+        voice.gate_db < 0,
     );
     button(
         p,
         "Lower noise floor (-3 dB)",
         Action::NoiseGate(false),
-        voice.gate_db > -60,
+        voice.gate_db > -90,
     );
     text(
         p,
@@ -1047,10 +1004,42 @@ fn review(p: &mut ChildSpawnerCommands, game: &Session, voice: &crate::voice::Vo
             button(p, "Return to office", Action::Office, true);
         });
 }
+
+fn desktop_key(
+    game: &Session,
+    chat: &crate::voice::ChatInput,
+    voice: &crate::voice::Voice,
+) -> String {
+    serde_json::json!({
+        "phase":game.phase,"selected":game.selected,"ringing":game.ringing,"conversation":game.conversation,
+        "seated":game.seated,"shift":game.shift,
+        "units":game.sim.units().values().map(|u|(u.id,&u.state)).collect::<Vec<_>>(),
+        "call":game.sim.call_view(game.selected).ok(),
+        "dialogue":game.dialogue.conversations.get(&game.selected),
+        "chat":(&chat.draft,chat.editing,chat.settings,chat.hide_resources),
+        "voice":(voice.enabled,voice.review_speech,voice.gate_db,voice.listen_seconds,voice.volume,voice.input,voice.output,voice.save_clips),
+        "devices":(&voice.inputs,&voice.outputs),
+        "speaking":voice.speaking
+    }).to_string()
+}
+/// New trees get one layout frame while the previous tree remains visible.
+pub fn reveal_ui(mut commands: Commands, roots: Query<(Entity, Has<PendingUi>), With<UiRoot>>) {
+    if roots.iter().any(|(_, pending)| pending) {
+        for (e, pending) in &roots {
+            if pending {
+                commands
+                    .entity(e)
+                    .remove::<PendingUi>()
+                    .insert(Visibility::Inherited);
+            } else {
+                commands.entity(e).despawn();
+            }
+        }
+    }
+}
 #[allow(clippy::too_many_arguments)]
 pub fn draw(
     mut commands: Commands,
-    roots: Query<Entity, With<UiRoot>>,
     mut game: ResMut<Session>,
     image: Res<MapImage>,
     routes: Res<crate::routes::RouteOverlay>,
@@ -1059,15 +1048,26 @@ pub fn draw(
     chat: Res<crate::voice::ChatInput>,
     voice: Res<crate::voice::Voice>,
     portraits: Res<CallerPortraits>,
+    mut rendered: Local<Option<(Screen, String)>>,
 ) {
     if !game.dirty {
         return;
     }
     game.dirty = false;
-    for e in &roots {
-        commands.entity(e).despawn();
-    }
     let screen = game.screen;
+    if screen == Screen::Terminal {
+        let key = desktop_key(&game, &chat, &voice);
+        if rendered
+            .as_ref()
+            .is_some_and(|(screen, old)| *screen == Screen::Terminal && *old == key)
+        {
+            return;
+        }
+        *rendered = Some((screen, key));
+    } else {
+        *rendered = Some((screen, String::new()));
+    }
+
     let root = Node {
         position_type: PositionType::Absolute,
         left: px(20),
@@ -1081,6 +1081,8 @@ pub fn draw(
     commands
         .spawn((
             UiRoot,
+            PendingUi,
+            Visibility::Hidden,
             root,
             BackgroundColor(if screen == Screen::Office {
                 Color::NONE
@@ -1523,5 +1525,95 @@ pub fn desktop_fonts(
         for mut f in &mut fonts {
             f.font = bevy::text::FontSource::Handle(font.0.clone());
         }
+    }
+}
+
+#[derive(Component)]
+pub enum DesktopLive {
+    Clock,
+    Cash,
+    Income,
+    Loss,
+    Grant,
+    Unit(u32),
+    Call(u32, u32),
+    Voice,
+}
+fn live_text(p: &mut ChildSpawnerCommands, kind: DesktopLive, size: f32, color: Color) {
+    p.spawn((
+        kind,
+        Text::new(" "),
+        TextFont {
+            font_size: FontSize::Px(size),
+            ..default()
+        },
+        TextColor(color),
+        Node {
+            flex_shrink: 0.0,
+            ..default()
+        },
+    ));
+}
+pub fn desktop_values(
+    game: Res<Session>,
+    voice: Res<crate::voice::Voice>,
+    mut texts: Query<(&DesktopLive, &mut Text)>,
+) {
+    for (kind, mut text) in &mut texts {
+        let value = match kind {
+            DesktopLive::Clock => format!(
+                "Shift {}    {:02}:{:02}",
+                game.shift,
+                game.remaining() / 60,
+                game.remaining() % 60
+            ),
+            DesktopLive::Cash => format!("$ {}", game.funds),
+            DesktopLive::Income => format!(
+                "Shift income (projected)   +$ {}",
+                (100 + game.sim.score()).max(0)
+            ),
+            DesktopLive::Loss => {
+                format!("Damage deductions         -$ {}", game.damage_assessment())
+            }
+            DesktopLive::Grant => format!("Net paid at review         $ {}", game.grant()),
+            DesktopLive::Unit(id) => game
+                .sim
+                .units()
+                .get(id)
+                .map(|u| format!("Unit {} / {}", id, unit_label(&u.state, game.sim.now())))
+                .unwrap_or_default(),
+            DesktopLive::Call(id, caller) => format!(
+                "555-{:04} / {:02}:{:02}",
+                100 + caller % 100,
+                game.call_duration(*id) / 60,
+                game.call_duration(*id) % 60
+            ),
+            DesktopLive::Voice => voice.status.clone(),
+        };
+        if text.0 != value {
+            text.0 = value;
+        }
+    }
+}
+
+#[cfg(test)]
+mod stable_desktop_tests {
+    use super::*;
+    #[test]
+    fn clock_and_audio_status_do_not_replace_the_desktop_tree() {
+        let mut game = Session::default();
+        game.act(Action::Sit(0));
+        game.tick(10.0);
+        game.act(Action::OpenDesk);
+        game.act(Action::Answer);
+        let chat = crate::voice::ChatInput::default();
+        let mut voice = crate::voice::Voice::default();
+        let key = desktop_key(&game, &chat, &voice);
+        game.tick(1.0);
+        voice.status = "Listening for speech".into();
+        voice.recording = true;
+        assert_eq!(desktop_key(&game, &chat, &voice), key);
+        voice.gate_db = -75;
+        assert_ne!(desktop_key(&game, &chat, &voice), key);
     }
 }

@@ -27,6 +27,7 @@ jobs:
       - name: Two-player and six-player reconnect shifts (real TCP processes)
         run: |
           python tools/caller/playtest.py --output ci-captures/caller-provider
+          python tools/caller/repetition_test.py
           python tools/net/playtest.py --players 2 --output ci-captures/network-two
           python tools/net/playtest.py --players 6 --reconnect --dialogue-test --catalogue-test --output ci-captures/network-six
       - name: Graphical solo shift playthrough (software Vulkan)

@@ -30,4 +30,6 @@ For future external art/audio, record source, author, license, and required attr
 
 fonts/DesktopSans.ttf is the unmodified Liberation Sans Regular font supplied by the system liberation-sans-fonts package, distributed under the SIL Open Font License 1.1. Copyright and license are retained in fonts/LICENSE.txt. Its filename is an application asset alias; the font's internal family/name data is unchanged.
 
-callers/00.png through callers/23.png are original procedural low-poly avatar illustrations. They contain no third-party photographs.
+callers/00.png through callers/49.png are original procedural low-poly avatar illustrations. They contain no third-party photographs.
+
+The 50 original caller illustrations are reproducible with tools/content/build_portraits.py (Pillow). The cast data and readable bible are generated from tools/content/callers.txt by tools/content/build_callers.py. Parody identities/biographies are fictional and do not depict or make claims about the referenced public figures.

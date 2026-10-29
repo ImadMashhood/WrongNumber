@@ -21,7 +21,7 @@ The versioned system prompt is `assets/prompts/caller-system.txt`. The host send
 - Caller name, personality and reported complaint.
 - The exact road-access address and caller-private knowledge about the selected situation.
 - Available observations, verification/source details and location facts.
-- The last four dialogue pairs and the player's current question.
+- The last eight dialogue pairs and the player's current question.
 - Whether this is the opening or an ordinary conversation turn.
 
 On answering, the host requests an **Opening** immediately, before any player input. The AI writes the first statement in character. An opening cannot complete the call or mark investigation facts as verified. Subsequent **Answer**, **Clarify** and **Goodbye** responses use natural wording rather than copying catalogue sentences. The prompt includes examples for an irritated minor complaint, an unresponsive roommate and a false video report after source verification. It discourages immediate hoax confession, engine classifications and invented details.
@@ -34,7 +34,7 @@ Structured output carries spoken text, emotion, an allowed conversational action
 
 1. Answer a call: the AI generates an opening; local TTS plays it and subtitles appear.
 2. The answered phone activates the microphone automatically; use its **Mute** button whenever needed.
-3. Speak, then pause for about 800 ms: the game runs the local Whisper adapter.
+3. Speak, then remain below the threshold for two continuous seconds: the game runs the local Whisper adapter.
 4. Recognized text automatically goes to the host/provider.
 5. The response appears in the transcript and plays through local TTS.
 
@@ -61,3 +61,7 @@ python3 tools/caller/live_speech_check.py --stt-command /absolute/path/to/local-
 ```
 
 It runs the real trusted daemon, requests AI openings and replies for a genuine emergency, a genuine minor complaint and a false report, and checks the local synthesized-speech → Whisper → provider → local-TTS chain. It makes paid model requests only when explicitly invoked, writes no credentials into reports, and stops its daemon on exit. Physical microphone quality and listening remain manual checks.
+
+## Saved characters
+
+The [50-person cast](design/caller-cast.md) provides recurring names, backstories, speaking styles and stress responses: 40 original callers and 10 fictional public-persona parodies. Their identities are independent of the 300 complaint cards and 10% false-call schedule. Exact prior-reply hashes and recent-dialogue similarity checks prevent delivering duplicate/cosmetically rewritten lines; one budgeted live rewrite is allowed before disconnecting. The 12-second recording cap sends the full captured segment to local Whisper even if the gate never opened; the noise-floor range is now -90 to 0 dBFS.

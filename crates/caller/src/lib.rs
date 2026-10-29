@@ -1,7 +1,7 @@
 //! Provider-neutral dialogue contract. Facts stay authored; dialogue cannot execute game commands.
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 pub const CLARIFY: &str = "Could you ask about what happened or what I can see?";
 pub const GOODBYE: &str = "Okay. Thank you for listening.";
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -34,6 +34,8 @@ pub struct Context {
     pub facts: Vec<Knowledge>,
     pub history: Vec<(String, String)>,
     pub question: String,
+    #[serde(default)]
+    pub previous_reply_hashes: Vec<u64>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Emotion {
@@ -65,11 +67,12 @@ pub struct ServiceReply {
     pub source: String,
 }
 pub fn valid_context(c: &Context) -> bool {
-    c.version == VERSION
+    c.previous_reply_hashes.len() <= 25
+        && c.version == VERSION
         && (c.kind == TurnKind::Opening || !c.question.trim().is_empty())
-        && c.question.len() <= 256
+        && c.question.len() <= 1024
         && c.report.len() <= 512
-        && c.personality.len() <= 400
+        && c.personality.len() <= 1600
         && c.caller_private.len() <= 512
         && c.caller_name.len() <= 80
         && c.location.len() <= 160
@@ -80,7 +83,45 @@ pub fn valid_context(c: &Context) -> bool {
         && c.history.len() <= 8
         && c.history
             .iter()
-            .all(|(a, b)| a.len() <= 256 && b.len() <= 512)
+            .all(|(a, b)| a.len() <= 1024 && b.len() <= 512)
+}
+fn normalized_words(text: &str) -> Vec<String> {
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+pub fn reply_hash(text: &str) -> u64 {
+    normalized_words(text)
+        .join(" ")
+        .bytes()
+        .fold(14695981039346656037, |h, b| {
+            (h ^ u64::from(b)).wrapping_mul(1099511628211)
+        })
+}
+pub fn repeated_reply(c: &Context, text: &str) -> bool {
+    let words = normalized_words(text);
+    if c.previous_reply_hashes.contains(&reply_hash(text)) {
+        return true;
+    }
+    let bigrams = |words: &[String]| {
+        words
+            .windows(2)
+            .map(|w| format!("{} {}", w[0], w[1]))
+            .collect::<std::collections::BTreeSet<_>>()
+    };
+    let new = bigrams(&words);
+    c.history.iter().any(|(_, old)| {
+        if reply_hash(old) == reply_hash(text) {
+            return true;
+        }
+        let prior = bigrams(&normalized_words(old));
+        words.len() >= 8
+            && prior.len() >= 7
+            && new.intersection(&prior).count() as f32 / new.union(&prior).count().max(1) as f32
+                >= 0.80
+    })
 }
 pub fn validate(c: &Context, r: &Reply) -> bool {
     if !valid_context(c)
@@ -251,7 +292,10 @@ pub fn service(address: std::net::SocketAddr, context: &Context) -> Result<Servi
     let line = read_frame(&mut stream, 16_384, std::time::Duration::from_secs(22))?;
     let response: ServiceReply =
         serde_json::from_slice(&line).map_err(|_| "Invalid caller response")?;
-    if response.source != "provider" || !validate(context, &response.reply) {
+    if response.source != "provider"
+        || !validate(context, &response.reply)
+        || repeated_reply(context, &response.reply.spoken_text)
+    {
         return Err("Caller response failed fact validation".into());
     }
     Ok(response)

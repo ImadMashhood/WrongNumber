@@ -19,7 +19,7 @@ for key in ['CALLER_API_KEY','OPENROUTER_API_KEY','CALLER_MODEL','CALLER_ENDPOIN
 env.update(CALLER_API_KEY='local-fixture-placeholder',CALLER_MODEL='fixture-model',CALLER_ENDPOINT=f'http://127.0.0.1:{api.server_port}/chat',CALLER_BIND=f'127.0.0.1:{port}',CALLER_MAX_REQUESTS='2')
 binary=Path('target/debug/wrong-number-caller-server').resolve();binary=binary.with_suffix('.exe') if os.name=='nt' else binary
 log=(out/'service.log').open('w');proc=subprocess.Popen([str(binary)],env=env,stdout=log,stderr=subprocess.STDOUT)
-context={'version':2,'report':'Smoke in laundromat','personality':'anxious','facts':[{'id':'smoke','question':'What can you see?','answer':'Black smoke from the dryer.'}],'history':[],'question':'What can you see?'}
+context={'version':3,'report':'Smoke in laundromat','personality':'anxious','facts':[{'id':'smoke','question':'What can you see?','answer':'Black smoke from the dryer.'}],'history':[],'question':'What can you see?'}
 def ask(question):
  c=dict(context,question=question)
  with socket.create_connection(('127.0.0.1',port),timeout=6) as sock:

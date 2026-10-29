@@ -1,6 +1,7 @@
 use wrong_number_caller::*;
 fn context() -> Context {
     Context {
+        previous_reply_hashes: vec![],
         version: VERSION,
         kind: TurnKind::Conversation,
         caller_name: "Alex Morgan".into(),
@@ -59,7 +60,7 @@ fn unrelated_instructions_clarify_and_goodbye_cannot_end_an_incident() {
 fn provider_wire_is_bounded_and_private_truth_is_absent() {
     let mut c = context();
     assert!(!serde_json::to_string(&c).unwrap().contains("truth"));
-    c.question = "x".repeat(257);
+    c.question = "x".repeat(1025);
     assert!(!valid_context(&c));
     let addr = "127.0.0.1:1".parse().unwrap();
     assert!(service(addr, &context()).is_err());
@@ -128,4 +129,24 @@ fn conversational_acknowledgement_without_evidence_keeps_line_open() {
     };
     assert!(validate(&c, &r));
     assert!(r.fact_references.is_empty());
+}
+
+#[test]
+fn repeated_lines_and_cosmetic_rewrites_are_detected_but_new_reactions_are_allowed() {
+    let mut c = context();
+    let old =
+        "I think I just repeated an old message. I'm not sure if it's real or where it came from.";
+    c.history.push(("Why?".into(), old.into()));
+    c.previous_reply_hashes
+        .push(reply_hash("Okay, I can hear you."));
+    assert!(repeated_reply(&c, old));
+    assert!(repeated_reply(
+        &c,
+        "Well, I think I just repeated an old message. I'm not sure if it's real or where it came from."
+    ));
+    assert!(repeated_reply(&c, "OKAY! I can hear you."));
+    assert!(!repeated_reply(
+        &c,
+        "You're right, I haven't explained myself. I passed on a rumour without checking it."
+    ));
 }
