@@ -446,3 +446,26 @@ fn ragdoll_keeps_a_seated_dispatchers_call_connected() {
     apply_snapshot(&mut mirror, &r.snapshot(), 2).unwrap();
     assert_eq!(mirror.conversation, before.conversation);
 }
+
+#[test]
+fn monitor_claims_chair_atomically_and_delivers_after_long_standing_wait() {
+    let mut r = joined();
+    assert!(act(&mut r, 1, Action::StartShift).accepted);
+    r.tick(120.0);
+    assert!(r.game.desk(1).ringing.is_none());
+    assert!(act(&mut r, 1, Action::UseDesk(0)).accepted);
+    assert_eq!(r.game.desk(1).seated, Some(0));
+    assert_eq!(r.game.desk(1).screen, crate::game::Screen::Terminal);
+    r.members.get_mut(&2).unwrap().pose.position = [world::SEATS[0], 1.65, 3.0];
+    assert!(!act(&mut r, 2, Action::UseDesk(0)).accepted);
+    assert_eq!(r.game.desk(2).seated, None);
+    for _ in 0..11 {
+        r.tick(1.0);
+    }
+    assert!(r.game.desk(1).ringing.is_some());
+    let mut mirror = Session::default();
+    apply_snapshot(&mut mirror, &r.snapshot(), 1).unwrap();
+    assert_eq!(mirror.seated, Some(0));
+    assert!(mirror.ringing.is_some());
+    assert!(!act(&mut r, 2, Action::UseDesk(99)).accepted);
+}

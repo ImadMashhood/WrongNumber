@@ -95,7 +95,7 @@ Milestones are ordered by dependency. Each ends with a reviewable build or artif
 - [x] A compact city with several districts, locations, simple travel times, incident markers, and a stylized skyline.
 - [x] A ten-minute shift starting in the break room: delayed incoming calls, incident outcomes, performance grade/review, and one upgrade choice.
 - [x] Clear text and visual feedback for action results, incident status, and why score changed.
-- [x] Mouse look while standing or seated; E targets a chair, then the monitor; Escape leaves focus without standing, Space stands.
+- [x] Mouse look while standing or seated; E or clicking a monitor claims its chair and opens the desktop; Escape leaves focus without standing, Space stands.
 - [x] Circular aim reticle with interaction prompts and locked-door feedback.
 - [x] Seeded 1–10 second initial / 1–15 second subsequent call delays, one active conversation per occupied solo workstation, and explicit hang-up.
 - [x] Automatic conversation completion after dispatch/refusal; atomic Full Response; caller details/duration, category availability counts, spatial phone ringing and a visual beacon.
@@ -388,7 +388,9 @@ The office now follows the supplied environment reference: a deeper brick indust
 
 Office props: aim at an extinguisher, mug or small carton and press **E** to pick it up. **Left-click** throws; **right-click** drops. A hit briefly ragdolls another dispatcher, with automatic recovery and temporary hit immunity. The host owns the physics; calls, seats and funding are preserved. Put the prop down before sitting or readying at the door. Six reusable props reset each shift.
 
-Mouse look works while walking and seated. Aim at a nearby monitor and press E to open the desktop while standing. Aim at a chair and press E to sit when ready to receive calls. Escape returns to seated free-look; Space stands. The break-room door stays locked during lobby readiness and opens for dispatch; completed shifts return everyone to the break room for review before the host starts the next lobby. The wall map and desktop monitors share a live render target driven by the existing simulation.
+Mouse look works while walking and seated. Aim at a nearby monitor and click or press E to sit at that workstation and open its desktop. Chair ownership is validated by the host; occupied stations cannot be taken. Calls start after seating (normally within 1–10 seconds). You can also use E directly on a chair. Escape returns to seated free-look; Space stands. The break-room door stays locked during lobby readiness and opens for dispatch; completed shifts return everyone to the break room for review before the host starts the next lobby. The wall map and desktop monitors share a live render target driven by the existing simulation.
+
+The office has two desk rows: six player stations and six background workstations. Five decorative staff walk between distinct desks and mime working; they never claim player chairs, receive real calls, dispatch units, or affect money. Twenty pedestrians and twelve cars populate the surrounding block. Traffic follows separated closed lanes at roughly 29–31 km/h; the visible block is scenery, separate from the supplied emergency-response road graph. City ambience and moving engine sources use the ambience slider and duck during speech.
 
 The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. M4 adds simple networked dispatcher avatars; proximity voice remains future work. Road routes now drive the pilot district. The launcher no longer forces CPU rendering. The same 1440×900 room benchmark measured 58.5 FPS on the RTX 3080 versus 3.0 FPS on CPU llvmpipe (300 measured frames after 90 warm-up frames, normal graphics, VSync). This is a single-machine scene measurement. See [the environment guide](docs/environment.md).
 

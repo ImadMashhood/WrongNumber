@@ -35,4 +35,4 @@ cargo run --locked -- --menu-test --settings-file target/menu-settings.json --ca
 
 This drives the real button observers through settings, invalid-code validation, room creation, generated code and leaving. It uses an isolated settings file and does not record a microphone or call an AI provider. CLI `--solo`, `--host` and `--join` bypass the front end; existing shift playtests are unchanged.
 
-Calls require a seated dispatcher during an active shift. Opening a monitor while standing does not claim a phone line; the empty-phone panel explains this. The first call arrives 1–10 simulation seconds after seating when the director can deliver it.
+Calls require a seated dispatcher during an active shift. Clicking or using an available monitor claims its chair and opens the desktop in one action. A standing desktop also offers a nearby seat button. The first call arrives 1–10 simulation seconds after seating when the director can deliver it.

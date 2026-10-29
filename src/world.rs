@@ -148,7 +148,7 @@ pub fn aimed_action(pose: &Transform, game: &Session) -> Option<Action> {
                 Vec3::new(x, 1.4, -0.39),
                 Vec3::new(1.13, 0.74, 0.15),
                 3.6,
-                Action::OpenDesk,
+                Action::UseDesk(n),
             );
             add(
                 Vec3::new(x - 0.77, 1.04, 0.2),
@@ -214,6 +214,12 @@ fn inside(p: Vec2, r: (f32, f32, f32, f32)) -> bool {
     p.x > r.0 && p.x < r.1 && p.y > r.2 && p.y < r.3
 }
 pub fn walkable(p: Vec2, phase: Phase) -> bool {
+    if crate::colliders::furniture()
+        .iter()
+        .any(|b| b.blocks_walker(p))
+    {
+        return false;
+    }
     if phase == Phase::Lobby && p.x < 9.3 {
         return false;
     }
@@ -430,7 +436,9 @@ pub fn hud_text(game: &Session, pose: &Transform) -> String {
     } else {
         match aimed_action(pose, game) {
             Some(Action::Sit(_)) => "[E] Sit at workstation",
-            Some(Action::OpenDesk) => "[E] Focus dispatch computer",
+            Some(Action::OpenDesk | Action::UseDesk(_)) => {
+                "[E / Click] Sit and use dispatch computer"
+            }
             Some(Action::UsePhone) => {
                 if game.ringing.is_some() {
                     "[E] Answer telephone"
@@ -540,7 +548,7 @@ mod tests {
         for (n, &x) in SEATS.iter().enumerate() {
             let pose = Transform::from_translation(desk_approach(n))
                 .looking_at(Vec3::new(x, 1.4, -0.39), Vec3::Y);
-            assert_eq!(aimed_action(&pose, &game), Some(Action::OpenDesk));
+            assert_eq!(aimed_action(&pose, &game), Some(Action::UseDesk(n)));
         }
     }
     #[test]

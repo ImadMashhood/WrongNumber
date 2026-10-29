@@ -82,6 +82,9 @@ fn button(p: &mut ChildSpawnerCommands, label: impl Into<String>, action: Action
                         actions.0.push(Action::Select(id));
                     }
                     actions.0.push(action.clone());
+                    if matches!(action, Action::Sit(_)) && game.screen == Screen::Terminal {
+                        actions.0.push(Action::OpenDesk);
+                    }
                 },
             );
     }
@@ -279,6 +282,7 @@ fn terminal(
     voice: &crate::voice::Voice,
     portraits: &CallerPortraits,
     prefs: &crate::frontend::Preferences,
+    position: Vec3,
 ) {
     let running = matches!(game.phase, Phase::Running | Phase::Closing);
     p.spawn((
@@ -630,7 +634,11 @@ fn terminal(
                 } else {
                     card(p, |p| {
                         text(p, "Dispatch phone", 18.0, TEXT);
-                        text(p, "No active call", 14.0, MUTED);
+                        text(p, if game.seated.is_none() {"NOT RECEIVING CALLS — standing"} else {"Waiting for incoming call"}, 14.0, AMBER);
+                        if game.seated.is_none()
+                            && let Some((n,_))=crate::world::SEATS.iter().enumerate().filter(|(_,x)| position.distance(Vec3::new(**x,1.65,1.7)) <= 2.5).min_by(|(_,a),(_,b)| (position.x-**a).abs().total_cmp(&(position.x-**b).abs())) {
+                                button(p,"Take this seat and receive calls",Action::UseDesk(n),game.occupied(n).is_none());
+                        }
                         text(
                             p,
                             if game.phase == Phase::Lobby { "Shift has not started. Hold Interact at the break-room door." } else if game.seated.is_none() { "You are standing. Exit the computer and press Interact at a chair to receive calls." } else { "Line ready. Incoming calls appear here automatically." },
@@ -1400,7 +1408,17 @@ pub fn draw(
                     BorderColor::all(TEXT.with_alpha(0.6)),
                 ));
             } else if screen == Screen::Terminal {
-                terminal(p, &game, &image, &routes, &chat, &voice, &portraits, &prefs);
+                terminal(
+                    p,
+                    &game,
+                    &image,
+                    &routes,
+                    &chat,
+                    &voice,
+                    &portraits,
+                    &prefs,
+                    player.translation,
+                );
             } else {
                 p.spawn(Node {
                     height: px(64),
@@ -1468,9 +1486,17 @@ pub fn draw(
                             );
                         });
                     }
-                    Screen::Terminal => {
-                        terminal(p, &game, &image, &routes, &chat, &voice, &portraits, &prefs)
-                    }
+                    Screen::Terminal => terminal(
+                        p,
+                        &game,
+                        &image,
+                        &routes,
+                        &chat,
+                        &voice,
+                        &portraits,
+                        &prefs,
+                        player.translation,
+                    ),
                     Screen::CityMap => {
                         p.spawn((column(70.0), BackgroundColor(PANEL)))
                             .with_children(|p| {

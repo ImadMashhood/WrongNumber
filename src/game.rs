@@ -53,6 +53,7 @@ pub enum Action {
     Sit(usize),
     Stand,
     OpenDesk,
+    UseDesk(usize),
     UsePhone,
     BreakDoor,
     OpenMap,
@@ -404,6 +405,22 @@ impl Session {
             }
             Action::BreakDoor => {
                 self.notice = "Break room doorway is open. You can walk through.".into();
+            }
+            Action::UseDesk(station) if station < 6 => {
+                if self.fun.down(self.local_player) || self.fun.held(self.local_player).is_some() {
+                    self.last_error = Some("Put down the prop and finish getting up first".into());
+                    return;
+                }
+                if self.seated.is_some_and(|n| n != station) {
+                    self.last_error = Some("Stand before changing workstations".into());
+                    return;
+                }
+                if self.seated.is_none() {
+                    self.act(Action::Sit(station));
+                }
+                if self.seated == Some(station) {
+                    self.act(Action::OpenDesk);
+                }
             }
             Action::OpenDesk => {
                 self.screen = Screen::Terminal;

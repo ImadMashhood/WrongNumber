@@ -257,6 +257,7 @@ impl Room {
         }
     }
     pub fn action(&mut self, id: u8, seq: u64, shift: u32, action: Action) -> Ack {
+        let before_seat = self.game.desk(id).seated;
         let before_shift = self.game.shift;
         let before_phase = self.game.phase;
         let Some(member) = self.members.get(&id) else {
@@ -337,7 +338,7 @@ impl Room {
         }
         if accepted {
             let seat = self.game.desk(id).seated;
-            if let Action::Sit(station) = action {
+            if let Some(station) = seat.filter(|_| before_seat.is_none()) {
                 member.standing = member.pose;
                 member.pose.position = [world::SEATS[station], 1.22, 1.25];
             }
@@ -361,12 +362,18 @@ impl Room {
     }
     fn check_geometry(&self, id: u8, action: &Action) -> Result<(), String> {
         if self.game.fun.down(id)
-            && matches!(action, Action::Sit(_) | Action::Stand | Action::Ready(true))
+            && matches!(
+                action,
+                Action::Sit(_) | Action::UseDesk(_) | Action::Stand | Action::Ready(true)
+            )
         {
             return Err("Getting back up…".into());
         }
         if self.game.fun.held(id).is_some()
-            && matches!(action, Action::Sit(_) | Action::Ready(true))
+            && matches!(
+                action,
+                Action::Sit(_) | Action::UseDesk(_) | Action::Ready(true)
+            )
         {
             return Err("Put down the object first".into());
         }
@@ -375,6 +382,10 @@ impl Room {
         match action {
             Action::Ready(true) if distance(9.0, 0.5) > 2.6 => {
                 Err("Move to the break-room door".into())
+            }
+            Action::UseDesk(n) if *n >= 6 => Err("Unknown workstation".into()),
+            Action::UseDesk(n) if p[0] > 8.5 || distance(world::SEATS[*n], -0.39) > 3.6 => {
+                Err("Move closer to this monitor".into())
             }
             Action::Sit(n) if *n >= 6 => Err("Unknown workstation".into()),
             Action::Sit(n) if distance(world::SEATS[*n], 1.7) > 2.5 => {

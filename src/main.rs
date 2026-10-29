@@ -3,6 +3,7 @@ mod ambience;
 mod bot;
 mod city;
 mod city_effects;
+mod colliders;
 mod desks;
 mod dialogue;
 mod environment;
@@ -92,11 +93,13 @@ fn main() {
                 wall_map::setup,
                 routes::setup,
                 environment::setup,
+                environment::street::sky,
                 world::setup,
                 peers::setup,
                 office_props::setup,
                 phone::setup,
                 ambience::setup,
+                ambience::city_setup,
                 city_effects::setup,
                 performance::configure,
             )
@@ -126,13 +129,14 @@ fn main() {
                     (
                         peers::update,
                         environment::street::update,
+                        environment::people::update,
                         office_props::preview,
                         office_props::update,
                     )
                         .chain(),
                     world::doors,
                     phone::update,
-                    ambience::update,
+                    (ambience::update, ambience::city_update).chain(),
                     city_effects::update,
                     city_effects::damage,
                     routes::refresh,

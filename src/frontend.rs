@@ -899,7 +899,7 @@ pub fn draw(
                     text(p, format!("Telephone ring volume: {:.0}%", prefs.ring_volume * 100.0), 16.0, muted);
                     button(p, "Telephone ring volume −", MenuAction::RingVolume(false));
                     button(p, "Telephone ring volume +", MenuAction::RingVolume(true));
-                    text(p, format!("Ambient room volume: {:.0}%", prefs.ambient_volume*100.0), 16.0, muted);
+                    text(p, format!("City & room ambience: {:.0}%", prefs.ambient_volume*100.0), 16.0, muted);
                     button(p,"Ambience -",MenuAction::AmbientVolume(false));
                     button(p,"Ambience +",MenuAction::AmbientVolume(true));
                     ui::audio_ui(p, &voice, &chat);

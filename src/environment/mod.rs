@@ -3,6 +3,7 @@ mod dispatch_room;
 mod exterior;
 mod geometry;
 pub mod meeting_room;
+pub mod people;
 pub mod street;
 use crate::wall_map::WallDisplay;
 use bevy::prelude::*;
@@ -38,6 +39,7 @@ pub fn setup(
     let mut b = Builder::new(&mut commands, &mut meshes, palette);
     dispatch_room::build(&mut b, screen.clone());
     break_room::build(&mut b);
+    people::build(&mut b, screen.clone());
     meeting_room::build(&mut b, screen);
     exterior::build(&mut b);
     street::build(&mut b);

@@ -12,7 +12,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-pub const PROTOCOL: u32 = 7;
+pub const PROTOCOL: u32 = 8;
 pub const MAX_FRAME: usize = 2 * 1024 * 1024;
 pub enum Event<T> {
     Connected(u64),

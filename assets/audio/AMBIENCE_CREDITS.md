@@ -11,3 +11,5 @@ Source: **The Shop** by **LEGIT Audio**, published November 1, 2020.
 `breakroom-ambience.wav` derives from `TheShopCollection_convenience_store_drinks_fridge_drone_2.wav`.
 
 Edits: mono mixdown, 16 kHz resampling, eight-second loop with a one-second seam crossfade, DC removal and peak normalization. The loop builder is `tools/speech/build_ambience.py`. These are subtle appliance/ventilation drones rather than recordings of identifiable dispatch calls. Playback is local; no asset streaming or network request occurs during gameplay.
+
+City ambience and passing-car engines are original procedural audio generated locally by `src/ambience.rs`: filtered noise, low engine harmonics, a distant horn and smooth loop boundaries. No third-party recording, voice sample, AI speech service or network request is used for these layers. Car sources move with the visible vehicles; city/room ambience follows the existing volume, mute and speech-ducking settings.

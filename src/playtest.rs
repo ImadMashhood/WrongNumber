@@ -150,16 +150,17 @@ pub fn automate(
                 .looking_at(Vec3::new(crate::world::SEATS[2], 1.4, -0.39), Vec3::Y);
             assert_eq!(
                 crate::world::aimed_action(&player, &game),
-                Some(Action::OpenDesk)
+                Some(Action::UseDesk(2))
             );
-            queue.0.push(Action::OpenDesk);
+            queue.0.push(Action::UseDesk(2));
         }
         60 => {
-            assert!(game.seated.is_none());
+            assert_eq!(game.seated, Some(2));
             assert_eq!(game.screen, Screen::Terminal);
-            check.capture(&mut commands, "desktop-standing");
+            check.capture(&mut commands, "desktop-monitor-seated");
         }
         61 => {
+            queue.0.push(Action::Stand);
             queue.0.push(Action::Office);
         }
         62 => {
@@ -178,9 +179,9 @@ pub fn automate(
                 .looking_at(Vec3::new(crate::world::SEATS[2], 1.22, -0.15), Vec3::Y);
             assert_eq!(
                 crate::world::aimed_action(&player, &game),
-                Some(Action::OpenDesk)
+                Some(Action::UseDesk(2))
             );
-            queue.0.push(Action::OpenDesk);
+            queue.0.push(Action::UseDesk(2));
         }
         75 => {
             assert!(images.get(&map.0).is_some());

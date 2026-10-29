@@ -91,7 +91,8 @@ pub fn solid(p: Vec3, phase: Phase) -> bool {
         || in_rect(8.4, 9.6, -1.1, 2.1)
         || (crate::world::review_unlocked(phase)
             && (in_rect(2.8, 8.8, 7.2, 13.8) || in_rect(5.4, 6.6, 6.5, 7.5)));
-    !room
+    crate::colliders::solid(p)
+        || !room
         || p.y < 0.02
         || p.y > 3.95
         || (phase == Phase::Lobby && in_rect(8.75, 9.25, -1.2, 2.2))
@@ -108,6 +109,9 @@ fn prop_solid(p: Vec3, kind: u8, phase: Phase) -> bool {
         1 => (0.10, 0.075),
         _ => (0.15, 0.11),
     };
+    if crate::colliders::overlaps(p, Vec3::new(radius, height, radius)) {
+        return true;
+    }
     // A small swept box keeps visible bodies above surfaces and away from walls.
     [-radius, radius].into_iter().any(|x| {
         [-radius, radius].into_iter().any(|z| {

@@ -134,6 +134,50 @@ impl Palette {
             let mut material = materials.get_mut(&out[index]).unwrap();
             material.base_color = Color::WHITE;
             material.base_color_texture = Some(images.add(image));
+            if brick {
+                let height = |x: i32, y: i32| {
+                    let y = y.rem_euclid(128);
+                    let x = (x + if (y / 32) % 2 == 0 { 0 } else { 32 }).rem_euclid(64);
+                    let edge = x.min(63 - x).min(y % 32).min(31 - y % 32);
+                    (edge as f32 / 3.0).clamp(0.0, 1.0)
+                };
+                let mut data = vec![];
+                for y in 0..128 {
+                    for x in 0..128 {
+                        let normal = Vec3::new(
+                            (height(x - 1, y) - height(x + 1, y)) * 0.35,
+                            (height(x, y - 1) - height(x, y + 1)) * 0.35,
+                            1.0,
+                        )
+                        .normalize();
+                        data.extend([
+                            (normal.x * 127.0 + 128.0) as u8,
+                            (normal.y * 127.0 + 128.0) as u8,
+                            (normal.z * 127.0 + 128.0) as u8,
+                            255,
+                        ]);
+                    }
+                }
+                let mut bump = Image::new_fill(
+                    Extent3d {
+                        width: 128,
+                        height: 128,
+                        depth_or_array_layers: 1,
+                    },
+                    TextureDimension::D2,
+                    &data,
+                    TextureFormat::Rgba8Unorm,
+                    RenderAssetUsages::default(),
+                );
+                bump.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                    address_mode_u: ImageAddressMode::Repeat,
+                    address_mode_v: ImageAddressMode::Repeat,
+                    mag_filter: ImageFilterMode::Linear,
+                    min_filter: ImageFilterMode::Linear,
+                    ..default()
+                });
+                material.normal_map_texture = Some(images.add(bump));
+            }
         }
         Self(out)
     }
@@ -147,7 +191,7 @@ pub struct Builder<'a, 'w, 's> {
     pub palette: Palette,
     pub cube: Handle<Mesh>,
     pub cylinder: Handle<Mesh>,
-    pub cone: Handle<Mesh>,
+    pub parent: Option<Entity>,
 }
 impl<'a, 'w, 's> Builder<'a, 'w, 's> {
     pub fn new(
@@ -157,14 +201,13 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
     ) -> Self {
         let cube = meshes.add(Cuboid::default());
         let cylinder = meshes.add(Cylinder::new(0.5, 1.0).mesh().resolution(10));
-        let cone = meshes.add(Cone::new(0.5, 1.0).mesh().resolution(10));
         Self {
             commands,
             meshes,
             palette,
             cube,
             cylinder,
-            cone,
+            parent: None,
         }
     }
     pub fn block(&mut self, p: Paint, pos: Vec3, size: Vec3) -> Entity {
@@ -172,6 +215,7 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
     }
     pub fn rotated(&mut self, p: Paint, pos: Vec3, size: Vec3, rotation: Quat) -> Entity {
         let mesh = if matches!(p, Paint::Brick) {
+            let origin = rotation.inverse() * pos;
             let mut mesh = Mesh::from(Cuboid::default());
             let normals = match mesh.attribute(Mesh::ATTRIBUTE_NORMAL).unwrap() {
                 VertexAttributeValues::Float32x3(v) => v.clone(),
@@ -186,19 +230,30 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
             {
                 for ((uv, n), v) in uvs.iter_mut().zip(normals).zip(vertices) {
                     *uv = if n[1].abs() > 0.5 {
-                        [v[0] * size.x / 0.72, v[2] * size.z / 0.72]
+                        [
+                            (v[0] * size.x + origin.x) / 0.72,
+                            (v[2] * size.z + origin.z) / 0.72,
+                        ]
                     } else if n[0].abs() > 0.5 {
-                        [v[2] * size.z / 0.72, -v[1] * size.y / 0.72]
+                        [
+                            (v[2] * size.z + origin.z) / 0.72,
+                            -(v[1] * size.y + origin.y) / 0.72,
+                        ]
                     } else {
-                        [v[0] * size.x / 0.72, -v[1] * size.y / 0.72]
+                        [
+                            (v[0] * size.x + origin.x) / 0.72,
+                            -(v[1] * size.y + origin.y) / 0.72,
+                        ]
                     };
                 }
             }
+            mesh.generate_tangents().expect("Brick cuboid tangents");
             self.meshes.add(mesh)
         } else {
             self.cube.clone()
         };
-        self.commands
+        let entity = self
+            .commands
             .spawn((
                 Mesh3d(mesh),
                 MeshMaterial3d(self.palette.get(p)),
@@ -206,18 +261,31 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
                     .with_scale(size)
                     .with_rotation(rotation),
             ))
-            .id()
+            .id();
+        if let Some(parent) = self.parent {
+            self.commands.entity(parent).add_child(entity);
+        }
+        entity
     }
     pub fn round(&mut self, p: Paint, pos: Vec3, size: Vec3) -> Entity {
-        self.commands
+        let entity = self
+            .commands
             .spawn((
                 Mesh3d(self.cylinder.clone()),
                 MeshMaterial3d(self.palette.get(p)),
                 Transform::from_translation(pos).with_scale(size),
             ))
-            .id()
+            .id();
+        if let Some(parent) = self.parent {
+            self.commands.entity(parent).add_child(entity);
+        }
+        entity
     }
     pub fn plane(&mut self, p: Paint, pos: Vec3, size: Vec2, rotation: Quat) {
+        if matches!(p, Paint::Brick) {
+            self.rotated(p, pos, Vec3::new(size.x, size.y, 0.36), rotation);
+            return;
+        }
         let mut mesh = Mesh::from(Rectangle::new(size.x, size.y));
         let scale = if matches!(p, Paint::Brick) { 0.72 } else { 1.5 };
         if let Some(VertexAttributeValues::Float32x2(uvs)) =
@@ -228,6 +296,7 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
                 uv[1] *= size.y / scale;
             }
         }
+        mesh.generate_tangents().expect("Surface tangents");
         self.commands.spawn((
             Mesh3d(self.meshes.add(mesh)),
             MeshMaterial3d(self.palette.get(p)),
@@ -251,11 +320,17 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
                 uv[0] = left + uv[0] * (right - left);
             }
         }
-        self.commands.spawn((
-            Mesh3d(self.meshes.add(mesh)),
-            MeshMaterial3d(material),
-            Transform::from_translation(pos).with_rotation(rotation),
-        ));
+        let entity = self
+            .commands
+            .spawn((
+                Mesh3d(self.meshes.add(mesh)),
+                MeshMaterial3d(material),
+                Transform::from_translation(pos).with_rotation(rotation),
+            ))
+            .id();
+        if let Some(parent) = self.parent {
+            self.commands.entity(parent).add_child(entity);
+        }
     }
     pub fn chair(&mut self, pos: Vec3, angle: f32) {
         let r = Quat::from_rotation_y(angle);
@@ -371,100 +446,144 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
             Transform::from_translation(pos - Vec3::Y * 0.2),
         ));
     }
-    /// A true arched opening with a faceted header and shared repeating brick material.
+    /// Watertight, 36 cm deep masonry module with an actual arched opening.
     pub fn window(&mut self, center: Vec3, rotation: Quat) {
         let r = 1.05;
         let spring = 2.8;
         let local = |x, y, z| center + rotation * Vec3::new(x, y, z);
-        self.plane(
+        self.rotated(
             Paint::Brick,
             local(0.0, 0.4, 0.0),
-            Vec2::new(2.6, 0.8),
+            Vec3::new(3.2, 0.8, 0.36),
             rotation,
         );
-        // Fill only the area above the arch, leaving an actual opening.
-        let mut vertices = Vec::new();
-        let mut uv = Vec::new();
-        let mut indices = Vec::new();
-        for i in 0..12 {
-            let a = PI - i as f32 * PI / 12.0;
-            let b = PI - (i + 1) as f32 * PI / 12.0;
+        for x in [-1.325, 1.325] {
+            self.rotated(
+                Paint::Brick,
+                local(x, 2.65, 0.0),
+                Vec3::new(0.55, 3.7, 0.36),
+                rotation,
+            );
+        }
+        let mut vertices = vec![];
+        let mut normals = vec![];
+        let mut uv = vec![];
+        let mut indices = vec![];
+        for i in 0..24 {
+            let a = PI - i as f32 * PI / 24.0;
+            let b = PI - (i + 1) as f32 * PI / 24.0;
             let x1 = r * a.cos();
             let x2 = r * b.cos();
             let y1 = spring + r * a.sin();
             let y2 = spring + r * b.sin();
-            let start = vertices.len() as u32;
-            for (x, y) in [(x1, y1), (x2, y2), (x2, 4.5), (x1, 4.5)] {
-                vertices.push([x, y, 0.0]);
-                uv.push([x / 0.72, y / 0.72]);
+            for (points, normal) in [
+                (
+                    [
+                        [x1, y1, 0.18],
+                        [x2, y2, 0.18],
+                        [x2, 4.5, 0.18],
+                        [x1, 4.5, 0.18],
+                    ],
+                    [0.0, 0.0, 1.0],
+                ),
+                (
+                    [
+                        [x2, y2, -0.18],
+                        [x1, y1, -0.18],
+                        [x1, 4.5, -0.18],
+                        [x2, 4.5, -0.18],
+                    ],
+                    [0.0, 0.0, -1.0],
+                ),
+                (
+                    [
+                        [x1, y1, -0.18],
+                        [x2, y2, -0.18],
+                        [x2, y2, 0.18],
+                        [x1, y1, 0.18],
+                    ],
+                    [-((a + b) * 0.5).cos(), -((a + b) * 0.5).sin(), 0.0],
+                ),
+            ] {
+                let start = vertices.len() as u32;
+                for v in points {
+                    vertices.push(v);
+                    normals.push(normal);
+                    let origin = rotation.inverse() * center;
+                    uv.push([(v[0] + origin.x) / 0.72, -(v[1] + origin.y) / 0.72]);
+                }
+                indices.extend([start, start + 1, start + 2, start, start + 2, start + 3]);
             }
-            indices.extend([start, start + 1, start + 2, start, start + 2, start + 3]);
         }
-        let len = vertices.len();
-        let mesh = Mesh::new(
+        let mut mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::default(),
         )
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vertices)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 0.0, 1.0]; len])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
         .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, uv)
         .with_inserted_indices(Indices::U32(indices));
+        mesh.generate_tangents().expect("Arched header tangents");
         self.commands.spawn((
             Mesh3d(self.meshes.add(mesh)),
             MeshMaterial3d(self.palette.get(Paint::Brick)),
             Transform::from_translation(center).with_rotation(rotation),
         ));
         self.rotated(
-            Paint::Metal,
-            local(0.0, 0.84, 0.05),
-            Vec3::new(2.4, 0.14, 0.42),
+            Paint::Cream,
+            local(0.0, 0.83, 0.13),
+            Vec3::new(2.35, 0.12, 0.65),
             rotation,
         );
         for x in [-r, r] {
             self.rotated(
                 Paint::Metal,
-                local(x, 1.82, 0.04),
-                Vec3::new(0.07, 2.0, 0.1),
+                local(x, 1.84, 0.0),
+                Vec3::new(0.065, 2.02, 0.14),
                 rotation,
             );
         }
         for y in [1.46, 2.15, 2.8] {
             self.rotated(
                 Paint::Metal,
-                local(0.0, y, 0.04),
-                Vec3::new(2.1, 0.055, 0.09),
+                local(0.0, y, 0.0),
+                Vec3::new(2.1, 0.045, 0.10),
                 rotation,
             );
         }
         for x in [-0.52, 0.0, 0.52] {
             self.rotated(
                 Paint::Metal,
-                local(x, 1.85, 0.04),
-                Vec3::new(0.045, 2.0, 0.09),
+                local(x, 1.84, 0.0),
+                Vec3::new(0.035, 2.02, 0.1),
                 rotation,
             );
         }
         self.rotated(
             Paint::Glass,
-            local(0.0, 1.83, -0.035),
+            local(0.0, 1.83, -0.08),
             Vec3::new(2.07, 1.93, 0.012),
             rotation,
         );
-        for i in 0..11 {
-            let a = (i as f32 + 0.5) * PI / 11.0;
-            let rr = rotation * Quat::from_rotation_z(a - FRAC_PI_2);
-            self.rotated(
-                Paint::Brick,
-                local(1.17 * a.cos(), spring + 1.17 * a.sin(), 0.025),
-                Vec3::new(0.31, 0.19, 0.25),
-                rr,
-            );
+        // Continuous faceted frame follows the same arch segments; no intersecting brick cubes.
+        for i in 0..24 {
+            let a = (i as f32 + 0.5) * PI / 24.0;
             self.rotated(
                 Paint::Metal,
-                local(1.045 * a.cos(), spring + 1.045 * a.sin(), 0.04),
-                Vec3::new(0.3, 0.055, 0.09),
-                rr,
+                local(r * a.cos(), spring + r * a.sin(), 0.0),
+                Vec3::new(0.142, 0.055, 0.14),
+                rotation * Quat::from_rotation_z(a - FRAC_PI_2),
             );
+        }
+        for y in [1.0, 1.42, 1.84, 2.26, 2.68] {
+            for x in [-1.14, 1.14] {
+                self.rotated(
+                    Paint::Brick,
+                    local(x, y, 0.20),
+                    Vec3::new(0.18, 0.40, 0.12),
+                    rotation,
+                );
+            }
         }
     }
 }
