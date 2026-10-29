@@ -565,6 +565,35 @@ impl<'a, 'w, 's> Builder<'a, 'w, 's> {
             Vec3::new(2.07, 1.93, 0.012),
             rotation,
         );
+        // A fitted semicircular pane closes the fanlight above the spring line.
+        let mut positions = vec![[0., spring, -0.08]];
+        for i in 0..=24 {
+            let angle = i as f32 * PI / 24.;
+            positions.push([1.025 * angle.cos(), spring + 1.025 * angle.sin(), -0.08]);
+        }
+        let indices: Vec<u32> = (1..=24).flat_map(|i| [0, i, i + 1]).collect();
+        let pane = Mesh::new(
+            PrimitiveTopology::TriangleList,
+            RenderAssetUsages::default(),
+        )
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, positions)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0., 0., 1.]; 26])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0., 0.]; 26])
+        .with_inserted_indices(Indices::U32(indices));
+        self.commands.spawn((
+            Mesh3d(self.meshes.add(pane)),
+            MeshMaterial3d(self.palette.get(Paint::Glass)),
+            Transform::from_translation(center).with_rotation(rotation),
+        ));
+        for angle in [PI / 4., PI / 2., 3. * PI / 4.] {
+            let direction = Vec3::new(angle.cos(), angle.sin(), 0.);
+            self.rotated(
+                Paint::Metal,
+                local(0., spring, 0.) + rotation * direction * 0.51,
+                Vec3::new(0.028, 1.02, 0.08),
+                rotation * Quat::from_rotation_z(angle - PI / 2.),
+            );
+        }
         // Continuous faceted frame follows the same arch segments; no intersecting brick cubes.
         for i in 0..24 {
             let a = (i as f32 + 0.5) * PI / 24.0;

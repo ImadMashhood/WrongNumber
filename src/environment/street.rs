@@ -111,6 +111,107 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
                 if row == 0 && detailed {
                     let style = (col as u32 + seed + face as u32) % 4;
                     let at = |x, y, z| pos + rot * Vec3::new(x, y, z);
+                    // Each frontage mixes masonry, residential windows, entries and retail.
+                    let bay = city_hash(col / 2, face, seed) % 5;
+                    if bay >= 2 {
+                        b.rotated(
+                            Paint::Brick,
+                            at(0., -0.10, 0.),
+                            Vec3::new(3.0, 3.0, 0.30),
+                            rot,
+                        );
+                        b.rotated(
+                            Paint::Cream,
+                            at(0., -1.39, 0.17),
+                            Vec3::new(3.0, 0.18, 0.18),
+                            rot,
+                        );
+                        if bay == 2 {
+                            b.rotated(
+                                Paint::Metal,
+                                at(0., 0.22, 0.18),
+                                Vec3::new(1.35, 1.45, 0.12),
+                                rot,
+                            );
+                            b.rotated(
+                                Paint::Plastic,
+                                at(0., 0.22, 0.25),
+                                Vec3::new(1.18, 1.28, 0.025),
+                                rot,
+                            );
+                            b.rotated(
+                                Paint::Cream,
+                                at(0., -0.55, 0.25),
+                                Vec3::new(1.55, 0.12, 0.35),
+                                rot,
+                            );
+                            b.rotated(
+                                Paint::Metal,
+                                at(0., 0.22, 0.28),
+                                Vec3::new(0.05, 1.3, 0.03),
+                                rot,
+                            );
+                        } else if bay == 4 {
+                            b.rotated(
+                                Paint::Cream,
+                                at(0., -0.36, 0.18),
+                                Vec3::new(1.4, 2.4, 0.18),
+                                rot,
+                            );
+                            b.rotated(
+                                Paint::Wood,
+                                at(0., -0.40, 0.29),
+                                Vec3::new(1.13, 2.2, 0.06),
+                                rot,
+                            );
+                            b.rotated(
+                                Paint::Plastic,
+                                at(0., 0.18, 0.33),
+                                Vec3::new(0.83, 0.75, 0.025),
+                                rot,
+                            );
+                            b.rotated(
+                                Paint::Metal,
+                                at(0.40, -0.42, 0.36),
+                                Vec3::new(0.05, 0.28, 0.08),
+                                rot,
+                            );
+                            b.rotated(
+                                Paint::Warm,
+                                at(0.9, 0.80, 0.20),
+                                Vec3::new(0.16, 0.28, 0.16),
+                                rot,
+                            );
+                            b.rotated(
+                                Paint::Floor,
+                                at(0., -1.44, 0.38),
+                                Vec3::new(1.6, 0.16, 0.65),
+                                rot,
+                            );
+                        } else {
+                            b.rotated(
+                                Paint::Metal,
+                                at(0., -0.65, 0.18),
+                                Vec3::new(0.75, 0.32, 0.03),
+                                rot,
+                            );
+                            for x in [-0.24, -0.08, 0.08, 0.24] {
+                                b.rotated(
+                                    Paint::Plastic,
+                                    at(x, -0.65, 0.21),
+                                    Vec3::new(0.05, 0.25, 0.02),
+                                    rot,
+                                );
+                            }
+                        }
+                        continue;
+                    }
+                    b.rotated(
+                        Paint::Brick,
+                        at(-1.43, -0.10, 0.),
+                        Vec3::new(0.18, 3.0, 0.28),
+                        rot,
+                    );
                     // Separate door and display window, with visible frame and handle.
                     for x in [-1.42, 0.55, 1.42] {
                         b.rotated(
@@ -595,6 +696,57 @@ fn vehicle(b: &mut Builder, kind: u32) {
         }
     }
 }
+/// Batch distant windows per tower/material instead of spawning thousands of entities.
+fn skyline_windows(b: &mut Builder, p: Vec3, height: f32, seed: i32) {
+    for lit in [false, true] {
+        let mut vertices = Vec::new();
+        let mut normals = Vec::new();
+        let mut indices = Vec::new();
+        for face in 0..4 {
+            let rot = Quat::from_rotation_y(face as f32 * std::f32::consts::FRAC_PI_2);
+            let width = if face % 2 == 0 { 16. } else { 20. };
+            let depth = if face % 2 == 0 { 20. } else { 16. };
+            let normal = rot * Vec3::Z;
+            for row in 0..((height - 4.) / 3.) as i32 {
+                for col in 0..(width / 2.7) as i32 {
+                    if (city_hash(row, col, (seed * 7 + face) as u32) % 100 < 23) != lit {
+                        continue;
+                    }
+                    let center = p + rot
+                        * Vec3::new(
+                            -width / 2. + 1.5 + col as f32 * 2.7,
+                            2.5 + row as f32 * 3.,
+                            depth / 2. + 0.03,
+                        );
+                    let start = vertices.len() as u32;
+                    for (x, y) in [(-0.55, -0.8), (0.55, -0.8), (0.55, 0.8), (-0.55, 0.8)] {
+                        vertices.push((center + rot * Vec3::new(x, y, 0.)).to_array());
+                        normals.push(normal.to_array());
+                    }
+                    indices.extend([start, start + 1, start + 2, start, start + 2, start + 3]);
+                }
+            }
+        }
+        let count = vertices.len();
+        let mesh = Mesh::new(
+            bevy::render::render_resource::PrimitiveTopology::TriangleList,
+            RenderAssetUsages::default(),
+        )
+        .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vertices)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+        .with_inserted_attribute(Mesh::ATTRIBUTE_UV_0, vec![[0., 0.]; count])
+        .with_inserted_indices(bevy::mesh::Indices::U32(indices));
+        b.commands.spawn((
+            Mesh3d(b.meshes.add(mesh)),
+            MeshMaterial3d(
+                b.palette
+                    .get(if lit { Paint::Warm } else { Paint::Plastic }),
+            ),
+            Transform::default(),
+            bevy::light::NotShadowCaster,
+        ));
+    }
+}
 fn outskirts(b: &mut Builder) {
     // Paired end-frontages occlude the ends of each road; staggered far blocks close the vista.
     for road in GRID {
@@ -617,6 +769,30 @@ fn outskirts(b: &mut Builder) {
             }
         }
     }
+    // Close the axial view beyond the last cross street, not the live traffic lanes.
+    // Side buildings alone leave a slot revealing the horizon directly along each road.
+    for road in GRID {
+        for end in [-132., 156.] {
+            for swap in [false, true] {
+                let center = if swap {
+                    Vec2::new(end, road)
+                } else {
+                    Vec2::new(road, end)
+                };
+                building(
+                    b,
+                    center,
+                    if swap {
+                        Vec2::new(20., 38.)
+                    } else {
+                        Vec2::new(38., 20.)
+                    },
+                    40. + (city_hash(road as i32, end as i32, 77) % 18) as f32,
+                    false,
+                );
+            }
+        }
+    }
     for i in 0..64 {
         let a = i as f32 * std::f32::consts::TAU / 64.0;
         let radius = 145.0 + (city_hash(i, 5, 0) % 35) as f32;
@@ -627,15 +803,7 @@ fn outskirts(b: &mut Builder) {
             p + Vec3::Y * h / 2.0,
             Vec3::new(16.0, h, 20.0),
         );
-        for side in [-1., 1.] {
-            for band in 0..6 {
-                b.block(
-                    Paint::Plastic,
-                    p + Vec3::new(0., 5. + band as f32 * (h - 8.) / 6., side * 10.01),
-                    Vec3::new(14., 1.6, 0.025),
-                );
-            }
-        }
+        skyline_windows(b, p, h, i);
         if i % 3 == 0 {
             b.block(
                 Paint::Metal,
@@ -686,19 +854,56 @@ fn outskirts(b: &mut Builder) {
             }
         }
     }
-    for z in [-4.0, 18.0, 30.0] {
-        b.block(
-            Paint::Wood,
-            Vec3::new(-24.0, ROAD_Y + 1.5, z),
-            Vec3::new(0.25, 3.0, 0.25),
-        );
+    let foliage = b.meshes.add(
+        Sphere::new(1.0)
+            .mesh()
+            .ico(1)
+            .expect("Low-poly canopy")
+            .with_duplicated_vertices()
+            .with_computed_flat_normals(),
+    );
+    for (index, z) in [-4.0, 5.0, 30.0].into_iter().enumerate() {
+        let base = Vec3::new(-24.6, ROAD_Y + 0.14, z);
+        let height = 2.7 + index as f32 * 0.23;
         b.round(
-            Paint::Green,
-            Vec3::new(-24.0, ROAD_Y + 3.5, z),
-            Vec3::new(2.5, 3.0, 2.5),
+            Paint::Wood,
+            base + Vec3::Y * height / 2.,
+            Vec3::new(0.24, height, 0.24),
         );
+        b.block(Paint::Floor, base, Vec3::new(0.85, 0.08, 0.85));
+        for branch in 0..5 {
+            let angle = branch as f32 * 2.4 + index as f32;
+            let end = base
+                + Vec3::new(
+                    0.25 + angle.cos() * 0.7,
+                    height + 0.25 + (branch % 2) as f32 * 0.45,
+                    angle.sin() * 0.85,
+                );
+            let start = base + Vec3::Y * (height - 0.8);
+            let delta = end - start;
+            b.rotated(
+                Paint::Wood,
+                (start + end) * 0.5,
+                Vec3::new(0.10, delta.length(), 0.10),
+                Quat::from_rotation_arc(Vec3::Y, delta.normalize()),
+            );
+            b.commands.spawn((
+                Mesh3d(foliage.clone()),
+                MeshMaterial3d(b.palette.get(Paint::Green)),
+                Transform::from_translation(end + Vec3::Y * 0.35)
+                    .with_scale(Vec3::new(0.95, 0.85 + (branch % 2) as f32 * 0.15, 0.9))
+                    .with_rotation(Quat::from_rotation_y(angle)),
+            ));
+        }
+        b.commands.spawn((
+            Mesh3d(foliage.clone()),
+            MeshMaterial3d(b.palette.get(Paint::Green)),
+            Transform::from_translation(base + Vec3::Y * (height + 1.0))
+                .with_scale(Vec3::new(1.05, 1.2, 0.95)),
+        ));
     }
 }
+
 pub fn sky(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -869,6 +1074,43 @@ pub fn preview(
     mut net: ResMut<crate::network::Network>,
     mut camera: Single<&mut Transform, With<crate::world::Player>>,
 ) {
+    if std::env::args().any(|a| a == "--frontage-test") {
+        *frame += 1;
+        let n = *frame;
+        **camera = if n < 100 {
+            Transform::from_xyz(-9.2, 1.7, -4.8).looking_at(Vec3::new(-17., -1., -100.), Vec3::Y)
+        } else if n < 180 {
+            Transform::from_xyz(-9.2, 1.7, 4.8).looking_at(Vec3::new(-17., -1., 110.), Vec3::Y)
+        } else if n < 260 {
+            Transform::from_xyz(-20., -3.5, 8.).looking_at(Vec3::new(-24.6, -5., 5.), Vec3::Y)
+        } else if n < 330 {
+            Transform::from_xyz(-20., -5.8, 11.).looking_at(Vec3::new(-26., -7.2, 11.), Vec3::Y)
+        } else {
+            Transform::from_xyz(-6.5, 2., 2.).looking_at(Vec3::new(-9., 3.3, 1.8), Vec3::Y)
+        };
+        let name = match n {
+            80 => "north-street-end",
+            160 => "south-street-end",
+            240 => "branched-trees",
+            300 => "mixed-ground-floors",
+            370 => "glazed-arches",
+            _ => return,
+        };
+        let args: Vec<_> = std::env::args().collect();
+        if let Some(dir) = args
+            .windows(2)
+            .find(|a| a[0] == "--capture-dir")
+            .map(|a| &a[1])
+        {
+            std::fs::create_dir_all(dir).unwrap();
+            commands
+                .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+                .observe(bevy::render::view::screenshot::save_to_disk(format!(
+                    "{dir}/{name}.png"
+                )));
+        }
+        return;
+    }
     if std::env::args().any(|a| a == "--feature-test") {
         *frame += 1;
         let n = *frame;
