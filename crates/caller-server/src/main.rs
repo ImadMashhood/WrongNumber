@@ -13,13 +13,35 @@ struct Provider {
     client: reqwest::blocking::Client,
     prices: [f64; 2],
 }
-fn schema(kind: TurnKind, allow_hangup: bool) -> serde_json::Value {
+fn schema(c: &Context) -> serde_json::Value {
+    let kind = c.kind;
+    let allow_hangup = c.allow_hangup && kind == TurnKind::Conversation;
     let actions = match kind {
         TurnKind::Opening => vec!["Opening"],
         TurnKind::Conversation if allow_hangup => vec!["Answer", "Clarify", "Goodbye"],
         TurnKind::Conversation => vec!["Answer", "Clarify"],
     };
-    serde_json::json!({"type":"json_schema","json_schema":{"name":"caller_reply","strict":true,"schema":{"type":"object","additionalProperties":false,"required":["spoken_text","emotion","proposed_action","fact_references","call_complete","behavior"],"properties":{"spoken_text":{"type":"string"},"emotion":{"type":"string","enum":["Calm","Anxious","Confused","Dry","Angry","Defensive","Embarrassed","Relieved","Panicked","Cooperative","Suspicious"]},"proposed_action":{"type":"string","enum":actions},"fact_references":{"type":"array","items":{"type":"string"}},"call_complete":{"type":"boolean","enum":if allow_hangup {vec![false,true]} else {vec![false]}},"behavior":{"type":"object","additionalProperties":false,"required":["event","quote","requested_disclosure"],"properties":{"event":{"type":["string","null"],"enum":[null,"Information","Clarification","Evidence","Contradiction","Accusation","Reassurance","Negotiation","Pressure","Threat","Trick","Irrelevant","Insult"]},"quote":{"type":["string","null"]},"requested_disclosure":{"type":["string","null"]}}}}}}})
+    let mut schema = serde_json::json!({"type":"json_schema","json_schema":{"name":"caller_reply","strict":true,"schema":{"type":"object","additionalProperties":false,"required":["spoken_text","emotion","proposed_action","fact_references","call_complete","behavior"],"properties":{"spoken_text":{"type":"string"},"emotion":{"type":"string","enum":["Calm","Anxious","Confused","Dry","Angry","Defensive","Embarrassed","Relieved","Panicked","Cooperative","Suspicious"]},"proposed_action":{"type":"string","enum":actions},"fact_references":{"type":"array","items":{"type":"string"}},"call_complete":{"type":"boolean","enum":if allow_hangup {vec![false,true]} else {vec![false]}},"behavior":{"type":"object","additionalProperties":false,"required":["event","quote","requested_disclosure"],"properties":{"event":{"type":["string","null"],"enum":[null,"Information","Clarification","Evidence","Contradiction","Accusation","Reassurance","Negotiation","Pressure","Threat","Trick","Irrelevant","Insult"]},"quote":{"type":["string","null"]},"requested_disclosure":{"type":["string","null"]}}}}}}});
+    let properties = &mut schema["json_schema"]["schema"]["properties"];
+    if kind == TurnKind::Opening {
+        properties["fact_references"]["maxItems"] = serde_json::json!(0);
+        for field in ["event", "quote", "requested_disclosure"] {
+            properties["behavior"]["properties"][field] = serde_json::json!({"type":"null"});
+        }
+    } else {
+        properties["fact_references"]["maxItems"] = serde_json::json!(3);
+        if c.facts.is_empty() {
+            properties["fact_references"]["maxItems"] = serde_json::json!(0);
+        } else {
+            properties["fact_references"]["items"]["enum"] =
+                serde_json::json!(c.facts.iter().map(|f| &f.id).collect::<Vec<_>>());
+        }
+        let mut disclosure = vec![serde_json::Value::Null];
+        disclosure.extend(c.facts.iter().map(|f| serde_json::json!(f.id)));
+        properties["behavior"]["properties"]["requested_disclosure"]["enum"] =
+            serde_json::json!(disclosure);
+    }
+    schema
 }
 impl Provider {
     fn respond(&self, c: &Context, mut reserve: impl FnMut() -> bool) -> Option<Reply> {
@@ -30,15 +52,15 @@ impl Provider {
                 return None;
             }
             let reply = self.respond_once(c, attempt == 1, remaining)?;
-            if !repeated_reply(c, &reply.spoken_text) {
+            if validate(c, &reply) && !repeated_reply(c, &reply.spoken_text) {
                 return Some(reply);
             }
             eprintln!(
-                "Caller repeated prior wording; {}.",
+                "Caller reply failed contract or repeated prior wording; {}.",
                 if attempt == 0 {
                     "requesting one live rewrite"
                 } else {
-                    "disconnecting after repeated rewrite"
+                    "disconnecting after failed rewrite"
                 }
             );
         }
@@ -66,9 +88,9 @@ impl Provider {
             messages.push(serde_json::json!({"role":"user","content":c.question}));
         }
         if rewrite {
-            messages.push(serde_json::json!({"role":"system","content":"Your previous attempt duplicated earlier wording and was not delivered. Write a genuinely different in-character response to the latest dispatcher message. Change the conversational move, not just the first two words. Acknowledge frustration, explain a misunderstanding, ask one useful question, or establish a personal boundary as appropriate. Preserve all incident facts. Return the required JSON."}));
+            messages.push(serde_json::json!({"role":"system","content":"Your previous attempt failed validation or duplicated earlier wording and was not delivered. Obey the response schema exactly. For Opening: fact_references must be [], call_complete false, and all three behavior fields must be null. For Conversation: behavior.quote must be an exact excerpt from the latest dispatcher message or null; IDs must come from the supplied facts. Write a genuinely different in-character response to the latest dispatcher message. Change the conversational move, not just the first two words. Acknowledge frustration, explain a misunderstanding, ask one useful question, or establish a personal boundary as appropriate. Preserve all incident facts. Return the required JSON."}));
         }
-        let mut body = serde_json::json!({"model":self.model,"messages":messages,"max_tokens":256,"temperature":0.85,"response_format":schema(c.kind, c.allow_hangup),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
+        let mut body = serde_json::json!({"model":self.model,"messages":messages,"max_tokens":256,"temperature":0.85,"response_format":schema(c),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
         if !self.endpoint.starts_with("https://openrouter.ai/") {
             body.as_object_mut()?.remove("provider");
         }
@@ -99,16 +121,6 @@ impl Provider {
         let r: Reply = serde_json::from_str(value["choices"][0]["message"]["content"].as_str()?)
             .inspect_err(|_| eprintln!("Caller provider invalid structured reply"))
             .ok()?;
-        if !validate(c, &r) {
-            eprintln!(
-                "Caller contract rejected reply: phase {:?}, action {:?}, bytes {}, references {}",
-                c.kind,
-                r.proposed_action,
-                r.spoken_text.len(),
-                r.fact_references.len()
-            );
-            return None;
-        }
         Some(r)
     }
 }
@@ -248,44 +260,46 @@ fn main() {
 mod tests {
     use super::*;
     use std::io::BufRead;
-    fn fixture(bad: bool) -> (Provider, std::thread::JoinHandle<()>) {
+    fn fixture(replies: Vec<bool>) -> (Provider, std::thread::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let thread = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            let mut reader = std::io::BufReader::new(&mut stream);
-            let mut len = 0;
-            loop {
-                let mut line = String::new();
-                reader.read_line(&mut line).unwrap();
-                if line == "\r\n" {
-                    break;
+            for bad in replies {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut reader = std::io::BufReader::new(&mut stream);
+                let mut len = 0;
+                loop {
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    if line == "\r\n" {
+                        break;
+                    }
+                    if let Some(v) = line.to_lowercase().strip_prefix("content-length:") {
+                        len = v.trim().parse().unwrap();
+                    }
                 }
-                if let Some(v) = line.to_lowercase().strip_prefix("content-length:") {
-                    len = v.trim().parse().unwrap();
+                let mut bytes = vec![0; len];
+                reader.read_exact(&mut bytes).unwrap();
+                let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                assert_eq!(body["max_tokens"], 256);
+                assert_eq!(body["response_format"]["type"], "json_schema");
+                let mut c: Context =
+                    serde_json::from_str(body["messages"][1]["content"].as_str().unwrap()).unwrap();
+                c.question = body["messages"].as_array().unwrap().last().unwrap()["content"]
+                    .as_str()
+                    .unwrap()
+                    .into();
+                let mut reply = fixture_reply(&c);
+                if bad {
+                    reply.fact_references = vec!["invented_unavailable_fact".into()];
                 }
+                let answer=serde_json::json!({"choices":[{"message":{"content":serde_json::to_string(&reply).unwrap()}}]}).to_string();
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}",
+                    answer.len()
+                );
+                stream.write_all(response.as_bytes()).unwrap();
             }
-            let mut bytes = vec![0; len];
-            reader.read_exact(&mut bytes).unwrap();
-            let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-            assert_eq!(body["max_tokens"], 256);
-            assert_eq!(body["response_format"]["type"], "json_schema");
-            let mut c: Context =
-                serde_json::from_str(body["messages"][1]["content"].as_str().unwrap()).unwrap();
-            c.question = body["messages"].as_array().unwrap().last().unwrap()["content"]
-                .as_str()
-                .unwrap()
-                .into();
-            let mut reply = fixture_reply(&c);
-            if bad {
-                reply.fact_references = vec!["invented_unavailable_fact".into()];
-            }
-            let answer=serde_json::json!({"choices":[{"message":{"content":serde_json::to_string(&reply).unwrap()}}]}).to_string();
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}",
-                answer.len()
-            );
-            stream.write_all(response.as_bytes()).unwrap();
         });
         (
             Provider {
@@ -323,11 +337,57 @@ mod tests {
     }
     #[test]
     fn compatible_http_adapter_accepts_only_a_valid_structured_response() {
-        let (p, t) = fixture(false);
+        let (p, t) = fixture(vec![false]);
         assert!(p.respond(&context(), || true).is_some());
         t.join().unwrap();
-        let (p, t) = fixture(true);
+        let (p, t) = fixture(vec![true, true]);
         assert!(p.respond(&context(), || true).is_none());
         t.join().unwrap();
+    }
+    #[test]
+    fn opening_schema_cannot_request_evidence_or_classify_absent_dispatcher() {
+        let mut c = context();
+        c.kind = TurnKind::Opening;
+        c.question.clear();
+        c.allow_hangup = true;
+        let schema = schema(&c);
+        let p = &schema["json_schema"]["schema"]["properties"];
+        assert_eq!(p["fact_references"]["maxItems"], 0);
+        assert_eq!(p["call_complete"]["enum"], serde_json::json!([false]));
+        for field in ["event", "quote", "requested_disclosure"] {
+            assert_eq!(p["behavior"]["properties"][field]["type"], "null");
+        }
+    }
+    #[test]
+    fn invalid_opening_gets_one_live_repair_before_disconnect() {
+        let mut c = context();
+        c.kind = TurnKind::Opening;
+        c.question.clear();
+        let (p, t) = fixture(vec![true, false]);
+        let mut attempts = 0;
+        let reply = p
+            .respond(&c, || {
+                attempts += 1;
+                true
+            })
+            .unwrap();
+        assert_eq!(attempts, 2);
+        assert!(validate(&c, &reply));
+        assert_eq!(reply.proposed_action, Proposal::Opening);
+        t.join().unwrap();
+    }
+    #[test]
+    fn conversation_schema_only_exposes_available_fact_ids() {
+        let c = context();
+        let s = schema(&c);
+        let p = &s["json_schema"]["schema"]["properties"];
+        assert_eq!(
+            p["fact_references"]["items"]["enum"],
+            serde_json::json!(["smoke"])
+        );
+        assert_eq!(
+            p["behavior"]["properties"]["requested_disclosure"]["enum"],
+            serde_json::json!([null, "smoke"])
+        );
     }
 }
