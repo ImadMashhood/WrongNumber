@@ -5,6 +5,8 @@ use bevy::{asset::RenderAssetUsages, mesh::VertexAttributeValues, prelude::*};
 #[derive(Component)]
 pub struct Sun;
 #[derive(Component)]
+pub struct StreetLamp;
+#[derive(Component)]
 pub struct Traffic {
     pub offset: f32,
     pub outer: bool,
@@ -49,8 +51,14 @@ fn beam(b: &mut Builder, a: Vec3, c: Vec3, width: f32) {
 }
 fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bool) {
     let bottom = ROAD_Y;
+    let seed = city_hash(center.x as i32, center.y as i32, 23);
     b.block(
-        Paint::Brick,
+        match seed % 4 {
+            0 => Paint::Brick,
+            1 => Paint::Plaster,
+            2 => Paint::Cream,
+            _ => Paint::Floor,
+        },
         Vec3::new(center.x, bottom + height / 2.0, center.y),
         Vec3::new(size.x, height, size.y),
     );
@@ -85,7 +93,7 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
                         );
                 b.rotated(Paint::Metal, pos, Vec3::new(1.22, 1.75, 0.12), rot);
                 b.rotated(
-                    if (row * 7 + col + face) % 7 == 0 {
+                    if city_hash(row, col, face as u32 ^ seed) % 100 < 27 {
                         Paint::Warm
                     } else {
                         Paint::Plastic
@@ -94,6 +102,36 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
                     Vec3::new(1.06, 1.58, 0.035),
                     rot,
                 );
+                if row == 0 && detailed {
+                    b.rotated(
+                        Paint::Metal,
+                        pos + normal * 0.12,
+                        Vec3::new(2.55, 2.45, 0.15),
+                        rot,
+                    );
+                    b.rotated(
+                        Paint::Cool,
+                        pos + normal * 0.22,
+                        Vec3::new(2.35, 2.20, 0.04),
+                        rot,
+                    );
+                    b.rotated(
+                        if (col as u32 + seed).is_multiple_of(2) {
+                            Paint::Green
+                        } else {
+                            Paint::Red
+                        },
+                        pos + rot * Vec3::new(0.0, 1.65, 0.4),
+                        Vec3::new(2.8, 0.25, 0.9),
+                        rot,
+                    );
+                    b.rotated(
+                        Paint::Cream,
+                        pos + rot * Vec3::new(0.0, 1.3, 0.2),
+                        Vec3::new(2.3, 0.28, 0.06),
+                        rot,
+                    );
+                }
                 if detailed {
                     b.rotated(
                         Paint::Cream,
@@ -112,21 +150,48 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
         }
     }
 }
-pub const GRID: [f32; 4] = [-66.0, -14.0, 38.0, 90.0];
+pub const GRID: [f32; 4] = [-75.0, -17.0, 41.0, 99.0];
+fn city_hash(x: i32, z: i32, salt: u32) -> u32 {
+    let mut n = (x as u32).wrapping_mul(73856093)
+        ^ (z as u32).wrapping_mul(19349663)
+        ^ salt.wrapping_mul(83492791);
+    n ^= n >> 16;
+    n = n.wrapping_mul(2246822519);
+    n ^ (n >> 13)
+}
 fn street_lamp(b: &mut Builder, p: Vec3) {
-    b.block(Paint::Metal, p + Vec3::Y * 2.7, Vec3::new(0.12, 5.4, 0.12));
+    let road = *GRID
+        .iter()
+        .min_by(|a, c| (p.z - **a).abs().total_cmp(&(p.z - **c).abs()))
+        .unwrap();
+    let dir = Vec3::new(0.0, 0.0, (road - p.z).signum());
+    b.block(Paint::Metal, p + Vec3::Y * 2.7, Vec3::new(0.13, 5.4, 0.13));
     b.block(
         Paint::Metal,
-        p + Vec3::new(0.45, 5.35, 0.0),
-        Vec3::new(1.0, 0.12, 0.15),
+        p + Vec3::Y * 5.35 + dir * 0.65,
+        Vec3::new(0.15, 0.13, 1.4),
     );
-    b.block(
-        Paint::Warm,
-        p + Vec3::new(0.9, 5.25, 0.0),
-        Vec3::new(0.65, 0.10, 0.4),
-    );
+    let lamp = p + Vec3::Y * 5.25 + dir * 1.25;
+    b.block(Paint::Warm, lamp, Vec3::new(0.45, 0.10, 0.7));
+    if p.distance(Vec3::ZERO) < 85.0 {
+        b.commands.spawn((
+            StreetLamp,
+            SpotLight {
+                intensity: 0.0,
+                range: 14.0,
+                outer_angle: 0.95,
+                inner_angle: 0.55,
+                shadow_maps_enabled: false,
+                color: Color::srgb(1.0, 0.76, 0.45),
+                ..default()
+            },
+            Transform::from_translation(lamp - Vec3::Y * 0.1).looking_at(p + dir * 2.8, Vec3::X),
+        ));
+    }
 }
 pub fn build(b: &mut Builder) {
+    garage(b);
+    outskirts(b);
     // Roads define the grid first. Every building lot is inset from these corridors.
     b.block(
         Paint::Floor,
@@ -152,11 +217,11 @@ pub fn build(b: &mut Builder) {
             b.block(
                 Paint::Plastic,
                 place(12.0, ROAD_Y - 0.01, road),
-                size(164.0, 8.0),
+                size(186.0, 12.0),
             );
-            for n in 0..77 {
-                let at = -64.0 + n as f32 * 2.0;
-                if GRID.iter().all(|cross| (at - cross).abs() > 5.0) {
+            for n in 0..86 {
+                let at = -73.0 + n as f32 * 2.0;
+                if GRID.iter().all(|cross| (at - cross).abs() > 8.5) {
                     b.block(
                         Paint::Cream,
                         place(at, ROAD_Y + 0.004, road),
@@ -170,13 +235,13 @@ pub fn build(b: &mut Builder) {
             }
         }
     }
-    for x in [-40.0, 12.0, 64.0] {
-        for z in [-40.0, 12.0, 64.0] {
+    for x in [-46.0, 12.0, 70.0] {
+        for z in [-46.0, 12.0, 70.0] {
             // Raised continuous pavement surrounds each city block, never crosses a road.
             b.block(
                 Paint::Cream,
                 Vec3::new(x, ROAD_Y + 0.07, z),
-                Vec3::new(44.0, 0.14, 44.0),
+                Vec3::new(46.0, 0.14, 46.0),
             );
             if x == 12.0 && z == 12.0 {
                 building(b, Vec2::new(24.0, 12.0), Vec2::new(12.0, 36.0), 22.0, true);
@@ -185,14 +250,14 @@ pub fn build(b: &mut Builder) {
                 building(
                     b,
                     Vec2::new(x, z),
-                    Vec2::splat(38.0),
-                    22.0 + ((x as i32 + z as i32).unsigned_abs() % 12) as f32,
+                    Vec2::splat(40.0),
+                    18.0 + (city_hash(x as i32, z as i32, 7) % 19) as f32,
                     x < 20.0 && z < 20.0,
                 );
             }
             for side in [-1.0, 1.0] {
-                street_lamp(b, Vec3::new(x + side * 20.0, ROAD_Y + 0.14, z - 20.0));
-                street_lamp(b, Vec3::new(x + side * 20.0, ROAD_Y + 0.14, z + 20.0));
+                street_lamp(b, Vec3::new(x + side * 22.0, ROAD_Y + 0.14, z - 22.0));
+                street_lamp(b, Vec3::new(x + side * 22.0, ROAD_Y + 0.14, z + 22.0));
             }
         }
     }
@@ -200,24 +265,52 @@ pub fn build(b: &mut Builder) {
     for x in GRID {
         for z in GRID {
             for side in [-1.0, 1.0] {
-                for stripe in 0..7 {
-                    let across = -3.0 + stripe as f32;
+                for stripe in 0..11 {
+                    let across = -5.0 + stripe as f32;
                     b.block(
                         Paint::Paper,
-                        Vec3::new(x + across, ROAD_Y + 0.007, z + side * 5.2),
+                        Vec3::new(x + across, ROAD_Y + 0.007, z + side * 7.2),
                         Vec3::new(0.5, 0.008, 1.6),
                     );
                     b.block(
                         Paint::Paper,
-                        Vec3::new(x + side * 5.2, ROAD_Y + 0.007, z + across),
+                        Vec3::new(x + side * 7.2, ROAD_Y + 0.007, z + across),
                         Vec3::new(1.6, 0.008, 0.5),
                     );
                 }
             }
         }
     }
+    for z in [0., 20.] {
+        let p = Vec3::new(-23.6, ROAD_Y, z);
+        b.block(Paint::Metal, p + Vec3::Y * 2.5, Vec3::new(0.12, 5., 0.12));
+        b.block(
+            Paint::Metal,
+            p + Vec3::new(1., 4.9, 0.),
+            Vec3::new(2., 0.1, 0.1),
+        );
+        b.block(
+            Paint::Warm,
+            p + Vec3::new(1.8, 4.8, 0.),
+            Vec3::new(0.65, 0.1, 0.35),
+        );
+        b.commands.spawn((
+            StreetLamp,
+            SpotLight {
+                intensity: 0.,
+                range: 16.,
+                outer_angle: 1.05,
+                inner_angle: 0.6,
+                shadow_maps_enabled: false,
+                color: Color::srgb(1., 0.8, 0.55),
+                ..default()
+            },
+            Transform::from_translation(p + Vec3::new(1.8, 4.65, 0.))
+                .looking_at(p + Vec3::new(3., 0., 0.), Vec3::Z),
+        ));
+    }
     for z in [-2.0, 21.0] {
-        let x = -20.5;
+        let x = -25.5;
         b.round(
             Paint::Metal,
             Vec3::new(x, ROAD_Y + 0.65, z),
@@ -243,35 +336,35 @@ pub fn build(b: &mut Builder) {
     for z in [8.0, 12.0] {
         b.block(
             Paint::Metal,
-            Vec3::new(-20.6, ROAD_Y + 1.5, z),
+            Vec3::new(-25.6, ROAD_Y + 1.5, z),
             Vec3::new(0.09, 2.7, 0.09),
         );
     }
     b.block(
         Paint::Glass,
-        Vec3::new(-20.6, ROAD_Y + 1.5, 10.0),
+        Vec3::new(-25.6, ROAD_Y + 1.5, 10.0),
         Vec3::new(0.04, 2.5, 4.0),
     );
     b.block(
         Paint::Metal,
-        Vec3::new(-19.7, ROAD_Y + 2.9, 10.0),
+        Vec3::new(-24.7, ROAD_Y + 2.9, 10.0),
         Vec3::new(2.0, 0.15, 4.5),
     );
     b.block(
         Paint::Wood,
-        Vec3::new(-20.1, ROAD_Y + 0.65, 10.0),
+        Vec3::new(-25.1, ROAD_Y + 0.65, 10.0),
         Vec3::new(0.55, 0.12, 2.9),
     );
     for z in [9.0, 11.0] {
         b.block(
             Paint::Metal,
-            Vec3::new(-20.1, ROAD_Y + 0.39, z),
+            Vec3::new(-25.1, ROAD_Y + 0.39, z),
             Vec3::new(0.13, 0.5, 0.16),
         );
     }
     b.block(
         Paint::Paper,
-        Vec3::new(-20.55, ROAD_Y + 1.8, 11.5),
+        Vec3::new(-25.55, ROAD_Y + 1.8, 11.5),
         Vec3::new(0.06, 0.65, 0.4),
     );
     // Supported, alternating stairs and landings on the nearest facade.
@@ -279,29 +372,29 @@ pub fn build(b: &mut Builder) {
         let y = ROAD_Y + 3.0 + level as f32 * 3.0;
         b.block(
             Paint::Metal,
-            Vec3::new(-20.15, y, 2.0),
+            Vec3::new(-25.15, y, 2.0),
             Vec3::new(1.7, 0.10, 5.0),
         );
         for z in [-0.45, 4.45] {
             beam(
                 b,
-                Vec3::new(-21.0, y + 0.9, z),
-                Vec3::new(-19.3, y + 0.9, z),
+                Vec3::new(-26.0, y + 0.9, z),
+                Vec3::new(-24.3, y + 0.9, z),
                 0.045,
             );
         }
         beam(
             b,
-            Vec3::new(-19.3, y + 0.9, -0.45),
-            Vec3::new(-19.3, y + 0.9, 4.45),
+            Vec3::new(-24.3, y + 0.9, -0.45),
+            Vec3::new(-24.3, y + 0.9, 4.45),
             0.045,
         );
         for i in 0..10 {
             let z = -0.4 + i as f32 * 0.53;
             beam(
                 b,
-                Vec3::new(-19.3, y, z),
-                Vec3::new(-19.3, y + 0.9, z),
+                Vec3::new(-24.3, y, z),
+                Vec3::new(-24.3, y + 0.9, z),
                 0.035,
             );
         }
@@ -311,7 +404,7 @@ pub fn build(b: &mut Builder) {
             } else {
                 (4.2, -0.2)
             };
-            for x in [-20.8, -19.9] {
+            for x in [-25.8, -24.9] {
                 beam(b, Vec3::new(x, y, za), Vec3::new(x, y + 3.0, zb), 0.09);
                 beam(
                     b,
@@ -325,7 +418,7 @@ pub fn build(b: &mut Builder) {
                 let z = za + (zb - za) * t;
                 b.block(
                     Paint::Metal,
-                    Vec3::new(-20.35, y + 3.0 * t, z),
+                    Vec3::new(-25.35, y + 3.0 * t, z),
                     Vec3::new(0.95, 0.07, 0.32),
                 );
             }
@@ -333,7 +426,7 @@ pub fn build(b: &mut Builder) {
     }
     for outer in [false, true] {
         for i in 0..6 {
-            let side = if outer { 55.0 } else { 49.0 };
+            let side = if outer { 61.4 } else { 54.6 };
             let root = b
                 .commands
                 .spawn((
@@ -388,6 +481,124 @@ pub fn build(b: &mut Builder) {
                 }
             }
         }
+    }
+}
+fn parked_car(b: &mut Builder, p: Vec3, yaw: f32, kind: u32) {
+    let root = b
+        .commands
+        .spawn((
+            Transform::from_translation(p).with_rotation(Quat::from_rotation_y(yaw)),
+            Visibility::Inherited,
+        ))
+        .id();
+    let old = b.parent.replace(root);
+    b.block(
+        match kind % 4 {
+            0 => Paint::Red,
+            1 => Paint::Cool,
+            2 => Paint::Cream,
+            _ => Paint::Green,
+        },
+        Vec3::new(0.0, 0.55, 0.0),
+        Vec3::new(1.65, 0.65, 3.5),
+    );
+    b.block(
+        Paint::Plastic,
+        Vec3::new(0.0, 1.05, -0.1),
+        Vec3::new(1.4, 0.6, 1.9),
+    );
+    for x in [-0.8, 0.8] {
+        for z in [-1.1, 1.1] {
+            b.block(
+                Paint::Metal,
+                Vec3::new(x, 0.3, z),
+                Vec3::new(0.18, 0.5, 0.5),
+            );
+        }
+    }
+    b.parent = old;
+}
+fn outskirts(b: &mut Builder) {
+    for i in 0..64 {
+        let a = i as f32 * std::f32::consts::TAU / 64.0;
+        let radius = 145.0 + (city_hash(i, 5, 0) % 35) as f32;
+        let p = Vec3::new(12.0 + a.cos() * radius, ROAD_Y, 12.0 + a.sin() * radius);
+        let h = 28.0 + (city_hash(i, 17, 0) % 65) as f32;
+        b.block(
+            Paint::Plaster,
+            p + Vec3::Y * h / 2.0,
+            Vec3::new(16.0, h, 20.0),
+        );
+        for side in [-1., 1.] {
+            for band in 0..6 {
+                b.block(
+                    Paint::Plastic,
+                    p + Vec3::new(0., 5. + band as f32 * (h - 8.) / 6., side * 10.01),
+                    Vec3::new(14., 1.6, 0.025),
+                );
+            }
+        }
+        if i % 3 == 0 {
+            b.block(
+                Paint::Metal,
+                p + Vec3::Y * (h + 3.0),
+                Vec3::new(8.0, 6.0, 12.0),
+            );
+        }
+    }
+    for road in GRID {
+        for side in [-1.0, 1.0] {
+            for i in 0..21 {
+                let along = -63.0 + i as f32 * 7.0;
+                if GRID.iter().any(|v| (along - v).abs() < 11.0) {
+                    continue;
+                }
+                let hash = city_hash(i, road as i32, side as u32);
+                for cross in [false, true] {
+                    if !cross && road == -17.0 && side > 0.0 && along.abs() < 6.0 {
+                        continue;
+                    }
+                    let p = if cross {
+                        Vec3::new(along, ROAD_Y, road + side * 4.6)
+                    } else {
+                        Vec3::new(road + side * 4.6, ROAD_Y, along)
+                    };
+                    b.block(
+                        Paint::Paper,
+                        p + Vec3::Y * 0.01,
+                        if cross {
+                            Vec3::new(0.06, 0.01, 2.3)
+                        } else {
+                            Vec3::new(2.3, 0.01, 0.06)
+                        },
+                    );
+                    if !hash.is_multiple_of(3) {
+                        parked_car(
+                            b,
+                            p,
+                            if cross {
+                                std::f32::consts::FRAC_PI_2
+                            } else {
+                                0.0
+                            },
+                            hash,
+                        );
+                    }
+                }
+            }
+        }
+    }
+    for z in [-4.0, 18.0, 30.0] {
+        b.block(
+            Paint::Wood,
+            Vec3::new(-24.0, ROAD_Y + 1.5, z),
+            Vec3::new(0.25, 3.0, 0.25),
+        );
+        b.round(
+            Paint::Green,
+            Vec3::new(-24.0, ROAD_Y + 3.5, z),
+            Vec3::new(2.5, 3.0, 2.5),
+        );
     }
 }
 pub fn sky(
@@ -485,6 +696,7 @@ pub fn update(
         (&mut DirectionalLight, &mut Transform),
         (With<Sun>, Without<Traffic>, Without<Cloud>),
     >,
+    mut lamps: Query<&mut SpotLight, With<StreetLamp>>,
     mut ambient: ResMut<GlobalAmbientLight>,
     mut clear: ResMut<ClearColor>,
     sky: Query<&MeshMaterial3d<StandardMaterial>, With<Sky>>,
@@ -493,9 +705,9 @@ pub fn update(
     let seconds = time.elapsed_secs();
     for (car, mut t) in &mut traffic {
         let (p, yaw) = if car.outer {
-            route(car.offset + seconds * 8.5, -15.5, 39.5, false)
+            route(car.offset + seconds * 8.5, -18.7, 42.7, false)
         } else {
-            route(car.offset + seconds * 8.0, -12.5, 36.5, true)
+            route(car.offset + seconds * 8.0, -15.3, 39.3, true)
         };
         t.translation = p;
         t.rotation = Quat::from_rotation_y(yaw);
@@ -510,13 +722,23 @@ pub fn update(
         .rem_euclid(220.0)
             - 110.0;
     }
-    let hour = 8.0
-        + ((game.shift.saturating_sub(1) as f32 * 600.0 + game.sim.now() as f32) / 1200.0) * 24.0;
+    let hour = if std::env::args().any(|a| a == "--environment-test" || a == "--feature-test")
+        && game.shift == 2
+    {
+        22.0
+    } else {
+        clock_hour(game.sim.now())
+    };
     let daylight = (((hour - 6.0) / 24.0 * std::f32::consts::TAU).sin() * 2.0).clamp(0.0, 1.0);
     for (mut light, mut t) in &mut sun {
         light.illuminance = 180.0 + daylight * 5820.0;
         light.color = Color::srgb(0.65 + daylight * 0.30, 0.72 + daylight * 0.25, 1.0);
-        t.rotation = Quat::from_euler(EulerRot::XYZ, -0.15 - daylight * 0.75, hour * 0.08, 0.0);
+        let angle = (hour - 6.0) / 12.0 * std::f32::consts::PI;
+        let direction = Vec3::new(angle.cos(), angle.sin(), 0.32).normalize();
+        *t = Transform::from_translation(direction * 100.0).looking_at(Vec3::ZERO, Vec3::Y);
+    }
+    for mut lamp in &mut lamps {
+        lamp.intensity = (1.0 - daylight) * 95000.0;
     }
     ambient.brightness = 18.0 + daylight * 37.0;
     clear.0 = Color::srgb(
@@ -542,6 +764,96 @@ pub fn preview(
     mut net: ResMut<crate::network::Network>,
     mut camera: Single<&mut Transform, With<crate::world::Player>>,
 ) {
+    if std::env::args().any(|a| a == "--feature-test") {
+        *frame += 1;
+        let n = *frame;
+        if n == 1 {
+            game.phase = crate::game::Phase::Lobby;
+            game.screen = crate::game::Screen::Wardrobe;
+            game.fun.looks.insert(
+                1,
+                crate::wardrobe::Look {
+                    shirt: 3,
+                    skin: 2,
+                    face: 1,
+                    hat: 2,
+                },
+            );
+        }
+        if n == 80 {
+            game.dirty = true;
+            game.screen = crate::game::Screen::Office;
+            game.phase = crate::game::Phase::Running;
+        }
+        if (81..120).contains(&n) {
+            **camera = Transform::from_xyz(-5.25, 1.65, 2.7)
+                .looking_at(Vec3::new(-5.25, 1.4, -0.39), Vec3::Y);
+        }
+        if (120..160).contains(&n) {
+            **camera =
+                Transform::from_xyz(0., 1.65, 5.).looking_at(Vec3::new(0., 0., 4.5), Vec3::Y);
+        }
+        if n == 160 {
+            let victim = crate::room::Pose {
+                position: [0., 1.65, 3.6],
+                yaw: 0.,
+                pitch: 0.,
+            };
+            let m = &mut game.fun.staff.members[0];
+            m.position = Vec3::new(0., 0., 3.6);
+            game.fun.dolls.insert(
+                100,
+                crate::office_fun::Doll::new(victim, Vec3::new(0., 20., -12.)),
+            );
+        }
+        if (160..240).contains(&n) {
+            **camera = Transform::from_xyz(2., 2., 5.).looking_at(Vec3::new(0., 0.5, 3.6), Vec3::Y);
+        }
+        if n == 240 {
+            game.shift = 2;
+        }
+        if (240..320).contains(&n) {
+            **camera =
+                Transform::from_xyz(-8.5, 1.8, 1.).looking_at(Vec3::new(-18., -7., 0.), Vec3::Y);
+        }
+        if n == 325 {
+            let _ = game.sim.activate_configured_call(1);
+            let _ = game
+                .sim
+                .apply(1, wrong_number_sim::Command::AcceptCall { incident: 1 });
+            let _ = game
+                .sim
+                .apply(1, wrong_number_sim::Command::FullResponse { incident: 1 });
+        }
+        if n >= 320 {
+            game.shift = 1;
+            **camera =
+                Transform::from_xyz(-22., -2., 9.).looking_at(Vec3::new(-9., -6., 0.), Vec3::Y);
+        }
+        let name = match n {
+            65 => "wardrobe",
+            110 => "interaction-outline",
+            140 => "own-body",
+            180 => "jointed-knockdown",
+            290 => "streetlamps-night",
+            360 => "hq-garage",
+            _ => return,
+        };
+        let args: Vec<_> = std::env::args().collect();
+        if let Some(dir) = args
+            .windows(2)
+            .find(|a| a[0] == "--capture-dir")
+            .map(|a| &a[1])
+        {
+            std::fs::create_dir_all(dir).unwrap();
+            commands
+                .spawn(bevy::render::view::screenshot::Screenshot::primary_window())
+                .observe(bevy::render::view::screenshot::save_to_disk(format!(
+                    "{dir}/{name}.png"
+                )));
+        }
+        return;
+    }
     if std::env::args().any(|a| a == "--polish-test") {
         *frame += 1;
         let n = *frame;
@@ -645,15 +957,24 @@ pub fn preview(
 mod tests {
     use super::*;
     #[test]
+    fn lighting_varies_by_window_and_shift_clock_resets() {
+        assert_eq!(clock_hour(0), 8.0);
+        assert_eq!(clock_hour(600), 22.0);
+        let values: std::collections::BTreeSet<_> = (0..12)
+            .map(|row| city_hash(row, 2, 42) % 100 < 27)
+            .collect();
+        assert_eq!(values.len(), 2);
+    }
+    #[test]
     fn traffic_stays_on_roads_and_clear_of_other_cars() {
         for tick in 0..600 {
             let t = tick as f32 * 0.2;
             let mut cars = vec![];
             for outer in [false, true] {
                 let (low, high, speed) = if outer {
-                    (-15.5, 39.5, 8.5)
+                    (-18.7, 42.7, 8.5)
                 } else {
-                    (-12.5, 36.5, 8.0)
+                    (-15.3, 39.3, 8.0)
                 };
                 for i in 0..6 {
                     let (p, _) = route(
@@ -664,14 +985,14 @@ mod tests {
                     );
                     assert!(
                         p.y == ROAD_Y
-                            && (p.x == -15.5
-                                || p.x == 39.5
-                                || p.x == -12.5
-                                || p.x == 36.5
-                                || p.z == -15.5
-                                || p.z == 39.5
-                                || p.z == -12.5
-                                || p.z == 36.5)
+                            && (p.x == -18.7
+                                || p.x == 42.7
+                                || p.x == -15.3
+                                || p.x == 39.3
+                                || p.z == -18.7
+                                || p.z == 42.7
+                                || p.z == -15.3
+                                || p.z == 39.3)
                     );
                     cars.push(p);
                 }
@@ -681,6 +1002,204 @@ mod tests {
                     assert!(a.distance(*b) > 2.8);
                 }
             }
+        }
+    }
+}
+
+fn clock_hour(seconds: u32) -> f32 {
+    8.0 + (seconds as f32 / 600.0).clamp(0., 1.) * 14.0
+}
+#[derive(Component)]
+pub struct Emergency {
+    kind: u8,
+    age: f32,
+    serial: u64,
+}
+#[derive(Component)]
+pub struct GarageDoor;
+fn garage(b: &mut Builder) {
+    let shutter = b
+        .commands
+        .spawn((
+            GarageDoor,
+            Transform::from_xyz(-9.04, ROAD_Y, 0.),
+            Visibility::Inherited,
+        ))
+        .id();
+    let old = b.parent;
+    b.parent = Some(shutter);
+    b.block(
+        Paint::Plastic,
+        Vec3::new(0., 1.7, 0.),
+        Vec3::new(0.08, 3.4, 4.2),
+    );
+    for y in 0..9 {
+        b.block(
+            Paint::Metal,
+            Vec3::new(-0.05, 0.2 + y as f32 * 0.35, 0.),
+            Vec3::new(0.05, 0.025, 4.1),
+        );
+    }
+    b.parent = old;
+    for z in [-2.25, 2.25] {
+        b.block(
+            Paint::Cream,
+            Vec3::new(-9.12, ROAD_Y + 1.9, z),
+            Vec3::new(0.25, 3.8, 0.3),
+        );
+    }
+    b.block(
+        Paint::Cream,
+        Vec3::new(-9.12, ROAD_Y + 3.75, 0.),
+        Vec3::new(0.25, 0.3, 4.8),
+    );
+
+    b.block(
+        Paint::Floor,
+        Vec3::new(-12., ROAD_Y + 0.02, 0.),
+        Vec3::new(6., 0.035, 4.4),
+    );
+    for z in [-2.1, 2.1] {
+        b.block(
+            Paint::Paper,
+            Vec3::new(-12., ROAD_Y + 0.045, z),
+            Vec3::new(6., 0.012, 0.08),
+        );
+    }
+    for kind in 0..3 {
+        let root = b
+            .commands
+            .spawn((
+                Emergency {
+                    kind,
+                    age: 30.,
+                    serial: 0,
+                },
+                Transform::default(),
+                Visibility::Hidden,
+            ))
+            .id();
+        let old = b.parent;
+        b.parent = Some(root);
+        let paint = if kind == 2 { Paint::Red } else { Paint::Paper };
+        let length = if kind == 2 { 5.8 } else { 4.3 };
+        b.block(paint, Vec3::new(0., 0.75, 0.), Vec3::new(1.85, 0.7, length));
+        b.block(
+            if kind == 0 { Paint::Plastic } else { paint },
+            Vec3::new(0., 1.35, 0.15),
+            Vec3::new(1.65, if kind == 0 { 0.7 } else { 1.3 }, length - 1.2),
+        );
+        b.block(
+            Paint::Cool,
+            Vec3::new(0., 1.45, -length / 2. + 0.59),
+            Vec3::new(1.5, 0.55, 0.035),
+        );
+        for x in [-0.95, 0.95] {
+            for z in [-length * 0.31, length * 0.31] {
+                b.block(
+                    Paint::Metal,
+                    Vec3::new(x, 0.38, z),
+                    Vec3::new(0.22, 0.65, 0.65),
+                );
+            }
+        }
+        for x in [-0.48, 0.48] {
+            b.block(
+                if x < 0. { Paint::Red } else { Paint::Cool },
+                Vec3::new(x, if kind == 0 { 1.77 } else { 2.05 }, -0.5),
+                Vec3::new(0.4, 0.15, 0.3),
+            );
+        }
+        if kind == 1 {
+            for x in [-0.84, 0.84] {
+                b.block(
+                    Paint::Red,
+                    Vec3::new(x, 1.45, 0.45),
+                    Vec3::new(0.025, 0.2, 0.8),
+                );
+                b.block(
+                    Paint::Red,
+                    Vec3::new(x, 1.45, 0.45),
+                    Vec3::new(0.025, 0.7, 0.2),
+                );
+            }
+        }
+        if kind == 2 {
+            for x in [-0.45, 0.45] {
+                b.block(
+                    Paint::Metal,
+                    Vec3::new(x, 2.1, 0.5),
+                    Vec3::new(0.07, 0.07, 3.5),
+                );
+            }
+            for i in 0..10 {
+                b.block(
+                    Paint::Metal,
+                    Vec3::new(0., 2.1, -1. + i as f32 * 0.32),
+                    Vec3::new(0.9, 0.06, 0.06),
+                );
+            }
+        }
+        b.parent = old;
+    }
+}
+pub fn emergency(
+    time: Res<Time>,
+    game: Res<Session>,
+    mut cars: Query<(&mut Emergency, &mut Transform, &mut Visibility), Without<GarageDoor>>,
+    mut doors: Query<&mut Transform, (With<GarageDoor>, Without<Emergency>)>,
+    mut seen: Local<(u32, u64)>,
+) {
+    if seen.0 != game.shift {
+        *seen = (game.shift, 0);
+        for (mut car, _, mut vis) in &mut cars {
+            car.age = 30.;
+            car.serial = 0;
+            *vis = Visibility::Hidden;
+        }
+    }
+    for e in game.sim.events().iter().filter(|e| e.sequence > seen.1) {
+        if let wrong_number_sim::EventKind::DispatchOrdered { unit, .. } = e.kind
+            && crate::city_effects::live_event(
+                game.sim.now(),
+                e.at,
+                game.phase == crate::game::Phase::Running,
+            )
+        {
+            let kind = match game.sim.units()[&unit].capability {
+                wrong_number_sim::Capability::Police => 0,
+                wrong_number_sim::Capability::Medical => 1,
+                wrong_number_sim::Capability::Fire => 2,
+            };
+            for (mut car, _, _) in &mut cars {
+                if car.kind == kind {
+                    car.age = -(kind as f32) * 1.4;
+                    car.serial = e.sequence;
+                }
+            }
+        }
+    }
+    seen.1 = game.sim.events().last().map_or(0, |e| e.sequence);
+    let opening = cars
+        .iter()
+        .any(|(c, _, _)| c.serial > 0 && c.age > -0.5 && c.age < 3.0);
+    for mut door in &mut doors {
+        door.translation.y = ROAD_Y + if opening { 3.5 } else { 0. };
+    }
+    for (mut car, mut t, mut v) in &mut cars {
+        car.age += time.delta_secs();
+        let age = car.age;
+        *v = if (0.0..14.).contains(&age) && car.serial > 0 {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        if age < 2.0 {
+            t.translation = Vec3::new(-6.3 - age.max(0.) * 4.5, ROAD_Y, 0.);
+            t.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        } else {
+            t.translation = Vec3::new(-15.3, ROAD_Y, -(age - 2.0) * 11.);
+            t.rotation = Quat::IDENTITY;
         }
     }
 }

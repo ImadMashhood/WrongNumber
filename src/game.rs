@@ -17,6 +17,7 @@ pub enum Phase {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Screen {
     Lobby,
+    Wardrobe,
     Office,
     Terminal,
     CityMap,
@@ -25,6 +26,14 @@ pub enum Screen {
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
+    Wardrobe,
+    Customize(u8),
+    SetLook(crate::wardrobe::Look),
+    Strike {
+        target: u8,
+        kick: bool,
+    },
+    Jump,
     StartShift,
     Ready(bool),
     OpenLobby,
@@ -100,6 +109,8 @@ pub struct Session {
     pub call_station: Option<usize>,
     pub shift: u32,
     pub funds: i32,
+    pub total_income: u64,
+    pub total_calls: u64,
     pub radio: bool,
     pub extra_police: bool,
     pub bought_this_review: bool,
@@ -132,6 +143,8 @@ impl Default for Session {
             call_station: None,
             shift: 1,
             funds: 0,
+            total_income: 0,
+            total_calls: 0,
             radio: false,
             extra_police: false,
             bought_this_review: false,
@@ -340,6 +353,23 @@ impl Session {
         self.last_error = None;
         self.dirty = true;
         match action {
+            Action::Wardrobe if self.phase == Phase::Lobby => {
+                self.screen = Screen::Wardrobe;
+            }
+            Action::SetLook(look) if self.phase == Phase::Lobby && look.valid() => {
+                self.fun.looks.insert(self.local_player, look);
+            }
+            Action::Customize(part) if self.phase == Phase::Lobby => {
+                let look = self.fun.looks.entry(self.local_player).or_default();
+                match part {
+                    0 => look.shirt = (look.shirt + 1) % 6,
+                    1 => look.skin = (look.skin + 1) % 3,
+                    2 => look.face = (look.face + 1) % 3,
+                    3 => look.hat = (look.hat + 1) % 4,
+                    _ => {}
+                }
+            }
+
             Action::StartShift if self.phase == Phase::Lobby => {
                 self.phase = Phase::Running;
                 self.ready.clear();
@@ -676,7 +706,9 @@ impl Session {
                 let multiplayer = self.multiplayer;
                 let connected = self.connected.clone();
                 let player = self.local_player;
+                let looks = std::mem::take(&mut self.fun.looks);
                 *self = Self::default();
+                self.fun.looks = looks;
                 self.dialogue.service = service;
                 self.dialogue.fixture = fixture;
                 self.multiplayer = multiplayer;
@@ -694,7 +726,9 @@ impl Session {
                 self.dialogue.memory = memory;
                 self.dialogue.service = service;
                 self.dialogue.fixture = fixture;
+                let looks = std::mem::take(&mut self.fun.looks);
                 self.fun = Default::default();
+                self.fun.looks = looks;
                 self.shift += 1;
                 self.sim = Self::make_sim(self.shift, self.radio, self.extra_police);
                 self.phase = if self.multiplayer {
@@ -866,6 +900,13 @@ impl Session {
                 .all(|u| u.state == UnitState::Available);
         if self.phase == Phase::Closing && settled && self.sim.now() >= SHIFT_SECONDS {
             self.phase = Phase::AwaitingReview;
+            self.total_income += self.grant() as u64;
+            self.total_calls += self
+                .sim
+                .events()
+                .iter()
+                .filter(|e| matches!(e.kind, wrong_number_sim::EventKind::CallAccepted { .. }))
+                .count() as u64;
             self.funds += self.grant();
             self.notice = "Shift complete. The rear meeting-room door is unlocked.".into();
             if self.break_lobby {

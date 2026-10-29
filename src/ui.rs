@@ -192,7 +192,7 @@ fn map(
                 ..default()
             },
         ));
-        for unit in game.sim.units().values().filter(|u| u.id <= 3) {
+        for unit in game.sim.units().values().take(1) {
             p.spawn(Node {
                 position_type: PositionType::Absolute,
                 left: percent(crate::city::map_percent(unit.station).0),
@@ -204,7 +204,7 @@ fn map(
                 },
                 ..default()
             })
-            .with_children(|p| text(p, format!("H{}", unit.id), 13.0, cap_color(unit.capability)));
+            .with_children(|p| text(p, "HQ", 13.0, cap_color(unit.capability)));
         }
         for id in game.visible_ids() {
             let view = game.sim.call_view(*id).unwrap();
@@ -248,12 +248,7 @@ fn map(
             ));
         }
     });
-    text(
-        p,
-        "H1 Police HQ | H2 Hospital | H3 Fire station",
-        12.0,
-        MUTED,
-    );
+    text(p, "HQ | Shared emergency services garage", 12.0, MUTED);
     text(
         p,
         "Numbered pins = calls | Squares = responders",
@@ -1368,7 +1363,7 @@ pub fn draw(
             PendingUi,
             Visibility::Hidden,
             root,
-            BackgroundColor(if screen == Screen::Office {
+            BackgroundColor(if matches!(screen, Screen::Office | Screen::Wardrobe) {
                 Color::NONE
             } else {
                 INK
@@ -1410,6 +1405,21 @@ pub fn draw(
                     },
                     BorderColor::all(TEXT.with_alpha(0.6)),
                 ));
+            } else if screen == Screen::Wardrobe {
+                p.spawn((column(30.0), BackgroundColor(PANEL)))
+                    .with_children(|p| {
+                        text(p, "WARDROBE", 28.0, TEXT);
+                        text(p, "Your appearance is saved on this computer.", 16.0, MUTED);
+                        for (id, name) in [
+                            (0, "Shirt color"),
+                            (1, "Skin tone"),
+                            (2, "Face"),
+                            (3, "Hat"),
+                        ] {
+                            button(p, name, Action::Customize(id), true);
+                        }
+                        button(p, "Done", Action::Office, true);
+                    });
             } else if screen == Screen::Terminal {
                 terminal(
                     p,

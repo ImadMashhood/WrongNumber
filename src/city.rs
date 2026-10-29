@@ -50,9 +50,7 @@ pub fn install(sim: &mut Simulation) {
     let roads = network();
     sim.enable_roads(
         roads.connected_component(config.station_nodes[0]),
-        config
-            .station_nodes
-            .map(|n| roads.node_position(n).unwrap()),
+        [roads.node_position(config.station_nodes[0]).unwrap(); 3],
         config
             .incident_nodes
             .map(|n| roads.node_position(n).unwrap()),

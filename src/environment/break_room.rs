@@ -2,6 +2,24 @@ use super::geometry::{Builder, Paint};
 use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 pub fn build(b: &mut Builder) {
+    // Lobby wardrobe, with an inset mirror and handles facing into the room.
+    b.block(
+        Paint::Wood,
+        Vec3::new(13.25, 1.2, 4.4),
+        Vec3::new(0.6, 2.4, 1.5),
+    );
+    b.block(
+        Paint::Glass,
+        Vec3::new(12.94, 1.4, 4.1),
+        Vec3::new(0.025, 1.65, 0.6),
+    );
+    for z in [4.32, 4.48] {
+        b.block(
+            Paint::Metal,
+            Vec3::new(12.91, 1.15, z),
+            Vec3::new(0.08, 0.22, 0.035),
+        );
+    }
     // Persistent framed double doors: glazing, rails, kick plates and push bars.
     for z in [-1.18, 2.18] {
         b.block(

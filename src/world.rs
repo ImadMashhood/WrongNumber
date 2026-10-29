@@ -158,6 +158,14 @@ pub fn aimed_action(pose: &Transform, game: &Session) -> Option<Action> {
             );
         }
     }
+    if game.phase == Phase::Lobby {
+        add(
+            Vec3::new(13.25, 1.2, 4.4),
+            Vec3::new(0.6, 2.4, 1.5),
+            2.5,
+            Action::Wardrobe,
+        );
+    }
     add(
         Vec3::new(9.0, 1.5, 0.5),
         Vec3::new(0.3, 2.9, 3.15),
@@ -286,6 +294,7 @@ pub fn controls(
     prefs: Res<crate::frontend::Preferences>,
     menu: Res<crate::frontend::Frontend>,
     mut ready: ResMut<ReadyInput>,
+    net: Res<crate::network::Network>,
 ) {
     if check.automated() {
         return;
@@ -334,6 +343,39 @@ pub fn controls(
     if !game.fun.down(game.local_player) && prefs.pressed(&keys, 6) && game.seated.is_some() {
         actions.0.push(Action::Stand);
     }
+    if prefs.pressed(&keys, 6) && game.seated.is_none() && !game.fun.down(game.local_player) {
+        actions.0.push(Action::Jump);
+    }
+    let mut target = None;
+    let candidates = game
+        .fun
+        .staff
+        .members
+        .iter()
+        .enumerate()
+        .map(|(i, m)| (100 + i as u8, m.position + Vec3::Y * 1.2))
+        .chain(
+            net.players
+                .iter()
+                .filter(|p| p.id != game.local_player)
+                .map(|p| (p.id, Vec3::from_array(p.pose.position) - Vec3::Y * 0.4)),
+        );
+    for (id, p) in candidates {
+        let delta = p - player.translation;
+        if delta.length() < 2.2 && player.forward().dot(delta.normalize_or_zero()) > 0.72 {
+            target = Some(id);
+            break;
+        }
+    }
+    if game.fun.held(game.local_player).is_none()
+        && let Some(target) = target
+        && (mouse.just_pressed(MouseButton::Left) || mouse.just_pressed(MouseButton::Right))
+    {
+        actions.0.push(Action::Strike {
+            target,
+            kick: mouse.just_pressed(MouseButton::Right),
+        });
+    }
     let holding = game.fun.held(game.local_player).is_some();
     if holding && mouse.just_pressed(MouseButton::Left) {
         actions.0.push(Action::ThrowProp);
@@ -343,11 +385,19 @@ pub fn controls(
     }
     if !game.fun.down(game.local_player)
         && !holding
-        && (prefs.pressed(&keys, 5) || mouse.just_pressed(MouseButton::Left))
+        && (prefs.pressed(&keys, 5) || (target.is_none() && mouse.just_pressed(MouseButton::Left)))
         && let Some(action) = aimed_action(&player, &game)
         && (action != Action::BreakDoor || !game.break_lobby || game.phase != Phase::Lobby)
     {
         actions.0.push(action);
+    }
+    if game.seated.is_none() {
+        player.translation.y = 1.65
+            + game
+                .fun
+                .jumps
+                .get(&game.local_player)
+                .map_or(0.0, |t| 4.5 * t - 5.625 * t * t);
     }
     let dt = time.delta_secs().min(0.1);
     let (mut yaw, mut pitch, _) = player.rotation.to_euler(EulerRot::YXZ);
@@ -464,11 +514,12 @@ pub fn hud_text(game: &Session, pose: &Transform) -> String {
             Some(Action::OpenReview) => "[E] Open shift review",
             Some(Action::Pickup(_)) => "[E] Pick up prop · Left-click throw · Right-click drop",
             Some(Action::Coffee) => "[E] Get coffee",
+            Some(Action::Wardrobe) => "[E] Wardrobe / customize character",
             _ => {
                 if game.break_lobby && game.phase == Phase::Lobby {
                     "Aim at the dispatch doorway and hold E to get ready"
                 } else if game.seated.is_some() {
-                    "Aim at your monitor to use dispatch | Space stand"
+                    "Aim at your monitor to use dispatch | Space jump / stand"
                 } else {
                     "Find a workstation and aim at a chair"
                 }
@@ -476,7 +527,7 @@ pub fn hud_text(game: &Session, pose: &Transform) -> String {
         }
     };
     format!(
-        "WRONG NUMBER | SHIFT {} | {} | {:02}:{:02} remaining\n{}\n{}\nWASD move | Mouse look | E use | Space stand | Esc back/pause | F3 FPS",
+        "WRONG NUMBER | SHIFT {} | {} | {:02}:{:02} remaining\n{}\n{}\nWASD move | Mouse look | E use | LMB slap / RMB kick | Space jump / stand | Esc back/pause | F3 FPS",
         game.shift,
         game.status(),
         game.remaining() / 60,
@@ -566,7 +617,7 @@ mod tests {
             Vec2::new(8.5, 0.0),
             Vec2::new(9.5, 0.0),
             Vec2::new(10.0, -1.5),
-            Vec2::new(13.2, 4.0),
+            Vec2::new(12.4, 4.0),
         ] {
             assert!(walkable(p, Phase::Running));
         }

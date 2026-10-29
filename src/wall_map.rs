@@ -46,6 +46,7 @@ fn label(p: &mut ChildSpawnerCommands, value: impl Into<String>, size: f32, colo
 pub fn refresh(
     mut commands: Commands,
     game: Res<Session>,
+    net: Res<crate::network::Network>,
     display: Res<WallDisplay>,
     map: Res<MapImage>,
     routes: Res<crate::routes::RouteOverlay>,
@@ -89,8 +90,75 @@ pub fn refresh(
             BackgroundColor(Color::srgb(0.018, 0.028, 0.04)),
         ))
         .with_children(|p| {
+            let mut stats = std::collections::BTreeMap::<u8, (u32, i32)>::new();
+            let mut owners = std::collections::BTreeMap::new();
+            for e in game.sim.events() {
+                match e.kind {
+                    wrong_number_sim::EventKind::CallAccepted { incident, player } => {
+                        stats.entry(player).or_default().0 += 1;
+                        owners.entry(incident).or_insert(player);
+                    }
+                    wrong_number_sim::EventKind::IncidentEnded {
+                        incident,
+                        score_delta,
+                        ..
+                    } => {
+                        if let Some(id) = owners.get(&incident) {
+                            stats.entry(*id).or_default().1 += score_delta;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            for player in net.players.iter().filter(|p| p.connected) {
+                stats.entry(player.id).or_default();
+            }
+            stats.entry(game.local_player).or_default();
             p.spawn(Node {
-                width: percent(100),
+                width: percent(22),
+                height: percent(100),
+                padding: UiRect::all(px(25)),
+                row_gap: px(24),
+                flex_direction: FlexDirection::Column,
+                ..default()
+            })
+            .with_children(|p| {
+                label(p, "TEAM TOTAL", 28.0, Color::WHITE);
+                label(
+                    p,
+                    format!("${}\nTotal generated", game.total_income),
+                    35.0,
+                    Color::srgb(0.2, 0.9, 0.5),
+                );
+                label(
+                    p,
+                    format!("${}\nToday's projected grant", game.grant()),
+                    28.0,
+                    Color::WHITE,
+                );
+                label(
+                    p,
+                    format!(
+                        "{} total calls",
+                        game.total_calls
+                            + if matches!(game.phase, Phase::Running | Phase::Closing) {
+                                stats.values().map(|s| s.0 as u64).sum::<u64>()
+                            } else {
+                                0
+                            }
+                    ),
+                    28.0,
+                    Color::WHITE,
+                );
+                label(
+                    p,
+                    format!("SHIFT {}\n{}", game.shift, game.status()),
+                    22.0,
+                    Color::srgb(0.7, 0.75, 0.8),
+                );
+            });
+            p.spawn(Node {
+                width: percent(56),
                 height: percent(100),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -145,7 +213,7 @@ pub fn refresh(
                         ))
                         .with_children(|p| label(p, id.to_string(), 25.0, Color::BLACK));
                     }
-                    for u in game.sim.units().values().filter(|u| u.id <= 3) {
+                    for u in game.sim.units().values().take(1) {
                         let (x, y) = crate::city::map_percent(u.station);
                         p.spawn((
                             Node {
@@ -157,18 +225,7 @@ pub fn refresh(
                             },
                             BackgroundColor(Color::BLACK),
                         ))
-                        .with_children(|p| {
-                            label(
-                                p,
-                                match u.capability {
-                                    Capability::Police => "POLICE HQ",
-                                    Capability::Medical => "HOSPITAL",
-                                    Capability::Fire => "FIRE HQ",
-                                },
-                                15.0,
-                                Color::WHITE,
-                            )
-                        });
+                        .with_children(|p| label(p, "HQ", 15.0, Color::WHITE));
                     }
                     for u in game.sim.units().values() {
                         let (x, y) = crate::city::map_percent(u.position);
@@ -194,6 +251,46 @@ pub fn refresh(
                         .with_children(|p| label(p, letter, 26.0, color));
                     }
                 });
+            });
+            p.spawn(Node {
+                width: percent(22),
+                height: percent(100),
+                padding: UiRect::all(px(25)),
+                row_gap: px(25),
+                flex_direction: FlexDirection::Column,
+                ..default()
+            })
+            .with_children(|p| {
+                label(p, "TODAY / DISPATCHERS", 27.0, Color::WHITE);
+                let mut ranked: Vec<_> = stats
+                    .into_iter()
+                    .filter(|(id, _)| {
+                        *id == game.local_player
+                            || net.players.iter().any(|p| p.id == *id && p.connected)
+                    })
+                    .collect();
+                ranked.sort_by_key(|(id, (calls, money))| {
+                    (std::cmp::Reverse(*money), std::cmp::Reverse(*calls), *id)
+                });
+                for (id, (calls, money)) in ranked {
+                    let name = net
+                        .players
+                        .iter()
+                        .find(|p| p.id == id)
+                        .map_or_else(|| format!("Dispatcher {id}"), |p| p.name.clone());
+                    label(
+                        p,
+                        format!("{name}\n${money:+} earned · {calls} calls"),
+                        24.0,
+                        Color::WHITE,
+                    );
+                }
+                label(
+                    p,
+                    "Earnings = call score contribution.\nGrant and damage are shared.",
+                    18.0,
+                    Color::srgb(0.6, 0.65, 0.7),
+                );
             });
         });
 }

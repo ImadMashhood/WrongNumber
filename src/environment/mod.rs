@@ -27,6 +27,17 @@ pub fn setup(
         reflectance: 0.0,
         ..default()
     });
+    let desk_screen = materials.add(StandardMaterial {
+        base_color_texture: Some(display.image.clone()),
+        unlit: true,
+        reflectance: 0.0,
+        uv_transform: bevy::math::Affine2::from_scale_angle_translation(
+            Vec2::new(0.56, 1.0),
+            0.0,
+            Vec2::new(0.22, 0.0),
+        ),
+        ..default()
+    });
     commands.insert_resource(DoorMaterials {
         locked: palette.get(geometry::Paint::Warm),
         unlocked: palette.get(geometry::Paint::Cool),
@@ -37,9 +48,9 @@ pub fn setup(
         ..default()
     });
     let mut b = Builder::new(&mut commands, &mut meshes, palette);
-    dispatch_room::build(&mut b, screen.clone());
+    dispatch_room::build(&mut b, screen.clone(), desk_screen.clone());
     break_room::build(&mut b);
-    people::build(&mut b, screen.clone());
+    people::build(&mut b, desk_screen);
     meeting_room::build(&mut b, screen);
     exterior::build(&mut b);
     street::build(&mut b);

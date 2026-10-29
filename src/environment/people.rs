@@ -9,6 +9,7 @@ pub struct Walker {
 #[derive(Component)]
 pub struct WalkingLimb {
     side: f32,
+    joint: bool,
     arm: bool,
     staff: bool,
     index: u8,
@@ -292,13 +293,37 @@ pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
                     Vec3::new(0.025, 0.025, 0.012),
                 );
             }
+            b.parent = Some(root);
+            b.block(
+                Paint::Metal,
+                Vec3::new(0.0, 0.84, 0.0),
+                Vec3::new(0.41, 0.10, 0.26),
+            );
+            b.round(
+                Paint::Cream,
+                Vec3::new(0.0, 1.42, 0.0),
+                Vec3::new(0.12, 0.16, 0.12),
+            );
+            b.block(
+                Paint::Cream,
+                Vec3::new(0.0, 1.58, -0.15),
+                Vec3::new(0.055, 0.07, 0.045),
+            );
             for side in [-1.0, 1.0] {
+                b.round(
+                    Paint::Cream,
+                    Vec3::new(side * 0.145, 1.6, 0.0),
+                    Vec3::new(0.065, 0.10, 0.06),
+                );
                 for arm in [false, true] {
+                    let upper = if arm { 0.25 } else { 0.34 };
+                    let lower = if arm { 0.25 } else { 0.34 };
                     let limb = b
                         .commands
                         .spawn((
                             WalkingLimb {
                                 side,
+                                joint: false,
                                 arm,
                                 staff,
                                 index: i,
@@ -308,15 +333,65 @@ pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
                                 if arm { 1.32 } else { 0.82 },
                                 0.0,
                             ),
-                            Visibility::Visible,
+                            Visibility::Inherited,
                         ))
                         .id();
                     b.commands.entity(root).add_child(limb);
                     b.parent = Some(limb);
+                    b.round(
+                        if arm { Paint::Cream } else { Paint::Plastic },
+                        Vec3::ZERO,
+                        Vec3::splat(0.16),
+                    );
+                    b.block(
+                        if arm {
+                            if i % 3 == 0 {
+                                Paint::Cool
+                            } else if i % 3 == 1 {
+                                Paint::Green
+                            } else {
+                                Paint::Red
+                            }
+                        } else {
+                            Paint::Plastic
+                        },
+                        Vec3::new(0.0, -upper / 2.0, 0.0),
+                        Vec3::new(0.16, upper, 0.18),
+                    );
+                    let joint = b
+                        .commands
+                        .spawn((
+                            WalkingLimb {
+                                side,
+                                joint: true,
+                                arm,
+                                staff,
+                                index: i,
+                            },
+                            Transform::from_xyz(0.0, -upper, 0.0),
+                            Visibility::Inherited,
+                        ))
+                        .id();
+                    b.commands.entity(limb).add_child(joint);
+                    b.parent = Some(joint);
+                    b.round(
+                        if arm { Paint::Cream } else { Paint::Plastic },
+                        Vec3::ZERO,
+                        Vec3::splat(0.14),
+                    );
                     b.block(
                         if arm { Paint::Cream } else { Paint::Plastic },
-                        Vec3::new(0.0, if arm { -0.24 } else { -0.36 }, 0.0),
-                        Vec3::new(0.12, if arm { 0.48 } else { 0.70 }, 0.14),
+                        Vec3::new(0.0, -lower / 2.0, 0.0),
+                        Vec3::new(0.13, lower, 0.15),
+                    );
+                    b.block(
+                        if arm { Paint::Cream } else { Paint::Metal },
+                        Vec3::new(0.0, -lower, if arm { 0.0 } else { -0.07 }),
+                        if arm {
+                            Vec3::new(0.13, 0.1, 0.12)
+                        } else {
+                            Vec3::new(0.19, 0.12, 0.31)
+                        },
                     );
                 }
             }
@@ -366,14 +441,14 @@ pub fn update(
             rectangle(
                 t * 1.25 + w.index as f32 * 12.3,
                 if w.index.is_multiple_of(2) {
-                    Vec2::new(-60.5, -8.5)
+                    Vec2::new(-67.5, -9.5)
                 } else {
-                    Vec2::new(-8.5, -60.5)
+                    Vec2::new(-9.5, -67.5)
                 },
                 if w.index.is_multiple_of(2) {
-                    Vec2::new(-19.5, 32.5)
+                    Vec2::new(-24.5, 33.5)
                 } else {
-                    Vec2::new(32.5, -19.5)
+                    Vec2::new(33.5, -24.5)
                 },
             )
         };
@@ -391,15 +466,31 @@ pub fn update(
     }
     for (limb, mut pose) in &mut limbs {
         let seated = limb.staff && crowd.members[limb.index as usize].seated;
-        let angle = if seated {
+        let angle = if limb.joint {
+            if seated {
+                if limb.arm { 1.1 } else { -1.45 }
+            } else {
+                if limb.arm {
+                    0.2
+                } else {
+                    if prefs.reduced_motion
+                        || (limb.staff && !crowd.members[limb.index as usize].moving)
+                    {
+                        0.0
+                    } else {
+                        -(t * 6.0 + limb.side * 1.57).sin().max(0.0) * 0.5
+                    }
+                }
+            }
+        } else if seated {
             if limb.arm {
-                0.9 + if prefs.reduced_motion {
+                0.25 + if prefs.reduced_motion {
                     0.0
                 } else {
                     (t * 9.0 + limb.side).sin() * 0.05
                 }
             } else {
-                1.35
+                1.45
             }
         } else if prefs.reduced_motion || (limb.staff && !crowd.members[limb.index as usize].moving)
         {

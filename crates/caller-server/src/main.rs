@@ -43,30 +43,161 @@ fn schema(c: &Context) -> serde_json::Value {
     }
     schema
 }
+// Narrow, deterministic checks request another real model response, never scripted speech.
+fn quality_issue(c: &Context, r: &Reply) -> Option<&'static str> {
+    let q = c.question.to_lowercase();
+    let reply = r.spoken_text.to_lowercase();
+    let social = [
+        "are you single",
+        "flirting",
+        "hit on you",
+        "don't care",
+        "don't give a shit",
+    ]
+    .iter()
+    .any(|v| q.contains(v));
+    if social
+        && reply
+            .split(['.', '!', '?'])
+            .map(str::trim)
+            .filter(|s| s.split_whitespace().count() >= 7)
+            .any(|sentence| {
+                c.history.iter().any(|(_, old)| {
+                    old.to_lowercase()
+                        .split(['.', '!', '?'])
+                        .any(|s| s.trim() == sentence)
+                })
+            })
+    {
+        return Some(
+            "A whole sentence repeats your earlier incident summary. Answer the social remark in ONE short in-character sentence. Do not repeat the incident report or add a routine request for help.",
+        );
+    }
+    let facts = format!(
+        "{} {}",
+        c.report,
+        c.facts
+            .iter()
+            .map(|f| f.answer.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
+    )
+    .to_lowercase();
+    if [
+        "someone is hurt",
+        "someone's hurt",
+        "they are injured",
+        "they're injured",
+        "bleeding",
+    ]
+    .iter()
+    .any(|s| reply.contains(s))
+        && !["injur", "hurt", "bleed"].iter().any(|s| facts.contains(s))
+    {
+        return Some(
+            "No injury is established. Do not claim anyone is hurt, injured or bleeding. React to the dispatcher without adding incident facts.",
+        );
+    }
+    if [
+        "don't give a shit",
+        "don't care",
+        "fix that yourself",
+        "fix it yourself",
+    ]
+    .iter()
+    .any(|s| q.contains(s))
+        && !["you caused", "you burned", "your fault"]
+            .iter()
+            .any(|s| q.contains(s))
+        && ["i didn't", "i did not", "i haven't", "i just saw"]
+            .iter()
+            .any(|s| reply.contains(s))
+    {
+        return Some(
+            "This is a refusal of help, NOT an accusation that you caused the incident. React to their indifference with frustration or disbelief in your own voice. Do not deny causing it or repeat the report.",
+        );
+    }
+    if ["are you single", "flirting", "hit on you"]
+        .iter()
+        .any(|s| q.contains(s))
+        && [
+            "not sure",
+            "don't know what",
+            "what do you mean",
+            "calling me a single",
+        ]
+        .iter()
+        .any(|s| reply.contains(s))
+    {
+        return Some(
+            "The dispatcher is flirting. You understand that social intent. Give a natural personal reaction; do not pretend the phrase is incomprehensible or a name.",
+        );
+    }
+    if q.contains("not a pie")
+        && ![
+            "sorry",
+            "misunderstood",
+            "my mistake",
+            "thought",
+            "joke",
+            "pun",
+            "got it",
+        ]
+        .iter()
+        .any(|s| reply.contains(s))
+        && ["dessert", "pie-related", "not talking about pie"]
+            .iter()
+            .any(|s| reply.contains(s))
+    {
+        return Some(
+            "The dispatcher is correcting your earlier literal pun. Acknowledge you misunderstood their meaning. Do not continue the dessert joke or deny your earlier wording.",
+        );
+    }
+    None
+}
 impl Provider {
     fn respond(&self, c: &Context, mut reserve: impl FnMut() -> bool) -> Option<Reply> {
         let started = Instant::now();
+        let mut feedback = None;
         for attempt in 0..2 {
             let remaining = Duration::from_secs(20).checked_sub(started.elapsed())?;
             if remaining < Duration::from_secs(1) || !reserve() {
                 return None;
             }
-            let reply = self.respond_once(c, attempt == 1, remaining)?;
-            if validate(c, &reply) && !repeated_reply(c, &reply.spoken_text) {
+            let reply = self.respond_once(c, feedback, remaining)?;
+            if validate(c, &reply)
+                && !repeated_reply(c, &reply.spoken_text)
+                && quality_issue(c, &reply).is_none()
+            {
                 return Some(reply);
             }
+            eprintln!(
+                "Caller validation: contract={}, repeated={}, quality={:?}",
+                validate(c, &reply),
+                repeated_reply(c, &reply.spoken_text),
+                quality_issue(c, &reply)
+            );
+            feedback = Some(
+                quality_issue(c, &reply)
+                    .unwrap_or("Follow the contract and avoid repeating earlier wording."),
+            );
             eprintln!(
                 "Caller reply failed contract or repeated prior wording; {}.",
                 if attempt == 0 {
                     "requesting one live rewrite"
                 } else {
-                    "disconnecting after failed rewrite"
+                    "returning a retry error after failed rewrite"
                 }
             );
         }
         None
     }
-    fn respond_once(&self, c: &Context, rewrite: bool, remaining: Duration) -> Option<Reply> {
+    fn respond_once(
+        &self,
+        c: &Context,
+        feedback: Option<&str>,
+        remaining: Duration,
+    ) -> Option<Reply> {
         let system = include_str!("../../../assets/prompts/caller-system.txt");
         // Use real conversational roles instead of burying the exchange inside one JSON string.
         // The brief remains the first user message for strict fixture inspection.
@@ -87,8 +218,46 @@ impl Provider {
         if c.kind == TurnKind::Conversation {
             messages.push(serde_json::json!({"role":"user","content":c.question}));
         }
-        if rewrite {
+        if c.kind == TurnKind::Conversation {
+            let q = c.question.to_lowercase();
+            let hint = if ["are you single", "flirting", "hit on you"]
+                .iter()
+                .any(|s| q.contains(s))
+            {
+                Some(
+                    "The latest dispatcher message is flirting with you, not asking about the incident. You understand this. React personally in character in ONE short sentence. Do not append the incident report or a request for help. Do not add an injury. Only supplied facts establish injuries; never infer them from someone being stuck.",
+                )
+            } else if [
+                "don't give a shit",
+                "don't care",
+                "fix that yourself",
+                "fix it yourself",
+            ]
+            .iter()
+            .any(|s| q.contains(s))
+                && !["you burned", "you caused", "your fault"]
+                    .iter()
+                    .any(|s| q.contains(s))
+            {
+                Some(
+                    "The latest dispatcher message is refusing help / expressing indifference. It is NOT an accusation that you caused the incident. React naturally to being dismissed in ONE short sentence. Do not deny causing it or append the incident summary.",
+                )
+            } else if q.contains("not a pie") {
+                Some(
+                    "The dispatcher is correcting your earlier misunderstanding of their words. Acknowledge the correction. Stop making the dessert pun.",
+                )
+            } else {
+                None
+            };
+            if let Some(hint) = hint {
+                messages.push(serde_json::json!({"role":"system","content":hint}));
+            }
+        }
+        if feedback.is_some() {
             messages.push(serde_json::json!({"role":"system","content":"Your previous attempt failed validation or duplicated earlier wording and was not delivered. Obey the response schema exactly. For Opening: fact_references must be [], call_complete false, and all three behavior fields must be null. For Conversation: behavior.quote must be an exact excerpt from the latest dispatcher message or null; IDs must come from the supplied facts. Write a genuinely different in-character response to the latest dispatcher message. Change the conversational move, not just the first two words. Acknowledge frustration, explain a misunderstanding, ask one useful question, or establish a personal boundary as appropriate. Preserve all incident facts. Return the required JSON."}));
+        }
+        if let Some(reason) = feedback {
+            messages.push(serde_json::json!({"role":"system","content":format!("FINAL REWRITE REQUIREMENT: {reason} The latest dispatcher message is the one you must answer. Keep the reply brief and natural.")}));
         }
         let mut body = serde_json::json!({"model":self.model,"messages":messages,"max_tokens":256,"temperature":0.85,"response_format":schema(c),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
         if !self.endpoint.starts_with("https://openrouter.ai/") {
@@ -389,5 +558,20 @@ mod tests {
             p["behavior"]["properties"]["requested_disclosure"]["enum"],
             serde_json::json!([null, "smoke"])
         );
+    }
+}
+
+#[cfg(test)]
+mod quality_tests {
+    use super::*;
+    #[test]
+    fn refusal_and_flirting_have_explicit_rewrite_reasons() {
+        let c:Context=serde_json::from_value(serde_json::json!({"version":4,"kind":"Conversation","caller_name":"Alex","location":"12 Main Street","report":"A person is stuck on a fire escape.","personality":"An anxious adult","caller_private":"No injuries are established.","facts":[],"history":[],"question":"I don't give a shit. Fix it yourself."})).unwrap();
+        let mut r:Reply=serde_json::from_value(serde_json::json!({"spoken_text":"I didn't do anything to it.","emotion":"Defensive","proposed_action":"Answer","fact_references":[],"call_complete":false,"behavior":{"event":null,"quote":null,"requested_disclosure":null}})).unwrap();
+        assert!(quality_issue(&c, &r).is_some());
+        r.spoken_text = "You're refusing to help? Seriously?".into();
+        assert!(quality_issue(&c, &r).is_none());
+        r.spoken_text = "Someone is hurt.".into();
+        assert!(quality_issue(&c, &r).is_some());
     }
 }

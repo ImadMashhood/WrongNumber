@@ -205,7 +205,8 @@ impl Session {
         let psyche = self.dialogue.psychology.get(&id);
         let private_brief = psyche.map(|p| {
             format!(
-                "Current dispatcher: {}. {}",
+                "{} Current dispatcher: {}. {}",
+                if p.unlocked.contains("verification") {i.case_brief.as_ref().map_or("",|c|c.caller_private.as_str())} else {"Use the biography and voice in personality. The report is your current claim. Do not explain its source or truth until a supplied fact unlocks it."},
                 self.local_player,
                 p.brief(self.dialogue.memory.get(&i.caller_id))
             )

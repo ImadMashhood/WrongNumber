@@ -79,6 +79,8 @@ pub struct Snapshot {
     pub ready: std::collections::BTreeSet<u8>,
     pub shift: u32,
     pub funds: i32,
+    pub total_income: u64,
+    pub total_calls: u64,
     pub radio: bool,
     pub extra_police: bool,
     pub bought_this_review: bool,
@@ -380,6 +382,15 @@ impl Room {
         let p = self.members[&id].pose.position;
         let distance = |x: f32, z: f32| (p[0] - x).hypot(p[2] - z);
         match action {
+            Action::Wardrobe
+                if self.game.phase != Phase::Lobby
+                    || (self.members[&id].pose.position[0] - 13.25)
+                        .hypot(self.members[&id].pose.position[2] - 4.4)
+                        > 2.5 =>
+            {
+                Err("Use the wardrobe in the lobby".into())
+            }
+
             Action::Ready(true) if distance(9.0, 0.5) > 2.6 => {
                 Err("Move to the break-room door".into())
             }
@@ -426,7 +437,16 @@ impl Room {
                     && (pose.position[1] - 1.22).abs() < 0.2
                     && (pose.position[2] - 1.25).abs() < 0.2
             } else {
-                (pose.position[1] - 1.65).abs() < 0.2
+                (pose.position[1]
+                    - (1.65
+                        + self
+                            .game
+                            .fun
+                            .jumps
+                            .get(&id)
+                            .map_or(0.0, |t| 4.5 * t - 5.625 * t * t)))
+                .abs()
+                    < 0.35
                     && world::walkable(
                         bevy::math::Vec2::new(pose.position[0], pose.position[2]),
                         self.game.phase,
@@ -523,6 +543,8 @@ impl Room {
             ready: self.game.ready.clone(),
             shift: self.game.shift,
             funds: self.game.funds,
+            total_income: self.game.total_income,
+            total_calls: self.game.total_calls,
             radio: self.game.radio,
             extra_police: self.game.extra_police,
             bought_this_review: self.game.bought_this_review,
@@ -563,6 +585,8 @@ pub fn apply_snapshot(game: &mut Session, state: &Snapshot, id: u8) -> Result<()
     game.ready = state.ready.clone();
     game.shift = state.shift;
     game.funds = state.funds;
+    game.total_income = state.total_income;
+    game.total_calls = state.total_calls;
     game.radio = state.radio;
     game.extra_police = state.extra_police;
     game.bought_this_review = state.bought_this_review;

@@ -469,3 +469,35 @@ fn monitor_claims_chair_atomically_and_delivers_after_long_standing_wait() {
     assert!(mirror.ringing.is_some());
     assert!(!act(&mut r, 2, Action::UseDesk(99)).accepted);
 }
+
+#[test]
+fn wardrobe_and_jump_state_are_authoritative_and_replicated() {
+    let mut r = joined();
+    r.members.get_mut(&1).unwrap().pose.position = [12.3, 1.65, 4.4];
+    assert!(act(&mut r, 1, Action::Wardrobe).accepted);
+    assert!(act(&mut r, 1, Action::Customize(3)).accepted);
+    let look = r.game.fun.looks[&1];
+    assert_eq!(look.hat, 1);
+    assert!(
+        !act(
+            &mut r,
+            1,
+            Action::SetLook(crate::wardrobe::Look {
+                hat: 9,
+                ..Default::default()
+            })
+        )
+        .accepted
+    );
+    act(&mut r, 1, Action::Office);
+    assert!(act(&mut r, 1, Action::Jump).accepted);
+    assert!(!act(&mut r, 1, Action::Jump).accepted);
+    let mut client = Session::default();
+    apply_snapshot(&mut client, &r.snapshot(), 2).unwrap();
+    assert_eq!(client.fun.looks[&1], look);
+    assert!(client.fun.jumps.contains_key(&1));
+    r.game.phase = Phase::Review;
+    assert!(act(&mut r, 1, Action::NextShift).accepted);
+    assert_eq!(r.game.fun.looks[&1], look);
+    assert_eq!(r.game.sim.now(), 0);
+}

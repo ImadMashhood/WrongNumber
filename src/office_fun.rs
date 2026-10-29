@@ -36,9 +36,25 @@ pub struct Doll {
     previous: [Vec3; 11],
     lengths: [f32; 10],
     pub remaining: f32,
+    #[serde(default)]
+    clutch: f32,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Playground {
+    #[serde(default)]
+    pub looks: BTreeMap<u8, crate::wardrobe::Look>,
+    #[serde(default)]
+    pub strikes: BTreeMap<u8, Strike>,
+    #[serde(default)]
+    pub slap_counts: BTreeMap<u8, (u8, u8)>,
+    #[serde(default)]
+    pub jumps: BTreeMap<u8, f32>,
+    #[serde(skip)]
+    pub bodies: Vec<(u8, Pose)>,
+    #[serde(default)]
+    serial: u32,
+    #[serde(default)]
+    hands: BTreeMap<u8, bool>,
     pub props: Vec<Prop>,
     #[serde(default)]
     pub staff: crate::environment::people::StaffCrowd,
@@ -47,9 +63,30 @@ pub struct Playground {
     #[serde(skip)]
     accumulator: f32,
 }
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Strike {
+    pub remaining: f32,
+    pub kick: bool,
+    pub left: bool,
+    pub target: u8,
+}
 impl Default for Playground {
     fn default() -> Self {
         Self {
+            looks: Default::default(),
+            strikes: Default::default(),
+            slap_counts: Default::default(),
+            jumps: Default::default(),
+            bodies: Vec::new(),
+            serial: if cfg!(test) {
+                0
+            } else {
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .subsec_nanos()
+            },
+            hands: Default::default(),
             staff: Default::default(),
             props: [
                 (0, Vec3::new(10.4, 0.38, 5.65)),
@@ -79,7 +116,14 @@ impl Default for Playground {
     }
 }
 pub fn is_action(a: &Action) -> bool {
-    matches!(a, Action::Pickup(_) | Action::ThrowProp | Action::DropProp)
+    matches!(
+        a,
+        Action::Pickup(_)
+            | Action::ThrowProp
+            | Action::DropProp
+            | Action::Strike { .. }
+            | Action::Jump
+    )
 }
 pub fn forward(pose: Pose) -> Vec3 {
     Quat::from_euler(EulerRot::YXZ, pose.yaw, pose.pitch, 0.0) * Vec3::NEG_Z
@@ -138,6 +182,78 @@ impl Playground {
             return Err("Getting back up…".into());
         }
         match a {
+            Action::Jump => {
+                if self.jumps.contains_key(&id) {
+                    return Err("Already jumping".into());
+                }
+                self.jumps.insert(id, 0.0);
+            }
+            Action::Strike { target, kick } => {
+                if self.held(id).is_some()
+                    || self.strikes.contains_key(&id)
+                    || *target == id
+                    || self.down(*target)
+                {
+                    return Err("Cannot strike now".into());
+                }
+                let victim = if *target >= 100 {
+                    self.staff
+                        .members
+                        .get((*target - 100) as usize)
+                        .map(|m| Pose {
+                            position: [m.position.x, 1.65, m.position.z],
+                            yaw: m.yaw,
+                            pitch: 0.0,
+                        })
+                } else {
+                    self.bodies
+                        .iter()
+                        .find(|(n, _)| n == target)
+                        .map(|(_, p)| *p)
+                }
+                .ok_or("Target unavailable")?;
+                let origin = Vec3::from_array(pose.position);
+                let center = Vec3::from_array(victim.position) - Vec3::Y * 0.4;
+                let delta = center - origin;
+                if delta.length() > 2.2
+                    || forward(pose).dot(delta.normalize_or_zero()) < 0.55
+                    || !clear(origin, center, phase)
+                {
+                    return Err("Move closer and face them".into());
+                }
+                self.serial = self.serial.wrapping_add(1);
+                let left = self.hands.entry(id).or_insert(false);
+                *left = !*left;
+                self.strikes.insert(
+                    id,
+                    Strike {
+                        remaining: 0.7,
+                        kick: *kick,
+                        left: *left,
+                        target: *target,
+                    },
+                );
+                let count = self
+                    .slap_counts
+                    .entry(*target)
+                    .or_insert((0, 5 + (self.serial.wrapping_mul(1664525) % 6) as u8));
+                count.0 += 1;
+                if (*kick || count.0 >= count.1) && !self.immunity.contains_key(target) {
+                    self.slap_counts.remove(target);
+                    self.immunity.insert(*target, 6.0);
+                    let impulse = if *kick {
+                        forward(pose) * 42.0 + Vec3::Y * 34.0
+                    } else {
+                        forward(pose) * 8.0
+                    };
+                    let mut doll = Doll::new(victim, impulse);
+                    if *kick {
+                        doll.clutch = 0.55;
+                    }
+                    self.dolls.insert(*target, doll);
+                }
+            }
+
             Action::Pickup(n) => {
                 if self.held(id).is_some() {
                     return Err("Already carrying an object".into());
@@ -194,6 +310,15 @@ impl Playground {
         if !seconds.is_finite() || seconds <= 0.0 {
             return;
         }
+        self.bodies = players.to_vec();
+        self.strikes.retain(|_, s| {
+            s.remaining -= seconds;
+            s.remaining > 0.0
+        });
+        self.jumps.retain(|_, t| {
+            *t += seconds;
+            *t < 0.8
+        });
         self.accumulator += seconds.min(0.1);
         while self.accumulator >= STEP {
             self.accumulator -= STEP;
@@ -248,6 +373,13 @@ impl Playground {
                     if pb.y >= 0.12 && !solid(pb, phase) {
                         d.points[b] = pb;
                     }
+                }
+            }
+            if d.clutch > 0.0 {
+                d.clutch -= STEP;
+                for (hand, side) in [(4, -1.), (6, 1.)] {
+                    d.points[hand] = d.points[2] + Vec3::new(side * 0.10, 0.05, -0.17);
+                    d.previous[hand] = d.points[hand];
                 }
             }
             true
@@ -360,6 +492,7 @@ impl Doll {
             previous,
             lengths,
             remaining: 2.6,
+            clutch: 0.0,
         }
     }
 }
@@ -378,6 +511,92 @@ mod tests {
             yaw: 0.0,
             pitch: 0.0,
         }
+    }
+    #[test]
+    fn slaps_alternate_and_knock_down_in_five_to_ten_hits() {
+        let mut fun = Playground::default();
+        let attacker = pose(0., 5.);
+        let victim = pose(0., 3.6);
+        fun.bodies = vec![(1, attacker), (2, victim)];
+        let mut previous = None;
+        let mut hits = 0;
+        while !fun.down(2) {
+            fun.action(
+                1,
+                attacker,
+                &Action::Strike {
+                    target: 2,
+                    kick: false,
+                },
+                Phase::Running,
+            )
+            .unwrap();
+            hits += 1;
+            let left = fun.strikes[&1].left;
+            if let Some(old) = previous {
+                assert_ne!(old, left);
+            }
+            previous = Some(left);
+            fun.strikes.clear();
+            assert!(hits <= 10);
+        }
+        assert!(hits >= 5);
+    }
+    #[test]
+    fn kick_requires_range_facing_and_empty_hands() {
+        let mut fun = Playground::default();
+        let attacker = pose(0., 5.);
+        fun.bodies = vec![(1, attacker), (2, pose(0., 3.6))];
+        assert!(
+            fun.action(
+                1,
+                pose(5., 5.),
+                &Action::Strike {
+                    target: 2,
+                    kick: true
+                },
+                Phase::Running
+            )
+            .is_err()
+        );
+        fun.action(
+            1,
+            attacker,
+            &Action::Strike {
+                target: 2,
+                kick: true,
+            },
+            Phase::Running,
+        )
+        .unwrap();
+        assert!(fun.down(2));
+        assert!(fun.dolls[&2].clutch > 0.);
+        assert!(
+            fun.action(
+                1,
+                attacker,
+                &Action::Strike {
+                    target: 2,
+                    kick: true
+                },
+                Phase::Running
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn jump_is_bounded_and_cannot_retrigger_in_air() {
+        let mut fun = Playground::default();
+        fun.action(1, pose(0., 5.), &Action::Jump, Phase::Running)
+            .unwrap();
+        assert!(
+            fun.action(1, pose(0., 5.), &Action::Jump, Phase::Running)
+                .is_err()
+        );
+        for _ in 0..9 {
+            fun.tick(0.1, &[(1, pose(0., 5.))], Phase::Running);
+        }
+        assert!(!fun.jumps.contains_key(&1));
     }
     #[test]
     fn throw_hits_recovers_and_does_not_chain_stun() {

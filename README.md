@@ -413,3 +413,15 @@ The desktop now has wallpaper, app shortcuts, a taskbar and separate Resources/S
 - Conversation history uses actual chat roles. Exact/cosmetic repeats get one live rewrite, charged against the same budget; there is no scripted fallback.
 - Microphone noise floor: -90 to 0 dBFS. Speech sends after two continuous seconds below it, or at the hard 12-second maximum. The time cap submits even below-threshold audio to local Whisper.
 - Clock/audio updates no longer rebuild the phone window. Explicit content changes are laid out before being swapped onscreen.
+
+### Office and city polish — October 29
+
+- [x] Single monitors, smaller wall board with team run totals and ranked daily dispatcher contributions; window supports clear of the sills; rear-wall decoration.
+- [x] Jointed character limbs, inherited visibility during ragdolls, improved walk bends, visible first-person body and a lobby wardrobe with saved colors/faces/hats.
+- [x] White interaction outlines, Space jump/stand, alternating left-click slaps and right-click kicks with host-validated range/cooldown and bounded knockdowns.
+- [x] Wider streets/sidewalks, curbside parking, varied building heights/window lights/storefronts, distant skyline and street trees.
+- [x] Sweeping sun direction; every shift starts at 08:00; real nighttime street lighting.
+- [x] Shared HQ marker/base on the supplied road graph and a visible office garage with cosmetic police/ambulance/fire departures.
+- [x] Caller social-intent prompt improvements and one bounded live rewrite for recognized incoherent or unsupported replies. No scripted replacement and no automatic hangup.
+
+Protocol **10** requires all peers to update. Caller prompts are compiled into the caller service: restart the game/service after updating. The exterior is decorative scenery; authoritative dispatch continues on the supplied road graph.

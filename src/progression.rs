@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
 pub struct Checkpoint {
     shift: u32,
     funds: i32,
+    #[serde(default)]
+    total_income: u64,
+    #[serde(default)]
+    total_calls: u64,
     radio: bool,
     patrol: bool,
     bought: bool,
@@ -108,6 +112,8 @@ impl Save {
         self.run = Some(Checkpoint {
             shift: g.shift,
             funds: g.funds,
+            total_income: g.total_income,
+            total_calls: g.total_calls,
             radio: g.radio,
             patrol: g.extra_police,
             bought: g.bought_this_review,
@@ -119,6 +125,8 @@ impl Save {
         if let Some(r) = &self.run {
             g.shift = r.shift;
             g.funds = r.funds;
+            g.total_income = r.total_income;
+            g.total_calls = r.total_calls;
             g.radio = r.radio;
             g.extra_police = r.patrol;
             g.bought_this_review = r.bought;

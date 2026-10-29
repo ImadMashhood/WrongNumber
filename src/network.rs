@@ -463,6 +463,8 @@ impl Network {
                     let _ = room.pose(1, pose);
                 }
                 let active_props = !room.game.fun.dolls.is_empty()
+                    || !room.game.fun.strikes.is_empty()
+                    || !room.game.fun.jumps.is_empty()
                     || room
                         .game
                         .fun
@@ -543,8 +545,13 @@ pub fn publish(
     mut net: ResMut<Network>,
     mut game: ResMut<Session>,
     player: Single<&Transform, With<Player>>,
+    origin: Res<crate::wardrobe::PreviewOrigin>,
 ) {
-    net.publish(&mut game, time.delta_secs(), pose(&player));
+    net.publish(
+        &mut game,
+        time.delta_secs(),
+        pose(origin.0.as_ref().unwrap_or(&player)),
+    );
 }
 pub fn correct_camera(mut net: ResMut<Network>, mut player: Single<&mut Transform, With<Player>>) {
     if let Some(pose) = net.correction.take() {

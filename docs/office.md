@@ -8,7 +8,8 @@ Run `cargo run --locked`, or on Linux `bash scripts/run.sh`. You spawn standing 
 - Aim at a chair and press **E** to sit. Chairs remain unnumbered.
 - Aim at your monitor and press **E** to focus dispatch. E on a ringing telephone opens dispatch and answers. Left-click also interacts during room view.
 - **Escape** leaves computer focus without standing. In room view, Escape opens the solo pause menu and releases the cursor. Escape again resumes.
-- **Space** stands up from seated room view, restoring your previous standing position.
+- **Space** jumps while standing, or stands up from seated room view. Empty-handed **left-click** alternates slaps; **right-click** kicks. Slaps knock a target down after a randomized 5–10 hits; kicks trigger a brief clutching reaction and a bounded ragdoll. Holding a prop keeps left-click throw / right-click drop.
+- Aim at interactable objects for a white outline. Use the wardrobe in the break-room lobby to preview and save shirt, skin, face and hat choices.
 - **E** also targets the wall map, coffee machine, review door and conference table. The circular reticle turns green for usable targets, red for the locked review door.
 - **F3** toggles FPS and graphics-adapter information.
 

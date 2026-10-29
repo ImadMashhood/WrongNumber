@@ -8,8 +8,20 @@ pub fn build(b: &mut Builder) {
         .insert_resource(DirectionalLightShadowMap { size: 2048 });
     b.block(
         Paint::Brick,
-        Vec3::new(2.0, -4.5, 0.0),
-        Vec3::new(22.0, 8.8, 14.0),
+        Vec3::new(2.0, -2.75, 0.0),
+        Vec3::new(22.0, 5.3, 14.0),
+    );
+    for z in [-4.6, 4.6] {
+        b.block(
+            Paint::Brick,
+            Vec3::new(2., -7.15, z),
+            Vec3::new(22., 3.5, 4.8),
+        );
+    }
+    b.block(
+        Paint::Brick,
+        Vec3::new(4.5, -7.15, 0.),
+        Vec3::new(17., 3.5, 4.4),
     );
     b.block(
         Paint::Metal,

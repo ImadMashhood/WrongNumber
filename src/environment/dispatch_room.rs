@@ -3,7 +3,11 @@ use crate::world::SEATS;
 use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 
-pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
+pub fn build(
+    b: &mut Builder,
+    screen: Handle<StandardMaterial>,
+    desk_screen: Handle<StandardMaterial>,
+) {
     b.plane(
         Paint::Floor,
         Vec3::ZERO,
@@ -61,7 +65,7 @@ pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
         Vec2::new(2.0, 1.6),
         Quat::from_rotation_y(PI),
     );
-    for z in [-6.6, -0.5, 5.6] {
+    for z in [-6.4, 0.0, 6.4] {
         b.block(
             Paint::Metal,
             Vec3::new(0.0, 4.25, z),
@@ -116,12 +120,12 @@ pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
     b.block(
         Paint::Metal,
         Vec3::new(0.0, 2.6, -6.77),
-        Vec3::new(10.15, 3.17, 0.25),
+        Vec3::new(9.15, 2.65, 0.25),
     );
     b.picture(
         screen.clone(),
         Vec3::new(0.0, 2.6, -6.62),
-        Vec2::new(9.85, 2.94),
+        Vec2::new(8.85, 2.42),
         Quat::IDENTITY,
         None,
     );
@@ -136,7 +140,7 @@ pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
         Vec3::new(12.7, 0.48, 0.075),
     );
     for (n, x) in SEATS.iter().enumerate() {
-        workstation(b, *x, n + 1, screen.clone());
+        workstation(b, *x, n + 1, desk_screen.clone());
         b.chair(Vec3::new(*x, 0.0, 1.7), 0.0);
     }
     // File storage, plants, noticeboard and a fire extinguisher.
@@ -160,6 +164,38 @@ pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
         }
     }
     b.noticeboard(Vec3::new(-3.7, 2.0, 6.85), Quat::from_rotation_y(PI));
+    for x in [-1.5, 0.0, 1.5] {
+        b.block(
+            Paint::Wood,
+            Vec3::new(x, 2.5, 6.79),
+            Vec3::new(0.95, 1.25, 0.08),
+        );
+        b.block(
+            Paint::Paper,
+            Vec3::new(x, 2.5, 6.73),
+            Vec3::new(0.8, 1.1, 0.035),
+        );
+        for i in 0..4 {
+            b.block(
+                Paint::Metal,
+                Vec3::new(x, 2.7 - i as f32 * 0.13, 6.7),
+                Vec3::new(0.6, 0.025, 0.015),
+            );
+        }
+    }
+    b.block(
+        Paint::Wood,
+        Vec3::new(-6.7, 1.7, 6.75),
+        Vec3::new(2.1, 0.08, 0.35),
+    );
+    for i in 0..8 {
+        b.block(
+            if i % 2 == 0 { Paint::Red } else { Paint::Green },
+            Vec3::new(-7.5 + i as f32 * 0.2, 1.95, 6.75),
+            Vec3::new(0.12, 0.42, 0.25),
+        );
+    }
+
     b.plant(Vec3::new(-7.5, 0.0, -5.8));
     b.plant(Vec3::new(7.4, 0.0, -5.8));
     b.round(
@@ -203,21 +239,9 @@ pub(super) fn workstation(
         Vec3::new(1.13, 0.74, 0.09),
     );
     b.picture(
-        screen.clone(),
+        screen,
         Vec3::new(x, 1.4, -0.335),
         Vec2::new(1.03, 0.64),
-        Quat::IDENTITY,
-        None,
-    );
-    b.block(
-        Paint::Plastic,
-        Vec3::new(x + 0.78, 1.39, -0.42),
-        Vec3::new(0.43, 0.69, 0.08),
-    );
-    b.picture(
-        screen,
-        Vec3::new(x + 0.78, 1.39, -0.37),
-        Vec2::new(0.37, 0.61),
         Quat::IDENTITY,
         None,
     );
@@ -281,17 +305,6 @@ pub(super) fn workstation(
             );
         }
     }
-    // Side monitor has its own mounted pedestal.
-    b.block(
-        Paint::Metal,
-        Vec3::new(x + 0.78, 1.13, -0.46),
-        Vec3::new(0.07, 0.4, 0.12),
-    );
-    b.block(
-        Paint::Metal,
-        Vec3::new(x + 0.78, 0.94, -0.34),
-        Vec3::new(0.28, 0.04, 0.24),
-    );
     // Lamps face the papers, with clearance from both screens.
     b.block(
         Paint::Metal,

@@ -21,7 +21,10 @@ impl BoxShape {
 pub fn furniture() -> &'static [BoxShape] {
     static BOUNDS: std::sync::OnceLock<Vec<BoxShape>> = std::sync::OnceLock::new();
     BOUNDS.get_or_init(|| {
-        let mut out = vec![];
+        let mut out = vec![BoxShape {
+            center: Vec3::new(13.25, 1.2, 4.4),
+            half: Vec3::new(0.3, 1.2, 0.75),
+        }];
         let mut add = |c: Vec3, s: Vec3| {
             out.push(BoxShape {
                 center: c,
@@ -32,10 +35,6 @@ pub fn furniture() -> &'static [BoxShape] {
             add(Vec3::new(0.0, 0.84, z), Vec3::new(12.9, 0.16, 1.45));
             for (index, x) in crate::world::SEATS.into_iter().enumerate() {
                 add(Vec3::new(x, 1.4, z - 0.39), Vec3::new(1.13, 0.74, 0.13));
-                add(
-                    Vec3::new(x + 0.78, 1.39, z - 0.42),
-                    Vec3::new(0.43, 0.69, 0.12),
-                );
                 add(Vec3::new(x + 0.72, 0.39, z), Vec3::new(0.43, 0.78, 1.05));
                 if (index + 1) % 3 != 0 {
                     add(

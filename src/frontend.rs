@@ -30,7 +30,7 @@ const LABELS: [&str; 8] = [
     "Right",
     "Sprint",
     "Interact / sit",
-    "Stand up",
+    "Jump / stand up",
     "Push to talk",
 ];
 #[derive(Resource, Serialize, Deserialize, Clone)]

@@ -1,4 +1,6 @@
-//! Offline and host-authoritative cooperative dispatch office.
+mod interaction;
+mod wardrobe;
+// Host-authoritative cooperative dispatch office.
 mod ambience;
 mod bot;
 mod city;
@@ -61,6 +63,7 @@ fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.48, 0.64, 0.78)))
         .insert_resource(game)
+        .init_resource::<wardrobe::PreviewOrigin>()
         .insert_resource(prefs)
         .insert_resource(menu)
         .insert_resource(net)
@@ -96,6 +99,7 @@ fn main() {
                 environment::street::sky,
                 world::setup,
                 peers::setup,
+                interaction::setup,
                 office_props::setup,
                 phone::setup,
                 ambience::setup,
@@ -129,12 +133,13 @@ fn main() {
                     (
                         peers::update,
                         environment::street::update,
+                        environment::street::emergency,
                         environment::people::update,
                         office_props::preview,
                         office_props::update,
                     )
                         .chain(),
-                    world::doors,
+                    (world::doors, wardrobe::update, interaction::outline).chain(),
                     phone::update,
                     (ambience::update, ambience::city_update).chain(),
                     city_effects::update,
@@ -171,6 +176,7 @@ fn apply_actions(
     mut chat: ResMut<voice::ChatInput>,
     mut prefs: ResMut<frontend::Preferences>,
     check: Res<playtest::LaunchCheck>,
+    origin: Res<wardrobe::PreviewOrigin>,
     mut menu: ResMut<frontend::Frontend>,
 ) {
     for action in queue.0.drain(..) {
@@ -193,7 +199,11 @@ fn apply_actions(
                 game.dirty = true;
             }
         } else {
-            net.action(&mut game, action, network::pose(&player));
+            net.action(
+                &mut game,
+                action,
+                network::pose(origin.0.as_ref().unwrap_or(&player)),
+            );
         }
     }
 }
