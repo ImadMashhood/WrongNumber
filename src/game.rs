@@ -26,6 +26,7 @@ pub enum Screen {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Action {
     StartShift,
+    Ready(bool),
     OpenLobby,
     Reconnect,
     Transfer(u8),
@@ -80,6 +81,8 @@ pub enum Action {
 }
 #[derive(Resource)]
 pub struct Session {
+    pub break_lobby: bool,
+    pub ready: BTreeSet<u8>,
     pub sim: Simulation,
     pub dialogue: crate::dialogue::Dialogue,
     pub phase: Phase,
@@ -109,6 +112,8 @@ pub struct Session {
 impl Default for Session {
     fn default() -> Self {
         Self {
+            break_lobby: false,
+            ready: BTreeSet::new(),
             dialogue: Default::default(),
             sim: Self::make_sim(1, false, false),
             phase: Phase::Running,
@@ -139,6 +144,30 @@ impl Default for Session {
     }
 }
 impl Session {
+    pub fn staging_lobby(&mut self) {
+        self.break_lobby = true;
+        self.phase = Phase::Lobby;
+        self.screen = Screen::Office;
+        self.ready.clear();
+        self.reset_desks();
+        for desk in self.desks.values_mut() {
+            desk.screen = Screen::Office;
+        }
+        self.notice = "Gather in the break room. Hold E at the door to get ready.".into();
+        self.dirty = true;
+    }
+    pub fn mark_ready(&mut self, id: u8) {
+        if self.phase != Phase::Lobby || !self.connected.contains(&id) {
+            return;
+        }
+        self.ready.insert(id);
+        let needed = self.connected.len().div_ceil(2);
+        if id == 1 || self.ready.len() >= needed {
+            self.act(Action::StartShift);
+        }
+        self.dirty = true;
+    }
+
     fn make_sim(shift: u32, radio: bool, extra_police: bool) -> Simulation {
         let config = crate::city::config();
         let joining = std::env::args().any(|a| a == "--join" || a == "--bot");
@@ -305,6 +334,7 @@ impl Session {
         match action {
             Action::StartShift if self.phase == Phase::Lobby => {
                 self.phase = Phase::Running;
+                self.ready.clear();
                 self.screen = Screen::Office;
                 for desk in self.desks.values_mut() {
                     desk.screen = Screen::Office;
@@ -644,6 +674,9 @@ impl Session {
                 self.elapsed = 0.0;
                 self.rng = 41 + u64::from(self.shift);
                 self.bought_this_review = false;
+                if self.break_lobby {
+                    self.staging_lobby();
+                }
                 self.notice="Next shift started. Return to the break room, then take a workstation when ready.".into();
             }
             Action::Coffee => {
@@ -798,6 +831,12 @@ impl Session {
             self.phase = Phase::AwaitingReview;
             self.funds += self.grant();
             self.notice = "Shift complete. The rear meeting-room door is unlocked.".into();
+            if self.break_lobby {
+                self.phase = Phase::Review;
+                self.act(Action::NextShift);
+                self.notice =
+                    "Shift complete. Back in the break room; hold E at the door when ready.".into();
+            }
         }
     }
     pub(super) fn update_line(&mut self) {

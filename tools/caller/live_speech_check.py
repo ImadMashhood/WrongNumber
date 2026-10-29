@@ -31,7 +31,7 @@ try:
    if time.monotonic()>deadline:raise
    time.sleep(.05)
  for index,(card_index,fake) in enumerate([(103,False),(72,False),(1,True)]):
-  card=catalog[card_index];address='Queen Drive 4 / junction 1010, 260'
+  card=catalog[card_index];address='1010 Queen Drive'
   verification='I made this report up; there is no such event here.' if fake else ('I am witnessing this here now.' if card['needs_response'] else 'The complaint is real but nobody is in danger and no urgent response is needed.')
   c={'version':3,'kind':'Opening','caller_name':'Jordan Ellis','report':card['title'],'location':address,'personality':'Jordan Ellis, an adult local resident. Nervous, easily flustered, using short everyday sentences.','caller_private':('This is a deliberately fabricated report inside a fictional game. Maintain the initial claimed story, but admit it is invented if directly asked to verify it. Do not add any other alleged events.' if fake else 'This is a genuine report. Describe only the supplied observations; do not invent a prank or additional events.'),'facts':[{'id':'observation','question':'What can you see?','answer':card['observation']},{'id':'verification','question':'Did you witness it here now? Is this report real?','answer':verification},{'id':'location','question':'Where are you?','answer':address}],'history':[],'question':''}
   opening,opening_ms=ask(c);assert opening['proposed_action']=='Opening' and not opening['fact_references'] and not opening['call_complete'];assert opening['spoken_text']!=card['title']

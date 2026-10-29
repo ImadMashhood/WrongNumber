@@ -10,7 +10,9 @@ This repository is the project home. Solo and direct-connect co-op prototypes ar
 
 ## Project status
 
-**M3/M4 implemented; M5 random-complaint and natural caller conversation prototype implemented and locally verified.** Play a solo dispatch shift in the office, investigate AI callers, assign responders on the supplied coastal map, review outcomes, and buy an upgrade for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Live caller conversation requires the configured AI service; provider failure drops the conversation. OpenRouter-compatible dialogue and local STT/TTS use bounded adapters. See [caller and speech setup](docs/callers.md). M4 has passed real multi-process and rendered host/client shifts; the two-physical-PC LAN check remains pending. See [multiplayer setup and verification](docs/multiplayer.md). Milestone checkboxes distinguish delivered work from remaining acceptance checks. Scope and technical choices may change as prototypes and playtests provide evidence.
+**M3/M4 implemented; M5 random-complaint and natural caller conversation prototype implemented and locally verified.** Play a solo dispatch shift in the office, investigate AI callers, assign responders on the supplied coastal map, and return to the break-room lobby for the next shift. Responders follow speed-weighted Dijkstra routes on the supplied graph inside a connected pilot district; the remaining disconnected map still needs correction. Live caller conversation requires the configured AI service; provider failure drops the conversation. OpenRouter-compatible dialogue and local STT/TTS use bounded adapters. See [caller and speech setup](docs/callers.md). M4 has passed real multi-process and rendered host/client shifts; the two-physical-PC LAN check remains pending. See [multiplayer setup and verification](docs/multiplayer.md). Milestone checkboxes distinguish delivered work from remaining acceptance checks. Scope and technical choices may change as prototypes and playtests provide evidence.
+
+The menu includes Host, Join, join codes and persistent control/audio settings, including push to talk. Internet codes connect directly to the creator’s PC and require a reachable forwarded TCP port; there is no relay. See [menu and hosting instructions](docs/menu.md). The desktop uses dark elevated panels, live resources/map and a compact phone; local CC0 ambience blends between office and break room.
 
 ## Design pillars
 
@@ -308,13 +310,19 @@ Normal play draws from [300 complaints](docs/design/complaint-catalogue.md), wit
 
 Answer a call, click **Type a question...**, type and press **Enter**. Caller replies, subtitles and evidence use the same authority rules in solo/co-op. Authored question buttons remain available. Live dialogue requires the configured service; it never falls back to scripted replies. The AI writes an opening statement and natural replies from the selected fixed scenario; the host controls truth and outcomes.
 
-Optional caller speech uses local `espeak-ng` or a replaceable TTS adapter. With a configured local STT adapter, answer the phone and speak naturally. Voice activation sends a local transcription after a short pause; the phone has a mute/unmute button. Optional transcript review lets you edit before pressing Enter. Voice activation is **on during answered calls**; saved audio remains **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
+Caller speech can use [local Kokoro neural TTS](docs/local-tts.md), now configured on the development PC, or a replaceable TTS adapter. With a configured local STT adapter, answer the phone and speak naturally. Voice activation sends a local transcription after a short pause; the phone has a mute/unmute button. Optional transcript review lets you edit before pressing Enter. Voice activation is **on during answered calls**; saved audio remains **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
 
 For OpenRouter or another compatible provider, start `cargo run --locked -p wrong-number-caller-server` with a locally configured key and explicit model, then pass `--caller-service 127.0.0.1:47005` to the solo/co-op host. Clients need no key. See [setup, limits, privacy and verification](docs/callers.md); a live GPT-4o request is verified; physical microphone/listening quality still needs playtesting.
 
 ## Run co-op (M4)
 
-The host starts a lobby and owns the shared shift. Up to five clients join the host's LAN address; all players need the same commit.
+The game opens on a main menu with **Host a room**, **Join a room**, **Join with code**, **Solo shift**, and **Settings**. The player who creates the room is the host and owns the simulation. Enter a dispatcher name and the host's public IPv4 (internet) or LAN IPv4 (local play); the default menu port is **TCP 47000**. Share the generated WN1 code from the lobby. All players need the same commit.
+
+**Internet codes use a direct connection:** the host must forward the selected TCP port through their router and allow the game through their firewall. Codes encode the address with a typo checksum; they are not a relay, matchmaking service or password. Carrier-grade NAT requires a reachable public address or shared VPN. Two-network internet acceptance is still pending. See [menu, controls and internet hosting](docs/menu.md).
+
+Settings include rebindable controls, mouse sensitivity/invert-Y, fullscreen, VSync/FPS, caller/ringtone volume, audio devices, and **Voice Activation / Push to Talk / Muted**. Hold **V** (rebindable) for Push to Talk and release to send. Voice Activation waits for two continuous seconds below the floor. Both obey the configured recording cap (maximum 12 seconds). Preferences save locally; recording consent stays off on restart.
+
+The CLI remains available for automation and direct launches:
 
 ```bash
 # Host
@@ -323,7 +331,7 @@ cargo run --locked -- --host 0.0.0.0:47004 --name Imad
 cargo run --locked -- --join 192.168.1.50:47004 --name Partner
 ```
 
-On Linux, use `bash scripts/run.sh` followed by the same arguments for hardware-driver selection. Click **Return to office / take a seat**, use E at a free chair and monitor, then let the host click **Start shared shift** in the lobby. Escape → Room lobby opens room controls. Online menus keep the clock running. Shared responders are allocated atomically; calls can transfer to a connected, seated, idle teammate. Only the host ends shifts, buys team upgrades and starts the next day.
+On Linux, use `bash scripts/run.sh` followed by the same arguments for hardware-driver selection. Start in the break room. Aim at the dispatch doorway and hold E for 1.5 seconds: the creator/host starts immediately, or half the connected players must be ready (rounded up). Then use E at a free chair and monitor. Escape → Room lobby opens room controls. Online menus keep the clock running. Shared responders are allocated atomically; calls can transfer to a connected, seated, idle teammate. Only the host can end shifts early. After the shift settles, everyone teleports back to the break-room lobby; review/upgrades are temporarily skipped.
 
 See [the multiplayer guide](docs/multiplayer.md) for reconnects, testing and the remaining two-PC acceptance checklist. Direct LAN connectivity is implemented; Steam invitations, relay/NAT traversal and voice remain future milestones.
 
@@ -373,7 +381,7 @@ See [the office guide](docs/office.md) for controls, map integration boundaries,
 
 The office now follows the supplied environment reference: a deeper brick industrial room, tall arched windows looking onto close neighboring buildings in daylight, six unnumbered workstations with simple recognizable equipment, a large live city board, a glass-fronted break room, and a separate rear meeting room. Shared low-poly meshes and small repeating brick/floor textures keep the detail restrained.
 
-Mouse look works while walking and seated. Aim at a nearby monitor and press E to open the desktop while standing. Aim at a chair and press E to sit when ready to receive calls. Escape returns to seated free-look; Space stands. The rear meeting-room door stays locked during the shift and opens when review becomes available. The wall map and desktop monitors share a live render target driven by the existing simulation.
+Mouse look works while walking and seated. Aim at a nearby monitor and press E to open the desktop while standing. Aim at a chair and press E to sit when ready to receive calls. Escape returns to seated free-look; Space stands. The break-room door stays locked during lobby readiness and opens for dispatch; completed shifts currently return directly to the next lobby. The wall map and desktop monitors share a live render target driven by the existing simulation.
 
 The graphical verification tours the rebuilt room and completes the existing shift/review/upgrade flow. M4 adds simple networked dispatcher avatars; proximity voice remains future work. Road routes now drive the pilot district. The launcher no longer forces CPU rendering. The same 1440×900 room benchmark measured 58.5 FPS on the RTX 3080 versus 3.0 FPS on CPU llvmpipe (300 measured frames after 90 warm-up frames, normal graphics, VSync). This is a single-machine scene measurement. See [the environment guide](docs/environment.md).
 

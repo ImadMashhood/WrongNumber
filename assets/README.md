@@ -33,3 +33,7 @@ fonts/DesktopSans.ttf is the unmodified Liberation Sans Regular font supplied by
 callers/00.png through callers/49.png are original procedural low-poly avatar illustrations. They contain no third-party photographs.
 
 The 50 original caller illustrations are reproducible with tools/content/build_portraits.py (Pillow). The cast data and readable bible are generated from tools/content/callers.txt by tools/content/build_callers.py. Parody identities/biographies are fictional and do not depict or make claims about the referenced public figures.
+
+## Ambient audio
+
+Two local appliance-room loops are derived from LEGIT Audio’s CC0 **The Shop** samples. See [source, license and edits](audio/AMBIENCE_CREDITS.md). They blend by room position, pause during microphone capture and duck during caller playback.

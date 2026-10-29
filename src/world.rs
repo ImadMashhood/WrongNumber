@@ -35,7 +35,30 @@ impl Seating {
     }
 }
 pub const SEATS: [f32; 6] = [-5.25, -3.15, -1.05, 1.05, 3.15, 5.25];
-pub fn setup(mut commands: Commands, graphics: Res<crate::performance::Graphics>) {
+#[derive(Component)]
+pub struct LobbyDoor;
+#[derive(Default)]
+pub struct ReadyInput {
+    elapsed: f32,
+    since_send: f32,
+    active: bool,
+}
+pub fn setup(
+    mut commands: Commands,
+    graphics: Res<crate::performance::Graphics>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands.spawn((
+        LobbyDoor,
+        Mesh3d(meshes.add(Cuboid::new(0.12, 2.9, 3.15))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(0.16, 0.19, 0.18),
+            ..default()
+        })),
+        Transform::from_xyz(9.0, 1.45, 0.5),
+        Visibility::Hidden,
+    ));
     commands.init_resource::<Seating>();
     commands.spawn((
         Player,
@@ -135,9 +158,9 @@ pub fn aimed_action(pose: &Transform, game: &Session) -> Option<Action> {
         }
     }
     add(
-        Vec3::new(9.0, 1.5, 2.05),
-        Vec3::new(0.3, 2.0, 0.2),
-        1.8,
+        Vec3::new(9.0, 1.5, 0.5),
+        Vec3::new(0.3, 2.9, 3.15),
+        2.6,
         Action::BreakDoor,
     );
     add(
@@ -190,6 +213,9 @@ fn inside(p: Vec2, r: (f32, f32, f32, f32)) -> bool {
     p.x > r.0 && p.x < r.1 && p.y > r.2 && p.y < r.3
 }
 pub fn walkable(p: Vec2, phase: Phase) -> bool {
+    if phase == Phase::Lobby && p.x < 9.3 {
+        return false;
+    }
     let main = inside(p, (-8.65, 8.65, -6.6, 6.65));
     let break_room = inside(p, (9.3, 13.65, -4.6, 6.6));
     let break_door = inside(p, (8.4, 9.6, -1.1, 2.15));
@@ -249,18 +275,38 @@ pub fn controls(
     mut actions: ResMut<Actions>,
     seating: Res<Seating>,
     mut was_looking: Local<bool>,
+    prefs: Res<crate::frontend::Preferences>,
+    menu: Res<crate::frontend::Frontend>,
+    mut ready: Local<ReadyInput>,
 ) {
     if check.automated() {
         return;
     }
-    let looking = look_enabled(game.screen, window.focused);
+    let looking = !menu.visible && look_enabled(game.screen, window.focused);
     cursor.visible = !looking;
     cursor.grab_mode = if looking {
         CursorGrabMode::Locked
     } else {
         CursorGrabMode::None
     };
-    if !window.focused {
+    let at_door = game.break_lobby
+        && game.phase == Phase::Lobby
+        && looking
+        && matches!(aimed_action(&player, &game), Some(Action::BreakDoor))
+        && prefs.held(&keys, 5);
+    if at_door && !game.ready.contains(&game.local_player) {
+        ready.elapsed += time.delta_secs();
+        ready.since_send += time.delta_secs();
+        if !ready.active || ready.since_send >= 0.1 {
+            actions.0.push(Action::Ready(true));
+            ready.since_send = 0.0;
+        }
+        ready.active = true;
+    } else if ready.active {
+        actions.0.push(Action::Ready(false));
+        *ready = ReadyInput::default();
+    }
+    if !window.focused || menu.visible {
         *was_looking = false;
         return;
     }
@@ -275,19 +321,21 @@ pub fn controls(
         *was_looking = false;
         return;
     }
-    if keys.just_pressed(KeyCode::Space) && game.seated.is_some() {
+    if prefs.pressed(&keys, 6) && game.seated.is_some() {
         actions.0.push(Action::Stand);
     }
-    if (keys.just_pressed(KeyCode::KeyE) || mouse.just_pressed(MouseButton::Left))
+    if (prefs.pressed(&keys, 5) || mouse.just_pressed(MouseButton::Left))
         && let Some(action) = aimed_action(&player, &game)
+        && (action != Action::BreakDoor || !game.break_lobby || game.phase != Phase::Lobby)
     {
         actions.0.push(action);
     }
     let dt = time.delta_secs().min(0.1);
     let (mut yaw, mut pitch, _) = player.rotation.to_euler(EulerRot::YXZ);
     if *was_looking {
-        yaw -= motion.delta.x * 0.0025;
-        pitch -= motion.delta.y * 0.0025;
+        yaw -= motion.delta.x * 0.0025 * prefs.sensitivity;
+        pitch -=
+            motion.delta.y * 0.0025 * prefs.sensitivity * if prefs.invert_y { -1.0 } else { 1.0 };
     }
     *was_looking = true;
     yaw += (f32::from(keys.pressed(KeyCode::ArrowLeft))
@@ -303,18 +351,10 @@ pub fn controls(
     }
     let forward = Quat::from_rotation_y(yaw) * Vec3::NEG_Z;
     let right = Quat::from_rotation_y(yaw) * Vec3::X;
-    let direction = (forward
-        * (f32::from(keys.pressed(KeyCode::KeyW)) - f32::from(keys.pressed(KeyCode::KeyS)))
-        + right
-            * (f32::from(keys.pressed(KeyCode::KeyD)) - f32::from(keys.pressed(KeyCode::KeyA))))
+    let direction = (forward * (f32::from(prefs.held(&keys, 0)) - f32::from(prefs.held(&keys, 1)))
+        + right * (f32::from(prefs.held(&keys, 3)) - f32::from(prefs.held(&keys, 2))))
     .normalize_or_zero();
-    let step = direction
-        * dt
-        * if keys.pressed(KeyCode::ShiftLeft) {
-            5.0
-        } else {
-            3.0
-        };
+    let step = direction * dt * if prefs.held(&keys, 4) { 5.0 } else { 3.0 };
     if walkable(
         Vec2::new(player.translation.x + step.x, player.translation.z),
         game.phase,
@@ -334,7 +374,15 @@ pub fn doors(
     materials: Res<DoorMaterials>,
     mut doors: Query<&mut Transform, With<ReviewDoor>>,
     mut lamps: Query<&mut MeshMaterial3d<StandardMaterial>, With<DoorLamp>>,
+    mut lobby_door: Query<&mut Visibility, With<LobbyDoor>>,
 ) {
+    for mut visibility in &mut lobby_door {
+        *visibility = if game.break_lobby && game.phase == Phase::Lobby {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
     let unlocked = review_unlocked(game.phase);
     let rotation = Quat::from_rotation_y(if unlocked { -FRAC_PI_2 } else { 0.0 });
     for mut door in &mut doors {
@@ -368,7 +416,13 @@ pub fn hud_text(game: &Session, pose: &Transform) -> String {
                 "[E] Use telephone / dispatch"
             }
         }
-        Some(Action::BreakDoor) => "Break room doorway open",
+        Some(Action::BreakDoor) => {
+            if game.break_lobby && game.phase == Phase::Lobby {
+                "Hold [E] at door for 1.5 seconds to ready / host starts shift"
+            } else {
+                "Break room doorway open"
+            }
+        }
         Some(Action::OpenMap) => "[E] View city map",
         Some(Action::Door) => {
             if review_unlocked(game.phase) {
@@ -393,7 +447,16 @@ pub fn hud_text(game: &Session, pose: &Transform) -> String {
         game.status(),
         game.remaining() / 60,
         game.remaining() % 60,
-        prompt,
+        if game.break_lobby && game.phase == Phase::Lobby {
+            format!(
+                "{prompt}\n{}/{} ready · {} required · host can start",
+                game.ready.len(),
+                game.connected.len(),
+                game.connected.len().div_ceil(2)
+            )
+        } else {
+            prompt.into()
+        },
         game.notice
     )
 }

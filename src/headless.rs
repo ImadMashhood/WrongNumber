@@ -64,6 +64,9 @@ fn run(args: &[String]) -> Result<(), String> {
         let now = Instant::now();
         let dt = now.duration_since(last).as_secs_f32().min(0.1);
         last = now;
+        if game.shift == 1 {
+            completed_score = game.sim.score();
+        }
         net.poll(&mut game);
         let is_host = matches!(net.link, Link::Host { .. });
         net.tick(&mut game, dt * speed);

@@ -75,7 +75,21 @@ pub fn address(position: Position) -> String {
         .min_by_key(|r| r.id);
     road.map_or_else(
         || "Reported location pending".into(),
-        |r| format!("{} / junction {}, {}", r.name, position.x, position.y),
+        |r| {
+            // A stable pseudo-random building number for each physical location.
+            // Keep graph IDs and coordinates internal; imported road data stays intact.
+            let hash = (position.x as u32).wrapping_mul(73856093)
+                ^ (position.y as u32).wrapping_mul(19349663)
+                ^ r.id.wrapping_mul(83492791);
+            let mut words: Vec<_> = r.name.split_whitespace().collect();
+            while words
+                .last()
+                .is_some_and(|w| w.chars().all(|c| c.is_ascii_digit()))
+            {
+                words.pop();
+            }
+            format!("{} {}", 10 + hash % 9990, words.join(" "))
+        },
     )
 }
 
@@ -106,4 +120,23 @@ pub fn catalogue_locations() -> &'static Vec<wrong_number_sim::catalogue::Locati
             })
             .collect()
     })
+}
+
+#[cfg(test)]
+mod address_tests {
+    use super::*;
+    #[test]
+    fn every_catalogue_location_has_a_stable_number_and_street() {
+        let locations = catalogue_locations();
+        assert!(!locations.is_empty());
+        for location in locations {
+            let address = address(location.position);
+            assert_eq!(address, location.address);
+            let (number, street) = address.split_once(' ').unwrap();
+            assert!((2..=4).contains(&number.len()));
+            assert!((10..=9999).contains(&number.parse::<u32>().unwrap()));
+            assert!(!street.contains("junction") && !street.contains(','));
+            assert!(street.chars().last().unwrap().is_alphabetic());
+        }
+    }
 }

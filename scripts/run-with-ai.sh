@@ -21,6 +21,8 @@ trap 'exit 143' TERM
 sleep 0.3
 if ! kill -0 "$caller_pid" 2>/dev/null; then
     echo 'Caller server could not start. Check configuration and port 47005.' >&2
-    exit 1
+    echo 'Opening the menu without AI. Joining another host still works; hosting live callers requires a configured caller service.' >&2
+    bash scripts/run.sh "$@" 2>&1 | tee .wrong-number/game.log
+    exit "${PIPESTATUS[0]}"
 fi
 bash scripts/run.sh --caller-service 127.0.0.1:47005 "$@" 2>&1 | tee .wrong-number/game.log

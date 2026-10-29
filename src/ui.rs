@@ -34,11 +34,11 @@ pub fn load_map(mut commands: Commands, assets: Res<AssetServer>) {
 pub struct UiAction(pub Action);
 #[derive(Component)]
 pub struct Hud;
-const INK: Color = Color::srgb(0.035, 0.055, 0.075);
-const PANEL: Color = Color::srgb(0.065, 0.095, 0.12);
+const INK: Color = Color::srgb(0.025, 0.025, 0.025);
+const PANEL: Color = Color::srgb(0.07, 0.07, 0.07);
 const TEXT: Color = Color::srgb(0.9, 0.94, 0.93);
-const MUTED: Color = Color::srgb(0.55, 0.66, 0.69);
-const TEAL: Color = Color::srgb(0.08, 0.52, 0.48);
+const MUTED: Color = Color::srgb(0.63, 0.63, 0.63);
+const TEAL: Color = Color::srgb(0.12, 0.84, 0.38);
 const AMBER: Color = Color::srgb(0.92, 0.6, 0.22);
 fn text(p: &mut ChildSpawnerCommands, value: impl Into<String>, size: f32, color: Color) {
     p.spawn((
@@ -66,16 +66,24 @@ fn button(p: &mut ChildSpawnerCommands, label: impl Into<String>, action: Action
             ..default()
         },
         BackgroundColor(if enabled {
-            Color::srgb(0.12, 0.23, 0.26)
+            Color::srgb(0.13, 0.13, 0.13)
         } else {
-            Color::srgb(0.1, 0.13, 0.15)
+            Color::srgb(0.075, 0.075, 0.075)
         }),
     ));
     if enabled {
         e.insert((Button, Hovered::default(), UiAction(action.clone())))
-            .observe(move |_: On<Activate>, mut actions: ResMut<Actions>| {
-                actions.0.push(action.clone());
-            });
+            .observe(
+                move |_: On<Activate>, mut actions: ResMut<Actions>, game: Res<Session>| {
+                    if action == Action::Answer
+                        && let Some(id) = game.ringing
+                        && game.selected != id
+                    {
+                        actions.0.push(Action::Select(id));
+                    }
+                    actions.0.push(action.clone());
+                },
+            );
     }
     e.with_children(|p| {
         p.spawn((
@@ -141,7 +149,7 @@ fn cap_name(cap: Capability) -> &'static str {
 fn cap_color(cap: Capability) -> Color {
     match cap {
         Capability::Police => Color::srgb(0.3, 0.65, 1.0),
-        Capability::Medical => Color::srgb(0.9, 0.9, 0.9),
+        Capability::Medical => Color::srgb(0.15, 0.85, 0.47),
         Capability::Fire => Color::srgb(1.0, 0.4, 0.25),
     }
 }
@@ -224,6 +232,7 @@ fn map(
         }
         for unit in game.sim.units().values() {
             p.spawn((
+                MapUnit(unit.id),
                 Node {
                     position_type: PositionType::Absolute,
                     left: percent(crate::city::map_percent(unit.position).0),
@@ -248,383 +257,331 @@ fn map(
         12.0,
         MUTED,
     );
-    text(p, "PILOT DISTRICT / LIVE ROAD ROUTES", 11.0, AMBER);
+}
+#[derive(Component)]
+pub struct MapUnit(u32);
+pub fn map_units(game: Res<Session>, mut units: Query<(&MapUnit, &mut Node)>) {
+    for (marker, mut node) in &mut units {
+        if let Some(unit) = game.sim.units().get(&marker.0) {
+            let (x, y) = crate::city::map_percent(unit.position);
+            node.left = percent(x);
+            node.top = percent(y);
+        }
+    }
 }
 fn terminal(
     p: &mut ChildSpawnerCommands,
     game: &Session,
     image: &MapImage,
-    _routes: &crate::routes::RouteOverlay,
+    routes: &crate::routes::RouteOverlay,
     chat: &crate::voice::ChatInput,
     voice: &crate::voice::Voice,
     portraits: &CallerPortraits,
 ) {
     let running = matches!(game.phase, Phase::Running | Phase::Closing);
-    // The desktop contains only resource status and the actual funding ledger.
     p.spawn((
         Node {
             width: percent(100),
             height: percent(100),
-            overflow: Overflow::clip(),
-            border_radius: BorderRadius::all(px(8)),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(px(10)),
+            row_gap: px(10),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.075, 0.13, 0.17)),
+        BackgroundColor(INK),
     ))
     .with_children(|p| {
-        p.spawn((
-            ImageNode {
-                image: image.0.clone(),
-                color: Color::srgb(0.28, 0.38, 0.47),
-                ..default()
-            },
-            Node {
-                position_type: PositionType::Absolute,
-                width: percent(100),
-                height: percent(100),
-                ..default()
-            },
-        ));
         p.spawn(Node {
-            position_type: PositionType::Absolute,
-            left: px(16),
-            top: px(28),
-            width: px(80),
-            flex_direction: FlexDirection::Column,
-            row_gap: px(16),
+            height: px(42),
+            flex_shrink: 0.0,
+            align_items: AlignItems::Center,
+            column_gap: px(14),
             ..default()
         })
         .with_children(|p| {
-            button(p, "Resources", Action::DesktopResources, true);
-            button(p, "Sound", Action::AudioSettings, true);
-            button(
-                p,
-                "Exit
-desktop",
-                Action::Office,
-                true,
-            );
+            text(p, "WN  /  DISPATCH", 20.0, TEXT);
+            live_text(p, DesktopLive::Clock, 13.0, MUTED);
+            for (label, action) in [
+                ("Sound", Action::AudioSettings),
+                ("Leave computer", Action::Office),
+            ] {
+                p.spawn(Node {
+                    width: px(140),
+                    margin: UiRect::left(px(8)),
+                    ..default()
+                })
+                .with_children(|p| button(p, label, action, true));
+            }
+            if game.seated.is_none() {
+                text(p, "Standing view · sit to receive calls", 12.0, MUTED);
+            }
         });
-        p.spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                left: px(0),
-                right: px(0),
-                bottom: px(0),
-                height: px(52),
-                padding: UiRect::axes(px(16), px(8)),
-                justify_content: JustifyContent::SpaceBetween,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgb(0.07, 0.09, 0.13)),
-        ))
+        p.spawn(Node {
+            flex_grow: 1.0,
+            min_height: px(0),
+            column_gap: px(12),
+            ..default()
+        })
         .with_children(|p| {
+            // Resource rail: the live funding ledger and actual available responders.
             p.spawn(Node {
-                column_gap: px(10),
-                align_items: AlignItems::Center,
+                width: percent(22),
+                min_width: px(0),
+                overflow: Overflow::scroll_y(),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(10),
                 ..default()
             })
             .with_children(|p| {
-                text(p, "WN", 20.0, TEAL);
-                for (label, action) in [
-                    ("Resources", Action::DesktopResources),
-                    ("Sound", Action::AudioSettings),
-                    ("Room", Action::Office),
-                ] {
-                    p.spawn(Node {
-                        width: px(110),
-                        ..default()
-                    })
-                    .with_children(|p| button(p, label, action, true));
-                }
-                if phone_call(game).is_some() {
-                    text(
-                        p,
-                        if game.conversation.is_some() {
-                            "Phone connected"
-                        } else {
-                            "Incoming call"
-                        },
-                        13.0,
-                        TEXT,
-                    );
-                }
-            });
-            live_text(p, DesktopLive::Clock, 14.0, TEXT);
-        });
-        if !chat.hide_resources {
-            p.spawn((
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: px(112),
-                    top: px(28),
-                    bottom: px(74),
-                    width: percent(29),
-                    padding: UiRect::all(px(18)),
-                    border_radius: BorderRadius::all(px(10)),
-                    min_height: px(0),
-                    overflow: Overflow::scroll_y(),
-                    min_width: px(0),
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(12),
-                    ..default()
-                },
-                BackgroundColor(INK.with_alpha(0.96)),
-            ))
-            .with_children(|p| {
-                text(p, "Resource Monitor", 20.0, TEXT);
-                if game.seated.is_none() {
-                    text(
-                        p,
-                        "Standing view / take a seat to receive calls",
-                        12.0,
-                        MUTED,
-                    );
-                }
-                button(p, "Minimize window", Action::DesktopResources, true);
-                p.spawn((
-                    Node {
-                        padding: UiRect::all(px(22)),
-                        flex_direction: FlexDirection::Column,
-                        row_gap: px(12),
-                        border_radius: BorderRadius::all(px(12)),
-                        ..default()
-                    },
-                    BackgroundColor(PANEL),
-                ))
-                .with_children(|p| {
-                    text(p, "CASH AVAILABLE", 12.0, MUTED);
-                    live_text(p, DesktopLive::Cash, 38.0, TEXT);
-                    live_text(p, DesktopLive::Income, 14.0, TEAL);
-                    live_text(p, DesktopLive::Loss, 14.0, AMBER);
-                    live_text(p, DesktopLive::Grant, 13.0, MUTED);
-                });
-                text(p, "RESPONSE RESOURCES", 13.0, MUTED);
-                for cap in [Capability::Police, Capability::Medical, Capability::Fire] {
-                    p.spawn((
-                        Node {
-                            padding: UiRect::all(px(16)),
-                            flex_direction: FlexDirection::Column,
-                            row_gap: px(8),
-                            border_radius: BorderRadius::all(px(10)),
-                            ..default()
-                        },
-                        BackgroundColor(PANEL),
-                    ))
-                    .with_children(|p| {
-                        let total = game
+                card(p, |p| {
+                    text(p, "Resources", 19.0, TEXT);
+                    text(p, "TOTAL   /   AVAILABLE", 10.0, MUTED);
+                    for cap in [Capability::Fire, Capability::Police, Capability::Medical] {
+                        let units: Vec<_> = game
                             .sim
                             .units()
                             .values()
                             .filter(|u| u.capability == cap)
-                            .count();
-                        let free = game
-                            .sim
-                            .units()
-                            .values()
-                            .filter(|u| u.capability == cap && u.state == UnitState::Available)
-                            .count();
-                        text(
-                            p,
-                            format!("{}   {free}/{total} available", cap_name(cap)),
-                            17.0,
-                            cap_color(cap),
-                        );
-                        for u in game.sim.units().values().filter(|u| u.capability == cap) {
-                            live_text(p, DesktopLive::Unit(u.id), 12.0, MUTED);
-                        }
-                    });
-                }
-                button(p, "Leave desktop [Esc]", Action::Office, true);
-                if running {
-                    button(
-                        p,
-                        "Finish shift",
-                        Action::EndShift,
-                        game.can_dispatch() || game.multiplayer && game.local_player == 1,
-                    );
-                }
-            });
-        }
-        if let Some(id) = phone_call(game) {
-            let Ok(view) = game.sim.call_view(id) else {
-                return;
-            };
-            let own = game.conversation == Some(id) && game.call_station == game.seated;
-            p.spawn((
-                Node {
-                    position_type: PositionType::Absolute,
-                    right: px(20),
-                    top: px(28),
-                    bottom: px(74),
-                    width: percent(55),
-                    min_height: px(0),
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(px(18)),
-                    row_gap: px(12),
-                    border_radius: BorderRadius::all(px(20)),
-                    border: UiRect::all(px(1)),
-                    ..default()
-                },
-                BackgroundColor(INK),
-                BorderColor::all(Color::srgb(0.22, 0.34, 0.39)),
-            ))
-            .with_children(|p| {
-                p.spawn(Node {
-                    column_gap: px(18),
-                    align_items: AlignItems::Center,
-                    ..default()
-                })
-                .with_children(|p| {
-                    p.spawn((
-                        ImageNode::new(
-                            portraits.0[(view.caller_id.saturating_sub(1000) as usize) % 50]
-                                .clone(),
-                        ),
-                        Node {
-                            width: px(96),
-                            height: px(96),
-                            border_radius: BorderRadius::all(px(12)),
-                            ..default()
-                        },
-                    ));
-                    p.spawn(Node {
-                        flex_direction: FlexDirection::Column,
-                        row_gap: px(8),
-                        ..default()
-                    })
-                    .with_children(|p| {
-                        text(
-                            p,
-                            if own {
-                                "PHONE  /  CONNECTED"
-                            } else {
-                                "PHONE  /  INCOMING CALL"
+                            .collect();
+                        p.spawn((
+                            Node {
+                                padding: UiRect::all(px(12)),
+                                flex_direction: FlexDirection::Column,
+                                row_gap: px(5),
+                                border_radius: BorderRadius::all(px(6)),
+                                ..default()
                             },
-                            12.0,
-                            TEAL,
-                        );
-                        text(
-                            p,
-                            if view.caller_name.is_empty() {
-                                "Unknown caller"
-                            } else {
-                                &view.caller_name
-                            },
-                            23.0,
-                            TEXT,
-                        );
-                        live_text(p, DesktopLive::Call(id, view.caller_id), 13.0, MUTED);
-                    });
-                });
-                if !own {
-                    text(p, "Incoming voice call", 24.0, TEXT);
-                    button(
-                        p,
-                        "Answer phone",
-                        Action::Answer,
-                        running && game.call_station == game.seated,
-                    );
-                    text(
-                        p,
-                        "Answering connects your microphone. You can mute at any time.",
-                        13.0,
-                        MUTED,
-                    );
-                } else {
-                    p.spawn(Node {
-                        column_gap: px(10),
-                        width: percent(100),
-                        ..default()
-                    })
-                    .with_children(|p| {
-                        p.spawn(Node {
-                            width: percent(65),
-                            min_width: px(0),
-                            ..default()
-                        })
+                            BackgroundColor(Color::srgb(0.09, 0.09, 0.09)),
+                        ))
                         .with_children(|p| {
+                            text(p, cap_name(cap), 13.0, cap_color(cap));
+                            text(
+                                p,
+                                format!(
+                                    "{}    /    {}",
+                                    units.len(),
+                                    units
+                                        .iter()
+                                        .filter(|u| u.state == UnitState::Available)
+                                        .count()
+                                ),
+                                24.0,
+                                TEXT,
+                            );
+                            for unit in units {
+                                live_text(p, DesktopLive::Unit(unit.id), 11.0, MUTED);
+                            }
+                        });
+                    }
+                });
+                card(p, |p| {
+                    text(p, "Unit status", 17.0, TEXT);
+                    for (label, count, color) in [
+                        (
+                            "Available",
+                            game.sim
+                                .units()
+                                .values()
+                                .filter(|u| u.state == UnitState::Available)
+                                .count(),
+                            TEAL,
+                        ),
+                        (
+                            "Dispatched",
+                            game.sim
+                                .units()
+                                .values()
+                                .filter(|u| {
+                                    matches!(
+                                        u.state,
+                                        UnitState::Assigned { .. } | UnitState::EnRoute { .. }
+                                    )
+                                })
+                                .count(),
+                            Color::srgb(0.95, 0.25, 0.25),
+                        ),
+                        (
+                            "On scene",
+                            game.sim
+                                .units()
+                                .values()
+                                .filter(|u| {
+                                    matches!(
+                                        u.state,
+                                        UnitState::OnScene { .. } | UnitState::Resolving { .. }
+                                    )
+                                })
+                                .count(),
+                            AMBER,
+                        ),
+                        (
+                            "Returning / recovery",
+                            game.sim
+                                .units()
+                                .values()
+                                .filter(|u| {
+                                    matches!(
+                                        u.state,
+                                        UnitState::Returning { .. } | UnitState::Recovering { .. }
+                                    )
+                                })
+                                .count(),
+                            MUTED,
+                        ),
+                    ] {
+                        text(p, format!("{label}     {count}"), 13.0, color);
+                    }
+                });
+                card(p, |p| {
+                    text(p, "Funds", 17.0, TEXT);
+                    live_text(p, DesktopLive::Cash, 26.0, TEXT);
+                    live_text(p, DesktopLive::Income, 12.0, TEAL);
+                    live_text(p, DesktopLive::Loss, 12.0, AMBER);
+                    live_text(p, DesktopLive::Grant, 11.0, MUTED);
+                });
+                card(p, |p| {
+                    text(p, "Active incidents", 17.0, TEXT);
+                    for id in game.visible_ids() {
+                        let v = game.sim.call_view(*id).unwrap();
+                        if v.state == IncidentState::Active {
                             button(
                                 p,
-                                if voice.enabled {
-                                    "Mic on / click to mute"
-                                } else {
-                                    "Mic muted / click to unmute"
-                                },
-                                Action::MicToggle,
+                                format!(
+                                    "{}  #{}\n{}",
+                                    if game.selected == *id {
+                                        "Selected"
+                                    } else {
+                                        "Incident"
+                                    },
+                                    id,
+                                    crate::city::address(v.location)
+                                ),
+                                Action::Select(*id),
                                 true,
                             );
-                        });
-                        p.spawn(Node {
-                            flex_grow: 1.0,
-                            min_width: px(0),
-                            ..default()
-                        })
-                        .with_children(|p| {
-                            button(p, "Hang up", Action::HangUp, true);
-                        });
-                    });
-                    audio_meters(p);
+                        }
+                    }
+                    if running {
+                        button(
+                            p,
+                            "Finish shift",
+                            Action::EndShift,
+                            game.can_dispatch() || game.multiplayer && game.local_player == 1,
+                        );
+                    }
+                });
+            });
+            // The real supplied map occupies the center, with response controls below it.
+            p.spawn(Node {
+                width: percent(48),
+                min_width: px(0),
+                overflow: Overflow::scroll_y(),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(10),
+                ..default()
+            })
+            .with_children(|p| {
+                card(p, |p| {
                     p.spawn(Node {
-                        flex_grow: 1.0,
-                        min_height: px(80),
-                        width: percent(100),
-                        overflow: Overflow::scroll_y(),
-                        flex_direction: FlexDirection::Column,
-                        row_gap: px(12),
+                        justify_content: JustifyContent::SpaceBetween,
+                        align_items: AlignItems::Center,
                         ..default()
                     })
                     .with_children(|p| {
-                        conversation_ui(p, game, chat, voice);
-                        text(p, crate::city::address(view.location), 13.0, MUTED);
-                        text(p, "SEND HELP", 12.0, MUTED);
+                        text(p, "CITY MAP", 15.0, TEAL);
+                        p.spawn(Node {
+                            width: px(130),
+                            ..default()
+                        })
+                        .with_children(|p| button(p, "Expand map", Action::OpenMap, true));
+                    });
+                    map(p, game, image, routes);
+                });
+                card(p, |p| {
+                    text(p, "Incident details & dispatch", 18.0, TEXT);
+                    live_text(p, DesktopLive::Voice, 11.0, MUTED);
+                    if let Ok(view) = game.sim.call_view(game.selected) {
+                        text(
+                            p,
+                            format!(
+                                "#{}  ·  {}",
+                                game.selected,
+                                crate::city::address(view.location)
+                            ),
+                            17.0,
+                            TEXT,
+                        );
+                        text(p, &view.report, 14.0, MUTED);
+                        for fact in &view.facts {
+                            text(p, &fact.answer, 13.0, MUTED);
+                        }
+                        let actionable =
+                            running && game.selected_call_answered() && game.seated.is_some();
+                        p.spawn(Node {
+                            flex_wrap: FlexWrap::Wrap,
+                            column_gap: px(6),
+                            ..default()
+                        })
+                        .with_children(|p| {
+                            for unit in game.sim.units().values() {
+                                let verb = match unit.state {
+                                    UnitState::Available => "Send",
+                                    UnitState::Assigned { incident }
+                                    | UnitState::EnRoute { incident, .. }
+                                        if incident == game.selected =>
+                                    {
+                                        "Cancel"
+                                    }
+                                    UnitState::Assigned { .. } | UnitState::EnRoute { .. } => {
+                                        "Reroute"
+                                    }
+                                    _ => "Busy",
+                                };
+                                p.spawn(Node {
+                                    width: percent(31),
+                                    min_width: px(0),
+                                    ..default()
+                                })
+                                .with_children(|p| {
+                                    button(
+                                        p,
+                                        format!(
+                                            "{verb} {}\nUnit {}",
+                                            cap_name(unit.capability),
+                                            unit.id
+                                        ),
+                                        Action::Unit(unit.id),
+                                        actionable
+                                            && matches!(
+                                                unit.state,
+                                                UnitState::Available
+                                                    | UnitState::Assigned { .. }
+                                                    | UnitState::EnRoute { .. }
+                                            ),
+                                    );
+                                });
+                            }
+                        });
                         button(
                             p,
                             "Send all three services",
                             Action::FullResponse,
-                            running
-                                && game.selected_call_answered()
+                            actionable
                                 && [Capability::Police, Capability::Medical, Capability::Fire]
-                                    .into_iter()
+                                    .iter()
                                     .all(|cap| {
                                         game.sim.units().values().any(|u| {
-                                            u.capability == cap && u.state == UnitState::Available
+                                            u.capability == *cap && u.state == UnitState::Available
                                         })
                                     }),
                         );
-                        for unit in game.sim.units().values() {
-                            let verb = match unit.state {
-                                UnitState::Available => "Send",
-                                UnitState::Assigned { incident }
-                                | UnitState::EnRoute { incident, .. }
-                                    if incident == id =>
-                                {
-                                    "Cancel"
-                                }
-                                UnitState::Assigned { .. } | UnitState::EnRoute { .. } => "Reroute",
-                                _ => "Busy",
-                            };
-                            button(
-                                p,
-                                format!("{verb} {} / Unit {}", cap_name(unit.capability), unit.id),
-                                Action::Unit(unit.id),
-                                running
-                                    && matches!(
-                                        unit.state,
-                                        UnitState::Available
-                                            | UnitState::Assigned { .. }
-                                            | UnitState::EnRoute { .. }
-                                    ),
-                            );
-                        }
                         button(
                             p,
                             "No response needed / close case",
                             Action::Decline,
-                            running && view.state == IncidentState::Active,
+                            actionable,
                         );
-                        if game.multiplayer {
+                        if game.multiplayer && game.conversation == Some(game.selected) {
                             for other in game
                                 .connected
                                 .iter()
@@ -642,30 +599,79 @@ desktop",
                                 );
                             }
                         }
-                        button(p, "Sound settings", Action::AudioSettings, true);
-                        button(p, "Replay caller", Action::ReplayCaller, !voice.speaking);
+                    } else {
+                        text(
+                            p,
+                            "Select an incident on the map or in the list.",
+                            14.0,
+                            MUTED,
+                        );
+                    }
+                });
+            });
+            p.spawn(Node {
+                width: percent(28),
+                min_width: px(0),
+                min_height: px(0),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(10),
+                ..default()
+            })
+            .with_children(|p| {
+                if let Some(id) = phone_call(game) {
+                    dispatch_phone(p, game, chat, voice, portraits, id);
+                } else {
+                    card(p, |p| {
+                        text(p, "Dispatch phone", 18.0, TEXT);
+                        text(p, "No active call", 14.0, MUTED);
+                        text(
+                            p,
+                            "The phone opens when a call reaches your workstation.",
+                            13.0,
+                            MUTED,
+                        );
+                    });
+                    card(p, |p| {
+                        text(p, "Recent calls", 17.0, TEXT);
+                        let mut recent: Vec<_> =
+                            game.dialogue.conversations.keys().copied().collect();
+                        recent.reverse();
+                        for id in recent.into_iter().take(5) {
+                            if let Ok(v) = game.sim.call_view(id) {
+                                button(
+                                    p,
+                                    format!(
+                                        "{}\n{}",
+                                        v.caller_name,
+                                        crate::city::address(v.location)
+                                    ),
+                                    Action::Select(id),
+                                    true,
+                                );
+                            }
+                        }
                     });
                 }
             });
-        }
-
+        });
+        text(p, &game.notice, 12.0, MUTED);
         if chat.settings {
             p.spawn((
                 Node {
                     position_type: PositionType::Absolute,
-                    left: px(112),
-                    top: px(44),
-                    bottom: px(74),
+                    left: px(20),
+                    top: px(64),
+                    bottom: px(35),
                     width: px(430),
-                    padding: UiRect::all(px(20)),
-                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(px(18)),
                     overflow: Overflow::scroll_y(),
-                    row_gap: px(10),
-                    border_radius: BorderRadius::all(px(10)),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(8),
+                    border_radius: BorderRadius::all(px(12)),
                     border: UiRect::all(px(1)),
                     ..default()
                 },
-                BackgroundColor(INK),
+                BackgroundColor(PANEL),
                 BorderColor::all(TEAL),
             ))
             .with_children(|p| {
@@ -676,6 +682,297 @@ desktop",
         }
     });
 }
+fn card(p: &mut ChildSpawnerCommands, contents: impl FnOnce(&mut ChildSpawnerCommands)) {
+    p.spawn((
+        Node {
+            padding: UiRect::all(px(12)),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(9),
+            border_radius: BorderRadius::all(px(10)),
+            border: UiRect::all(px(1)),
+            flex_shrink: 0.0,
+            ..default()
+        },
+        BackgroundColor(PANEL),
+        BorderColor::all(Color::srgb(0.13, 0.13, 0.13)),
+    ))
+    .with_children(contents);
+}
+#[derive(Component)]
+pub struct TranscriptScroll(bool);
+fn dispatch_phone(
+    p: &mut ChildSpawnerCommands,
+    game: &Session,
+    chat: &crate::voice::ChatInput,
+    voice: &crate::voice::Voice,
+    portraits: &CallerPortraits,
+    id: u32,
+) {
+    let Ok(view) = game.sim.call_view(id) else {
+        return;
+    };
+    let own = game.conversation == Some(id) && game.call_station == game.seated;
+    p.spawn((
+        Node {
+            flex_grow: 1.0,
+            min_height: px(0),
+            padding: UiRect::all(px(12)),
+            border: UiRect::all(px(1)),
+            border_radius: BorderRadius::all(px(14)),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(9),
+            ..default()
+        },
+        BackgroundColor(PANEL),
+        BorderColor::all(Color::srgb(0.14, 0.14, 0.14)),
+    ))
+    .with_children(|p| {
+        text(
+            p,
+            if own {
+                "Dispatch phone  ·  Connected"
+            } else {
+                "Dispatch phone  ·  Incoming"
+            },
+            14.0,
+            if own { TEAL } else { TEXT },
+        );
+        p.spawn((
+            Node {
+                flex_grow: 1.0,
+                min_height: px(0),
+                width: percent(100),
+                padding: UiRect::all(px(13)),
+                border: UiRect::all(px(2)),
+                border_radius: BorderRadius::all(px(28)),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(9),
+                overflow: Overflow::clip(),
+                ..default()
+            },
+            BackgroundColor(INK),
+            BorderColor::all(Color::srgb(0.27, 0.27, 0.27)),
+        ))
+        .with_children(|p| {
+            p.spawn(Node {
+                width: percent(100),
+                height: px(8),
+                justify_content: JustifyContent::Center,
+                flex_shrink: 0.0,
+                ..default()
+            })
+            .with_children(|p| {
+                p.spawn((
+                    Node {
+                        width: px(62),
+                        height: px(4),
+                        border_radius: BorderRadius::MAX,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.16, 0.16, 0.16)),
+                ));
+            });
+            p.spawn(Node {
+                column_gap: px(10),
+                align_items: AlignItems::Center,
+                flex_shrink: 0.0,
+                ..default()
+            })
+            .with_children(|p| {
+                p.spawn((
+                    ImageNode::new(
+                        portraits.0[(view.caller_id.saturating_sub(1000) as usize) % 50].clone(),
+                    ),
+                    Node {
+                        width: px(58),
+                        height: px(58),
+                        flex_shrink: 0.0,
+                        border_radius: BorderRadius::all(px(14)),
+                        ..default()
+                    },
+                ));
+                p.spawn(Node {
+                    flex_direction: FlexDirection::Column,
+                    min_width: px(0),
+                    row_gap: px(5),
+                    ..default()
+                })
+                .with_children(|p| {
+                    text(
+                        p,
+                        if view.caller_name.is_empty() {
+                            "Unknown caller"
+                        } else {
+                            &view.caller_name
+                        },
+                        19.0,
+                        TEXT,
+                    );
+                    live_text(p, DesktopLive::Call(id, view.caller_id), 11.0, MUTED);
+                });
+            });
+            if own {
+                p.spawn(Node {
+                    column_gap: px(6),
+                    ..default()
+                })
+                .with_children(|p| {
+                    p.spawn(Node {
+                        width: percent(55),
+                        ..default()
+                    })
+                    .with_children(|p| {
+                        button(
+                            p,
+                            if voice.enabled {
+                                "Mute mic"
+                            } else {
+                                "Unmute mic"
+                            },
+                            Action::MicToggle,
+                            true,
+                        )
+                    });
+                    p.spawn(Node {
+                        flex_grow: 1.0,
+                        ..default()
+                    })
+                    .with_children(|p| button(p, "Replay", Action::ReplayCaller, !voice.speaking));
+                });
+            }
+            p.spawn((
+                TranscriptScroll(false),
+                Node {
+                    width: percent(100),
+                    flex_grow: 1.0,
+                    min_height: px(60),
+                    overflow: Overflow::scroll_y(),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: px(12),
+                    padding: UiRect::axes(px(2), px(10)),
+                    ..default()
+                },
+            ))
+            .with_children(|p| {
+                if let Some(c) = game.dialogue.conversations.get(&id) {
+                    for turn in &c.turns {
+                        if !turn.question.is_empty() {
+                            text(p, format!("YOU\n{}", turn.question), 13.0, MUTED);
+                        }
+                        text(
+                            p,
+                            format!(
+                                "{}\n{}",
+                                if view.caller_name.is_empty() {
+                                    "CALLER"
+                                } else {
+                                    &view.caller_name
+                                },
+                                turn.spoken_text
+                            ),
+                            15.0,
+                            TEXT,
+                        );
+                    }
+                    if c.pending == Some(game.local_player) {
+                        button(
+                            p,
+                            "Caller is thinking… Cancel",
+                            Action::CancelTalk(id),
+                            true,
+                        );
+                    }
+                } else {
+                    text(p, "Incoming voice call", 18.0, TEXT);
+                }
+            });
+            if own {
+                button(
+                    p,
+                    if chat.editing {
+                        format!("> {}_", chat.draft)
+                    } else {
+                        "Type a message…".into()
+                    },
+                    Action::ChatFocus,
+                    true,
+                );
+                compact_meters(p);
+                // Hang-up stays pinned at the very bottom, outside the scrolling transcript.
+                p.spawn((
+                    Node {
+                        border_radius: BorderRadius::all(px(18)),
+                        padding: UiRect::all(px(2)),
+                        flex_shrink: 0.0,
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.65, 0.08, 0.08)),
+                ))
+                .with_children(|p| button(p, "Hang up", Action::HangUp, true));
+            } else {
+                p.spawn(Node {
+                    flex_shrink: 0.0,
+                    ..default()
+                })
+                .with_children(|p| {
+                    button(
+                        p,
+                        "Answer phone",
+                        Action::Answer,
+                        game.call_station == game.seated,
+                    )
+                });
+            }
+        });
+    });
+}
+fn compact_meters(p: &mut ChildSpawnerCommands) {
+    for caller in [false, true] {
+        p.spawn(Node {
+            height: px(13),
+            min_height: px(13),
+            width: percent(100),
+            flex_shrink: 0.0,
+            align_items: AlignItems::Center,
+            column_gap: px(3),
+            ..default()
+        })
+        .with_children(|p| {
+            text(p, if caller { "CALLER" } else { "YOU" }, 9.0, MUTED);
+            for index in 0..crate::voice::WAVE_BINS {
+                p.spawn((
+                    WaveBar {
+                        caller,
+                        index,
+                        small: true,
+                    },
+                    Node {
+                        flex_grow: 1.0,
+                        flex_basis: px(0),
+                        height: px(1),
+                        ..default()
+                    },
+                    BackgroundColor(if caller {
+                        Color::srgb(0.75, 0.75, 0.75)
+                    } else {
+                        TEAL
+                    }),
+                ));
+            }
+        });
+    }
+}
+pub fn transcript_scroll(
+    mut panels: Query<(&ComputedNode, &mut ScrollPosition, &mut TranscriptScroll)>,
+) {
+    for (node, mut scroll, mut state) in &mut panels {
+        if !state.0 && node.size().y > 0.0 {
+            scroll.y =
+                ((node.content_size().y - node.size().y) * node.inverse_scale_factor()).max(0.0);
+            state.0 = true;
+        }
+    }
+}
 fn phone_call(game: &Session) -> Option<u32> {
     game.conversation.or(game.ringing).filter(|id| {
         game.sim
@@ -683,57 +980,7 @@ fn phone_call(game: &Session) -> Option<u32> {
             .is_ok_and(|v| matches!(v.call, CallState::Ringing | CallState::Answered { .. }))
     })
 }
-fn conversation_ui(
-    p: &mut ChildSpawnerCommands,
-    game: &Session,
-    chat: &crate::voice::ChatInput,
-    _voice: &crate::voice::Voice,
-) {
-    text(p, "CONVERSATION", 12.0, MUTED);
-    if let Some(c) = game.dialogue.conversations.get(&game.selected) {
-        for turn in c.turns.iter().rev().take(6).rev() {
-            if !turn.question.is_empty() {
-                text(
-                    p,
-                    format!("DISPATCHER {}: {}", turn.player, turn.question),
-                    13.0,
-                    MUTED,
-                );
-            }
-            text(p, format!("CALLER: {}", turn.spoken_text), 16.0, TEXT);
-        }
-
-        if c.pending == Some(game.local_player) {
-            button(
-                p,
-                "Caller is connecting… Cancel",
-                Action::CancelTalk(game.selected),
-                true,
-            );
-        }
-    }
-    let own = game.conversation == Some(game.selected) && game.call_station == game.seated;
-    button(
-        p,
-        if chat.editing {
-            format!("> {}_  [Enter sends]", chat.draft)
-        } else if chat.draft.is_empty() {
-            "Type a question...".into()
-        } else {
-            format!("Edit / send: {}", chat.draft)
-        },
-        Action::ChatFocus,
-        own,
-    );
-    text(
-        p,
-        "Speak naturally; pause for two seconds to send. The time limit always submits. Your microphone pauses while the caller speaks. You can also type a message.",
-        12.0,
-        MUTED,
-    );
-    live_text(p, DesktopLive::Voice, 12.0, AMBER);
-}
-fn audio_ui(
+pub(crate) fn audio_ui(
     p: &mut ChildSpawnerCommands,
     voice: &crate::voice::Voice,
     chat: &crate::voice::ChatInput,
@@ -804,7 +1051,11 @@ fn audio_ui(
     button(
         p,
         if voice.enabled {
-            "Microphone: ON / voice activated"
+            if voice.push_to_talk {
+                "Microphone: ON / push to talk"
+            } else {
+                "Microphone: ON / voice activated"
+            }
         } else {
             "Microphone: MUTED / click to unmute"
         },
@@ -898,7 +1149,9 @@ fn lobby(p: &mut ChildSpawnerCommands, game: &Session, net: &crate::network::Net
                 14.0,
                 MUTED,
             );
-            if game.phase == Phase::Lobby {
+            if game.phase == Phase::Lobby && game.break_lobby {
+                text(p, format!("{}/{} ready. Hold E at the break-room door. The host or at least half the connected players starts the shift.", game.ready.len(), game.connected.len()), 18.0, TEXT);
+            } else if game.phase == Phase::Lobby {
                 button(
                     p,
                     "Start shared shift",
@@ -1011,13 +1264,15 @@ fn desktop_key(
     voice: &crate::voice::Voice,
 ) -> String {
     serde_json::json!({
-        "phase":game.phase,"selected":game.selected,"ringing":game.ringing,"conversation":game.conversation,
+        "notice":game.notice,"phase":game.phase,"selected":game.selected,"ringing":game.ringing,"conversation":game.conversation,
         "seated":game.seated,"shift":game.shift,
         "units":game.sim.units().values().map(|u|(u.id,&u.state)).collect::<Vec<_>>(),
         "call":game.sim.call_view(game.selected).ok(),
+        "incidents":game.visible_ids().map(|id|game.sim.call_view(*id).ok()).collect::<Vec<_>>(),
+        "phone_dialogue":game.conversation.and_then(|id|game.dialogue.conversations.get(&id)),
         "dialogue":game.dialogue.conversations.get(&game.selected),
         "chat":(&chat.draft,chat.editing,chat.settings,chat.hide_resources),
-        "voice":(voice.enabled,voice.review_speech,voice.gate_db,voice.listen_seconds,voice.volume,voice.input,voice.output,voice.save_clips),
+        "voice":(voice.enabled,voice.push_to_talk,voice.review_speech,voice.gate_db,voice.listen_seconds,voice.volume,voice.input,voice.output,voice.save_clips),
         "devices":(&voice.inputs,&voice.outputs),
         "speaking":voice.speaking
     }).to_string()
@@ -1049,7 +1304,12 @@ pub fn draw(
     voice: Res<crate::voice::Voice>,
     portraits: Res<CallerPortraits>,
     mut rendered: Local<Option<(Screen, String)>>,
+    menu: Res<crate::frontend::Frontend>,
 ) {
+    if menu.visible {
+        *rendered = None;
+        return;
+    }
     if !game.dirty {
         return;
     }
@@ -1167,7 +1427,34 @@ pub fn draw(
                     ..default()
                 })
                 .with_children(|p| match screen {
-                    Screen::Lobby => lobby(p, &game, &net),
+                    Screen::Lobby => {
+                        lobby(p, &game, &net);
+                        p.spawn(column(30.0)).with_children(|p| {
+                            if !menu.hosted_code.is_empty() && net.id == Some(1) {
+                                text(p, format!("JOIN CODE\n{}", menu.hosted_code), 18.0, AMBER);
+                                crate::frontend::button(
+                                    p,
+                                    "Copy join code",
+                                    crate::frontend::MenuAction::CopyCode,
+                                );
+                                crate::frontend::button(
+                                    p,
+                                    "Copy host address",
+                                    crate::frontend::MenuAction::CopyAddress,
+                                );
+                            }
+                            crate::frontend::button(
+                                p,
+                                "Settings",
+                                crate::frontend::MenuAction::Settings,
+                            );
+                            crate::frontend::button(
+                                p,
+                                "Leave room / main menu",
+                                crate::frontend::MenuAction::Leave,
+                            );
+                        });
+                    }
                     Screen::Terminal => {
                         terminal(p, &game, &image, &routes, &chat, &voice, &portraits)
                     }
@@ -1203,6 +1490,16 @@ pub fn draw(
                                 if net.online() {
                                     button(p, "Room lobby / players", Action::OpenLobby, true);
                                 }
+                                crate::frontend::button(
+                                    p,
+                                    "Settings / controls",
+                                    crate::frontend::MenuAction::Settings,
+                                );
+                                crate::frontend::button(
+                                    p,
+                                    "Leave shift / main menu",
+                                    crate::frontend::MenuAction::Leave,
+                                );
                                 audio_ui(p, &voice, &chat);
                                 button(p, "Resume", Action::Resume, true);
                                 button(p, "Quit game", Action::Quit, true);
@@ -1228,6 +1525,7 @@ pub fn update_hud(
     game: Res<Session>,
     player: Single<&Transform, With<Player>>,
     stats: Res<crate::performance::Frames>,
+    menu: Res<crate::frontend::Frontend>,
     mut reticle: Query<&mut BorderColor, With<Reticle>>,
     mut hud: Query<&mut Text, With<Hud>>,
 ) {
@@ -1251,6 +1549,12 @@ pub fn update_hud(
     }
     for mut text in &mut hud {
         let mut value = hud_text(&game, &player);
+        if game.phase == Phase::Lobby && !menu.hosted_code.is_empty() {
+            value.push_str(&format!(
+                "\nJoin code: {} | Esc > Room lobby to copy",
+                menu.hosted_code
+            ));
+        }
         if stats.show {
             value.push_str(&format!("\n{:.0} FPS | {}", stats.fps, stats.gpu));
         }
@@ -1259,12 +1563,20 @@ pub fn update_hud(
         }
     }
 }
-pub fn hover(mut buttons: Query<(&Hovered, &mut BackgroundColor), With<Button>>) {
-    for (hovered, mut color) in &mut buttons {
-        let next = BackgroundColor(if hovered.get() {
+pub fn hover(
+    mut buttons: Query<(&Hovered, &mut BackgroundColor, Option<&UiAction>), With<Button>>,
+) {
+    for (hovered, mut color, action) in &mut buttons {
+        let next = BackgroundColor(if action.is_some_and(|a| a.0 == Action::HangUp) {
+            if hovered.get() {
+                Color::srgb(0.9, 0.16, 0.2)
+            } else {
+                Color::srgb(0.68, 0.08, 0.12)
+            }
+        } else if hovered.get() {
             TEAL
         } else {
-            Color::srgb(0.12, 0.23, 0.26)
+            Color::srgb(0.13, 0.13, 0.13)
         });
         if *color != next {
             *color = next;
@@ -1419,6 +1731,7 @@ mod phone_tests {
 pub struct WaveBar {
     caller: bool,
     index: usize,
+    small: bool,
 }
 #[derive(Component)]
 pub struct AudioReadout(bool);
@@ -1458,7 +1771,11 @@ fn audio_meters(p: &mut ChildSpawnerCommands) {
             .with_children(|p| {
                 for index in 0..crate::voice::WAVE_BINS {
                     p.spawn((
-                        WaveBar { caller, index },
+                        WaveBar {
+                            caller,
+                            index,
+                            small: false,
+                        },
                         Node {
                             flex_grow: 1.0,
                             flex_basis: px(0),
@@ -1488,7 +1805,10 @@ pub fn audio_visuals(
     let caller = voice.output_trace.lock().unwrap().clone();
     for (bar, mut node) in &mut bars {
         let trace = if bar.caller { &caller } else { &mic };
-        node.height = px((trace.levels[bar.index].sqrt() * 90.0).clamp(1.0, 30.0));
+        node.height = px(
+            (trace.levels[bar.index].sqrt() * if bar.small { 30.0 } else { 90.0 })
+                .clamp(1.0, if bar.small { 10.0 } else { 30.0 }),
+        );
     }
     for (label, mut text) in &mut labels {
         if label.0 {
@@ -1518,10 +1838,11 @@ pub fn audio_visuals(
 }
 pub fn desktop_fonts(
     game: Res<Session>,
+    menu: Res<crate::frontend::Frontend>,
     font: Res<DesktopFont>,
     mut fonts: Query<&mut TextFont, Added<TextFont>>,
 ) {
-    if game.screen == Screen::Terminal {
+    if game.screen == Screen::Terminal || menu.visible {
         for mut f in &mut fonts {
             f.font = bevy::text::FontSource::Handle(font.0.clone());
         }
@@ -1575,7 +1896,7 @@ pub fn desktop_values(
             DesktopLive::Loss => {
                 format!("Damage deductions         -$ {}", game.damage_assessment())
             }
-            DesktopLive::Grant => format!("Net paid at review         $ {}", game.grant()),
+            DesktopLive::Grant => format!("Shift grant         $ {}", game.grant()),
             DesktopLive::Unit(id) => game
                 .sim
                 .units()

@@ -42,6 +42,7 @@ jobs:
             fi
           done
           export WGPU_BACKEND=vulkan
+          xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --menu-test --low-graphics --settings-file ci-captures/menu-settings.json --capture-dir ci-captures/menu
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --playtest --low-graphics --capture-dir ci-captures
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --conversation-test --low-graphics --capture-dir ci-captures/conversation
           xvfb-run -a --server-args="-screen 0 1600x1000x24" cargo run --locked -- --consequence-test --low-graphics --capture-dir ci-captures/consequences

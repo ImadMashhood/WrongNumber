@@ -393,11 +393,11 @@ mod tests {
             locations: vec![
                 Location {
                     position: Position { x: 0, y: 0 },
-                    address: "Oak Street / junction 0".into(),
+                    address: "28 Oak Street".into(),
                 },
                 Location {
                     position: Position { x: 4, y: 4 },
-                    address: "Harbour Lane / junction 4".into(),
+                    address: "415 Harbour Lane".into(),
                 },
             ],
             last_location: None,

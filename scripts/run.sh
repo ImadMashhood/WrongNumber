@@ -16,4 +16,18 @@ elif [[ -z "${VK_DRIVER_FILES:-}" && -f /usr/share/vulkan/icd.d/nvidia_icd.x86_6
     export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json
     export WGPU_BACKEND=vulkan
 fi
+# Local neural speech is opt-in via the installer; explicit adapters take priority.
+if [[ -f .wrong-number/speech.env ]]; then
+    set -a
+    source .wrong-number/speech.env
+    set +a
+fi
+for arg in "$@"; do
+    if [[ "$arg" == --tts-command || "$arg" == --smoke-test || "$arg" == --menu-test || "$arg" == --playtest || "$arg" == --benchmark || "$arg" == --network-playtest || "$arg" == --conversation-test ]]; then
+        exec cargo run --locked -- "$@"
+    fi
+done
+if [[ -n "${WRONG_NUMBER_TTS_PYTHON:-}" && -n "${WRONG_NUMBER_TTS_MODELS:-}" ]]; then
+    exec bash scripts/run-with-tts.sh "$@"
+fi
 exec cargo run --locked -- "$@"

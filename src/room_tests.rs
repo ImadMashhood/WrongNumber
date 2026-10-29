@@ -265,3 +265,96 @@ fn standing_computer_access_is_nearby_and_does_not_claim_a_seat() {
     r.members.get_mut(&2).unwrap().pose.position = [12.0, 1.65, 4.0];
     assert!(!act(&mut r, 2, Action::OpenDesk).accepted);
 }
+
+fn staging_room(players: u8) -> Room {
+    let mut r = Room::new("Host".into());
+    r.game.staging_lobby();
+    for id in 2..=players {
+        r.join(
+            u64::from(id),
+            wrong_number_net::PROTOCOL,
+            format!("Player{id}"),
+            None,
+        )
+        .unwrap();
+    }
+    for m in r.members.values_mut() {
+        m.pose.position = [9.8, 1.65, 0.5];
+    }
+    r
+}
+fn held_ready(r: &mut Room, id: u8) {
+    assert!(act(r, id, Action::Ready(true)).accepted);
+    let now = std::time::Instant::now();
+    r.ready_holds
+        .insert(id, (now - std::time::Duration::from_millis(1600), now));
+    r.tick(0.0);
+}
+#[test]
+fn door_ready_requires_half_connected_players_or_the_host() {
+    let mut r = staging_room(6);
+    held_ready(&mut r, 2);
+    assert_eq!(r.game.phase, Phase::Lobby);
+    assert_eq!(r.game.ready.len(), 1);
+    held_ready(&mut r, 3);
+    assert_eq!(r.game.phase, Phase::Lobby);
+    let snapshot = r.snapshot();
+    let mut mirror = Session::default();
+    apply_snapshot(&mut mirror, &snapshot, 2).unwrap();
+    assert_eq!(mirror.ready, r.game.ready);
+    held_ready(&mut r, 4);
+    assert_eq!(r.game.phase, Phase::Running);
+    assert!(r.game.ready.is_empty());
+    let mut r = staging_room(6);
+    held_ready(&mut r, 1);
+    assert_eq!(r.game.phase, Phase::Running);
+}
+#[test]
+fn ready_hold_rejects_remote_short_cancelled_and_stale_attempts() {
+    let mut r = staging_room(6);
+    r.members.get_mut(&2).unwrap().pose.position = [12.0, 1.65, 5.0];
+    assert!(!act(&mut r, 2, Action::Ready(true)).accepted);
+    r.members.get_mut(&2).unwrap().pose.position = [9.8, 1.65, 0.5];
+    assert!(act(&mut r, 2, Action::Ready(true)).accepted);
+    r.tick(0.0);
+    assert!(r.game.ready.is_empty());
+    assert!(act(&mut r, 2, Action::Ready(false)).accepted);
+    assert!(r.ready_holds.is_empty());
+    let old = std::time::Instant::now() - std::time::Duration::from_secs(2);
+    r.ready_holds.insert(2, (old, old));
+    r.tick(0.0);
+    assert!(r.game.ready.is_empty());
+    held_ready(&mut r, 2);
+    held_ready(&mut r, 3);
+    r.disconnect(6);
+    assert_eq!(r.game.phase, Phase::Lobby);
+    r.disconnect(5);
+    assert_eq!(r.game.phase, Phase::Running);
+}
+#[test]
+fn completed_shift_returns_all_players_to_breakroom_and_clears_votes() {
+    let mut r = staging_room(2);
+    held_ready(&mut r, 1);
+    act(&mut r, 1, Action::EndShift);
+    for _ in 0..700 {
+        r.tick(1.0);
+        if r.game.shift == 2 {
+            break;
+        }
+    }
+    assert_eq!(r.game.shift, 2);
+    assert_eq!(r.game.phase, Phase::Lobby);
+    assert!(r.game.ready.is_empty());
+    for m in r.members.values() {
+        assert_eq!(m.pose.position, crate::room::Pose::spawn(m.id).position);
+        assert!(r.game.desk(m.id).seated.is_none());
+    }
+    assert!(!world::walkable(
+        bevy::prelude::Vec2::new(8.8, 0.5),
+        Phase::Lobby
+    ));
+    assert!(world::walkable(
+        bevy::prelude::Vec2::new(8.8, 0.5),
+        Phase::Running
+    ));
+}

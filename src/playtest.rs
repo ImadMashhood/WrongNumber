@@ -60,7 +60,10 @@ impl LaunchCheck {
         }
     }
     pub fn automated(&self) -> bool {
-        self.playtest || self.benchmark || self.network
+        self.playtest
+            || self.benchmark
+            || self.network
+            || std::env::args().any(|a| a == "--menu-test")
     }
     fn capture(&self, commands: &mut Commands, name: &str) {
         if let Some(dir) = &self.capture_dir {

@@ -9,12 +9,12 @@ def launch(name,argv):
  log=(out/f'{name}.log').open('w');files.append(log);proc=subprocess.Popen([binary,*argv,*(['--dialogue-test'] if args.dialogue_test else []),*(['--catalogue-test'] if args.catalogue_test else [])],stdout=log,stderr=subprocess.STDOUT);processes.append(proc);return proc
 try:
  launch('host',['--headless-host',address,'--name','Host','--expected-players',str(args.players),'--fast-shift','40','--one-shift','--network-report',str(out/'host.json')]);time.sleep(.5)
- for n in range(2,args.players+1):clients[n]=launch(f'client{n}',['--bot',address,'--name',f'Player{n}','--resume',str(out/f'resume{n}.json'),'--network-report',str(out/f'client{n}.json')])
+ for n in range(2,args.players+1):clients[n]=launch(f'client{n}',['--bot',address,'--expected-players',str(args.players),'--name',f'Player{n}','--resume',str(out/f'resume{n}.json'),'--network-report',str(out/f'client{n}.json')])
  deadline=time.monotonic()+100
  while any(p.poll() is None for p in processes) and time.monotonic()<deadline:
   if args.reconnect and not reconnected and 'NETWORK PHASE Running' in (out/'host.log').read_text():
    victim=clients[2];victim.terminate();victim.wait(timeout=3);terminated.add(victim);time.sleep(.5)
-   clients[2]=launch('client2-reconnected',['--bot',address,'--name','Player2','--resume',str(out/'resume2.json'),'--network-report',str(out/'client2.json')]);reconnected=True
+   clients[2]=launch('client2-reconnected',['--bot',address,'--expected-players',str(args.players),'--name','Player2','--resume',str(out/'resume2.json'),'--network-report',str(out/'client2.json')]);reconnected=True
   time.sleep(.25)
  assert all(p.poll()==0 for p in processes if p not in terminated),f'Process failure/timeout; see {out}'
  reports=[json.loads((out/name).read_text()) for name in ['host.json',*[f'client{n}.json' for n in range(2,args.players+1)]]]

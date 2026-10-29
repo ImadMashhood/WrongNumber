@@ -5,7 +5,7 @@ use crate::{
     world::SEATS,
 };
 use bevy::{
-    audio::{SpatialScale, Volume},
+    audio::{AudioSinkPlayback, SpatialScale, Volume},
     prelude::*,
 };
 #[derive(Component)]
@@ -42,7 +42,12 @@ pub fn update(
     assets: Res<AssetServer>,
     rings: Query<(Entity, &Ring)>,
     mut beacons: Query<(&Beacon, &mut Visibility)>,
+    prefs: Res<crate::frontend::Preferences>,
+    mut sinks: Query<&mut SpatialAudioSink, With<Ring>>,
 ) {
+    for mut sink in &mut sinks {
+        sink.set_volume(Volume::Linear(prefs.ring_volume));
+    }
     let ringing: Vec<_> = game
         .connected
         .iter()
@@ -89,7 +94,7 @@ pub fn update(
             PlaybackSettings::LOOP
                 .with_spatial(true)
                 .with_spatial_scale(SpatialScale::new(0.2))
-                .with_volume(Volume::Linear(0.6)),
+                .with_volume(Volume::Linear(prefs.ring_volume)),
             Transform::from_xyz(SEATS[station] - 0.77, 1.08, 0.2),
         ));
     }

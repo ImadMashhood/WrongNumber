@@ -77,6 +77,11 @@ pub fn gate_amplitude(db: i32) -> f32 {
 #[derive(Resource)]
 pub struct Voice {
     pub enabled: bool,
+    pub push_to_talk: bool,
+    speaker: u32,
+    pub preferred_input: String,
+    pub preferred_output: String,
+    finish_capture: Arc<AtomicBool>,
     pub save_clips: bool,
     pub review_speech: bool,
     pub volume: f32,
@@ -119,6 +124,11 @@ impl Default for Voice {
         let storage = PathBuf::from(".wrong-number/recordings");
         Self {
             enabled: true,
+            push_to_talk: false,
+            speaker: 0,
+            preferred_input: "System default".into(),
+            preferred_output: "System default".into(),
+            finish_capture: Arc::new(AtomicBool::new(false)),
             save_clips: false,
             review_speech: false,
             volume: 0.7,
@@ -152,6 +162,14 @@ impl Default for Voice {
     }
 }
 impl Voice {
+    pub fn cancel_playback(&mut self) {
+        self.epoch.fetch_add(1, Ordering::Relaxed);
+        self.queued = None;
+    }
+    pub fn cancel_capture(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        self.mic_epoch.fetch_add(1, Ordering::Relaxed);
+    }
     pub fn local_action(&mut self, chat: &mut ChatInput, a: &Action) -> bool {
         match a {
             Action::DesktopResources => {
@@ -235,10 +253,12 @@ impl Voice {
             }
             Action::InputDevice => {
                 self.input = (self.input + 1) % self.inputs.len();
+                self.preferred_input = self.inputs[self.input].clone();
                 self.stop.store(true, Ordering::Relaxed);
             }
             Action::OutputDevice => {
                 self.output = (self.output + 1) % self.outputs.len();
+                self.preferred_output = self.outputs[self.output].clone();
                 self.epoch.fetch_add(1, Ordering::Relaxed);
             }
             Action::Volume(up) => {
@@ -304,11 +324,12 @@ impl Voice {
         let busy = self.busy.clone();
         let tx = self.tx.clone();
         let command = self.tts.clone();
+        let speaker = self.speaker;
         let output = self.output;
         let trace = self.output_trace.clone();
         let volume = self.volume;
         std::thread::spawn(move || {
-            let result = synthesize(command.as_deref(), &text, &epoch, expected);
+            let result = synthesize_voice(command.as_deref(), &text, &epoch, expected, speaker);
             if epoch.load(Ordering::Relaxed) == expected {
                 match result {
                     Ok(wav) => {
@@ -344,15 +365,23 @@ impl Voice {
         }
         self.stop = Arc::new(AtomicBool::new(false));
         let stop = self.stop.clone();
+        self.finish_capture = Arc::new(AtomicBool::new(false));
+        let finish = self.finish_capture.clone();
+        let ptt = self.push_to_talk;
         let tx = self.tx.clone();
         let input = self.input;
         let trace = self.input_trace.clone();
         let threshold = gate_amplitude(self.gate_db);
         let limit = self.listen_seconds;
         self.recording = true;
-        self.status = "Listening… Speak naturally, then pause.".into();
+        self.status = if self.push_to_talk {
+            "Recording… Release your push-to-talk key to send."
+        } else {
+            "Listening… Speak naturally, then pause."
+        }
+        .into();
         std::thread::spawn(move || {
-            let result = capture(input, &stop, threshold, limit, &trace);
+            let result = capture(input, &stop, &finish, ptt, threshold, limit, &trace);
             let _ = tx.try_send(ResultEvent::Captured(shift, id, result));
         });
     }
@@ -491,11 +520,21 @@ fn run_command(
         }
     }
 }
+#[cfg(test)]
 pub fn synthesize(
     program: Option<&Path>,
     text: &str,
     token: &AtomicU64,
     expected: u64,
+) -> Result<Vec<u8>, String> {
+    synthesize_voice(program, text, token, expected, 0)
+}
+fn synthesize_voice(
+    program: Option<&Path>,
+    text: &str,
+    token: &AtomicU64,
+    expected: u64,
+    caller: u32,
 ) -> Result<Vec<u8>, String> {
     if text.len() > 512 {
         return Err("Caller speech exceeds limit".into());
@@ -506,7 +545,9 @@ pub fn synthesize(
     private_write(&input, text.as_bytes())?;
     let mut cmd = std::process::Command::new(program.unwrap_or_else(|| Path::new("espeak-ng")));
     if program.is_some() {
-        cmd.arg(&input).arg(&output);
+        cmd.arg(&input)
+            .arg(&output)
+            .env("WRONG_NUMBER_CALLER_ID", caller.to_string());
     } else {
         cmd.arg("-s")
             .arg("140")
@@ -515,7 +556,13 @@ pub fn synthesize(
             .arg("-f")
             .arg(&input);
     }
-    run_command(cmd, &output, 8, token, expected)?;
+    run_command(
+        cmd,
+        &output,
+        if program.is_some() { 20 } else { 8 },
+        token,
+        expected,
+    )?;
     let bytes = std::fs::read(output).map_err(|_| "Speech adapter produced no WAV")?;
     if !valid_wav(&bytes) {
         return Err("Speech adapter returned an invalid WAV".into());
@@ -629,7 +676,7 @@ fn play(
             t.push(envelope.get(n).copied().unwrap_or(0.0));
             last = n;
         }
-        if token.load(Ordering::Relaxed) != expected || at.elapsed() > Duration::from_secs(25) {
+        if token.load(Ordering::Relaxed) != expected || at.elapsed() > Duration::from_secs(60) {
             player.stop();
             break;
         }
@@ -658,6 +705,9 @@ struct SpeechGate {
     first: Option<usize>,
 }
 impl SpeechGate {
+    fn frame_for_mode(&mut self, rms: f32, threshold: f32, push_to_talk: bool) -> bool {
+        self.frame(rms, threshold) && !push_to_talk
+    }
     fn frame(&mut self, rms: f32, threshold: f32) -> bool {
         if rms >= threshold {
             self.first.get_or_insert(self.frames);
@@ -692,6 +742,8 @@ fn segment_bounds(
 fn capture(
     input: usize,
     stop: &AtomicBool,
+    finish: &AtomicBool,
+    push_to_talk: bool,
     threshold: f32,
     limit: u32,
     trace: &Mutex<AudioTrace>,
@@ -759,6 +811,7 @@ fn capture(
     let mut processed = 0;
     let frame_len = (config.sample_rate / 50) as usize;
     while !stop.load(Ordering::Relaxed)
+        && !finish.load(Ordering::Relaxed)
         && !failed.load(Ordering::Relaxed)
         && at.elapsed() < Duration::from_secs(u64::from(limit))
     {
@@ -769,7 +822,7 @@ fn capture(
                 let frame = &buffer[processed..processed + frame_len];
                 let rms = (frame.iter().map(|v| v * v).sum::<f32>() / frame_len as f32).sqrt();
                 processed += frame_len;
-                let finish = gate.frame(rms, threshold);
+                let pause_complete = gate.frame_for_mode(rms, threshold, push_to_talk);
                 {
                     let mut t = trace.lock().unwrap();
                     t.push(rms);
@@ -782,7 +835,7 @@ fn capture(
                     }
                     .into();
                 }
-                if finish {
+                if pause_complete {
                     done = true;
                     break;
                 }
@@ -813,7 +866,7 @@ fn capture(
         config.sample_rate,
         limit,
         &gate,
-        timed_out,
+        timed_out || finish.load(Ordering::Relaxed),
         stop.load(Ordering::Relaxed),
     ) else {
         return Ok(Vec::new());
@@ -856,6 +909,9 @@ pub fn update(
     mut keyboard: MessageReader<KeyboardInput>,
     mut actions: ResMut<Actions>,
     check: Res<crate::playtest::LaunchCheck>,
+    keys: Res<ButtonInput<KeyCode>>,
+    prefs: Res<crate::frontend::Preferences>,
+    menu: Res<crate::frontend::Frontend>,
 ) {
     let case = game.conversation.map(|id| (game.shift, id));
     if chat.case != case {
@@ -881,8 +937,16 @@ pub fn update(
                 voice.outputs = std::iter::once("System default".into())
                     .chain(outs)
                     .collect();
-                voice.input = voice.input.min(voice.inputs.len() - 1);
-                voice.output = voice.output.min(voice.outputs.len() - 1);
+                voice.input = voice
+                    .inputs
+                    .iter()
+                    .position(|n| *n == voice.preferred_input)
+                    .unwrap_or(0);
+                voice.output = voice
+                    .outputs
+                    .iter()
+                    .position(|n| *n == voice.preferred_output)
+                    .unwrap_or(0);
             }
             ResultEvent::Captured(shift, id, result) => {
                 voice.recording = false;
@@ -1000,6 +1064,7 @@ pub fn update(
             && let Some(t) = c.turns.last()
         {
             voice.last = Some(marker);
+            voice.speaker = game.sim.call_view(id).map_or(0, |v| v.caller_id);
             voice.last_reply = Some((shift, id, t.spoken_text.clone()));
             if (!check.automated() || std::env::args().any(|a| a == "--audible-test"))
                 && !std::env::args().any(|a| a == "--mute")
@@ -1011,7 +1076,8 @@ pub fn update(
     }
     // Start listening only AFTER scheduling new caller audio. This prevents the
     // microphone worker from cancelling or recording the opening/reply.
-    let active = !submitted_this_frame
+    let active = !menu.visible
+        && !submitted_this_frame
         && case.is_some()
         && game.screen == Screen::Terminal
         && window.focused
@@ -1025,7 +1091,11 @@ pub fn update(
     if !active || !voice.enabled {
         voice.stop.store(true, Ordering::Relaxed);
     }
+    if voice.push_to_talk && voice.recording && !prefs.held(&keys, 7) {
+        voice.finish_capture.store(true, Ordering::Relaxed);
+    }
     if !check.automated()
+        && (!voice.push_to_talk || prefs.pressed(&keys, 7))
         && voice.enabled
         && active
         && !voice.recording
@@ -1111,6 +1181,23 @@ mod tests {
             segment_bounds(16000 * 12, 16000, 12, &gate, true, true),
             None
         );
+    }
+    #[test]
+    fn push_to_talk_ignores_pauses_until_release_and_cancellation_wins() {
+        let mut gate = SpeechGate::default();
+        for _ in 0..20 {
+            assert!(!gate.frame_for_mode(0.1, 0.01, true));
+        }
+        for _ in 0..150 {
+            assert!(!gate.frame_for_mode(0.0, 0.01, true));
+        }
+        // Releasing PTT forces submission of the full bounded segment.
+        assert_eq!(
+            segment_bounds(54400, 16000, 12, &gate, true, false),
+            Some((0, 54400))
+        );
+        // Focus loss/mute/hang-up takes priority over release.
+        assert_eq!(segment_bounds(54400, 16000, 12, &gate, true, true), None);
     }
     #[test]
     fn a_short_pause_does_not_send_and_speech_resets_the_two_second_wait() {

@@ -13,6 +13,7 @@ pub struct Agent {
     stage: u8,
     shift: u32,
     talk_cooldown: f32,
+    ready_cooldown: f32,
 }
 impl Agent {
     pub fn new(id: u8) -> Self {
@@ -23,6 +24,7 @@ impl Agent {
             stage: 0,
             shift: 0,
             talk_cooldown: 0.0,
+            ready_cooldown: 0.0,
         }
     }
     fn action(&mut self, net: &mut Network, game: &mut Session, action: Action) {
@@ -51,6 +53,7 @@ impl Agent {
         self.path.is_empty()
     }
     pub fn update(&mut self, net: &mut Network, game: &mut Session, seconds: f32, expected: usize) {
+        self.ready_cooldown = (self.ready_cooldown - seconds).max(0.0);
         self.talk_cooldown = (self.talk_cooldown - seconds).max(0.0);
         let Some(id) = net.id else {
             return;
@@ -75,6 +78,27 @@ impl Agent {
                 return;
             }
             self.pending = None;
+        }
+        if game.break_lobby && game.phase == Phase::Lobby {
+            if self.stage == 0 {
+                self.path = vec![[9.8, self.pose.position[2]], [9.8, 2.8], [9.8, 0.5]];
+                self.stage = 9;
+            }
+            if self.walk(seconds)
+                && self.ready_cooldown <= 0.0
+                && net.players.iter().filter(|p| p.connected).count() >= expected
+            {
+                self.ready_cooldown = 0.1;
+                self.action(net, game, Action::Ready(true));
+            }
+            return;
+        }
+        if game.break_lobby
+            && game.phase == Phase::Running
+            && self.stage == 9
+            && game.seated.is_none()
+        {
+            self.stage = 0;
         }
         if matches!(game.phase, Phase::Lobby | Phase::Running | Phase::Closing) {
             if game.seated.is_none() {

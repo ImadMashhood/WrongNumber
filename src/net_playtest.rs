@@ -94,7 +94,7 @@ pub fn run(
         game.phase == Phase::Review && test.review.is_some_and(|at| test.elapsed - at < 0.8);
     if !hold_review {
         test.agent
-            .update(&mut net, &mut game, time.delta_secs().min(0.1), usize::MAX);
+            .update(&mut net, &mut game, time.delta_secs().min(0.1), 2);
     }
     let pose = test.agent.pose;
     player.translation = Vec3::from_array(pose.position);
@@ -137,7 +137,9 @@ pub fn run(
             test.stage = 4;
         }
         4 => {
-            if net.id == Some(1) && game.screen == Screen::Lobby {
+            if game.break_lobby && game.phase != Phase::Lobby {
+                test.stage = 5;
+            } else if net.id == Some(1) && game.screen == Screen::Lobby {
                 if let Some((entity, _)) = buttons.iter().find(|(_, a)| a.0 == Action::StartShift) {
                     commands.trigger(Activate { entity });
                     test.stage = 5;

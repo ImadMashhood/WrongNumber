@@ -36,7 +36,7 @@ cargo run --locked -- --host 0.0.0.0:47004 --name Imad --caller-service 127.0.0.
 
 Joining clients use the usual `--join` command and do not configure provider access. The service binds only to loopback. `bash scripts/run-caller-server.sh` loads ignored, private `.wrong-number/caller.env` configuration when present. No keys are embedded in the script. `CALLER_ENDPOINT` can select another compatible chat-completions endpoint over HTTPS (or loopback HTTP for a local provider/test). It never follows HTTP redirects. `OPENROUTER_API_KEY` is also recognized by the server. `.env.example` documents configuration, but files are not automatically sourced; supply variables only to the trusted server process.
 
-The provider sees a caller report, personality cue, permitted question/answer facts, at most four recent dialogue pairs and the current typed question. It does not receive simulation truth, consequences, future calls, responder controls or raw microphone audio. Recognized text sent by a co-op dispatcher reaches the host; a configured cloud provider receives that text and the limited caller context. All dispatchers can see the resulting case transcript.
+The provider sees a caller report, personality cue, permitted question/answer facts, at most eight recent dialogue pairs and the current typed question. It does not receive simulation truth, consequences, future calls, responder controls or raw microphone audio. Recognized text sent by a co-op dispatcher reaches the host; a configured cloud provider receives that text and the limited caller context. All dispatchers can see the resulting case transcript.
 
 The provider returns structured `spoken_text`, `emotion`, `proposed_action`, `fact_references` and `call_complete`. Replies use natural prose and must reference only permitted facts. Opening/Answer/Clarify/Goodbye are the only allowed conversational actions. Unsupported actions, fields, invalid fact IDs, oversized replies and basic metadata leakage are rejected. Semantic fidelity of free paraphrases is guided by the prompt and live evaluation; it is not a formal guarantee. A goodbye ends only the conversation. The selected persona and private scenario brief stay fixed across turns.
 
@@ -49,7 +49,7 @@ Implementation references: [OpenRouter structured outputs](https://openrouter.ai
 Speech adapters are executable files invoked directly, without a shell:
 
 - `--stt-command PATH`: receives `INPUT.wav OUTPUT.txt`; writes a UTF-8 question of at most 1024 bytes.
-- `--tts-command PATH`: receives `INPUT.txt OUTPUT.wav`; writes a supported PCM WAV. Without this flag, the game tries `espeak-ng` with fixed arguments.
+- `--tts-command PATH`: receives `INPUT.txt OUTPUT.wav`; writes a supported PCM WAV. The configured launcher selects local Kokoro; without an adapter the executable tries `espeak-ng` with fixed arguments. See [neural TTS setup](local-tts.md).
 
 The supplied `tools/speech/transcribe.py` uses Faster Whisper on CPU with a pre-downloaded local model. Create a Python virtual environment, install `tools/speech/requirements.txt`, download a compatible model and use a small executable wrapper that selects that environment and sets `WRONG_NUMBER_STT_MODEL` to its model folder. The script never downloads a model during gameplay. See [Faster Whisper's installation/model documentation](https://github.com/SYSTRAN/faster-whisper). The model/runtime are optional local dependencies and are not committed.
 
@@ -99,3 +99,10 @@ The game selects from 50 stable authored caller identities: 40 original adults a
 Caller-service protocol 3 includes hashes of every earlier reply in that conversation. The latest eight exchanges also travel as actual user/assistant chat turns. The host and service reject normalized exact repeats; the service also checks high bigram overlap against recent replies to catch cosmetic rewrites. One bounded paid rewrite is permitted for repetition, never a canned fallback. New wording must preserve known facts; asking the same factual question cannot guarantee new information. Richer reactions come from character, context and emotional response, not fabricated incident evidence.
 
 The desktop clock, finances, resource ETA and speech status update existing text entities. Other UI changes are staged for a layout frame before replacing the visible tree, preventing blank flashes during clock/capture updates. The selected character, hidden facts and request budgets remain host-owned.
+
+
+## Main-menu voice preferences
+
+Settings is available before joining and from the in-game room menu. Voice Activation remains the initial default; Push to Talk and Muted are explicit alternatives. Push to Talk uses V by default (rebindable), records only while the answered call is focused and the caller is not speaking, and submits on release. The silence gate does not prematurely end a held PTT turn. Both modes enforce the same configured maximum recording time (3–12 seconds); after a hard cutoff, PTT requires a new press for a new turn. Losing focus, entering menus, muting, leaving or hanging up cancels capture rather than submitting it.
+
+Preferences live in ignored `.wrong-number/settings.json`: voice mode, caller volume, ringtone volume, named input/output devices, noise floor, recording limit, transcript-review preference and control/display settings. Device names resolve after enumeration, falling back to the system default if missing. Saving audio consent is deliberately session-only. The menu does not provide teammate voice chat. TTS uses the selected caller output; telephone rings and ambient loops use Bevy's system audio output with separate volumes.

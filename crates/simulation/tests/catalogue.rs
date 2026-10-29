@@ -18,11 +18,11 @@ fn setup() -> Simulation {
     s.enable_catalogue(vec![
         Location {
             position: Position { x: 4, y: 7 },
-            address: "Pilot Road / junction 4, 7".into(),
+            address: "47 Pilot Road".into(),
         },
         Location {
             position: Position { x: 9, y: 12 },
-            address: "Harbour Street / junction 9, 12".into(),
+            address: "912 Harbour Street".into(),
         },
     ])
     .unwrap();

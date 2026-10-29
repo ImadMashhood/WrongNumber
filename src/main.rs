@@ -1,10 +1,12 @@
 //! Offline and host-authoritative cooperative dispatch office.
+mod ambience;
 mod bot;
 mod city;
 mod city_effects;
 mod desks;
 mod dialogue;
 mod environment;
+mod frontend;
 mod game;
 mod headless;
 mod net_playtest;
@@ -33,9 +35,18 @@ fn main() {
         eprintln!("Network startup: {error}");
         std::process::exit(1)
     });
-    let game = net.initial_game();
+    let mut game = net.initial_game();
     let check = playtest::LaunchCheck::from_args();
     let automated = check.automated();
+    let prefs = frontend::Preferences::load();
+    let show_menu = !automated
+        && !std::env::args()
+            .any(|a| matches!(a.as_str(), "--host" | "--join" | "--solo" | "--smoke-test"));
+    let show_menu = show_menu || std::env::args().any(|a| a == "--menu-test");
+    if show_menu {
+        game.lobby();
+    }
+    let menu = frontend::Frontend::new(show_menu, prefs.name.clone());
     let graphics = performance::Graphics::from_args();
     let resolution = if graphics.low {
         (960, 600)
@@ -45,6 +56,8 @@ fn main() {
     App::new()
         .insert_resource(ClearColor(Color::srgb(0.48, 0.64, 0.78)))
         .insert_resource(game)
+        .insert_resource(prefs)
+        .insert_resource(menu)
         .insert_resource(net)
         .init_resource::<Actions>()
         .init_resource::<voice::Voice>()
@@ -67,6 +80,7 @@ fn main() {
         .add_systems(
             Startup,
             (
+                frontend::setup,
                 ui::load_map,
                 wall_map::setup,
                 routes::setup,
@@ -74,6 +88,7 @@ fn main() {
                 world::setup,
                 peers::setup,
                 phone::setup,
+                ambience::setup,
                 city_effects::setup,
                 performance::configure,
             )
@@ -83,6 +98,7 @@ fn main() {
             Update,
             (
                 (
+                    frontend::update,
                     network::poll,
                     performance::measure,
                     ui::scale,
@@ -101,16 +117,21 @@ fn main() {
                     peers::update,
                     world::doors,
                     phone::update,
+                    ambience::update,
                     city_effects::update,
                     city_effects::damage,
                     routes::refresh,
                     wall_map::refresh,
                     ui::reveal_ui,
                     ui::draw,
+                    frontend::draw,
+                    frontend::verify,
                     ui::desktop_fonts,
                     ui::desktop_values,
                     ui::audio_visuals,
+                    ui::map_units,
                     ui::scroll_panels,
+                    ui::transcript_scroll,
                     ui::update_hud,
                     ui::hover,
                 )
@@ -120,6 +141,7 @@ fn main() {
         )
         .run();
 }
+#[allow(clippy::too_many_arguments)]
 fn apply_actions(
     mut queue: ResMut<Actions>,
     mut game: ResMut<Session>,
@@ -128,9 +150,19 @@ fn apply_actions(
     player: Single<&Transform, With<world::Player>>,
     mut voice: ResMut<voice::Voice>,
     mut chat: ResMut<voice::ChatInput>,
+    mut prefs: ResMut<frontend::Preferences>,
+    check: Res<playtest::LaunchCheck>,
+    mut menu: ResMut<frontend::Frontend>,
 ) {
     for action in queue.0.drain(..) {
         if voice.local_action(&mut chat, &action) {
+            prefs.capture_voice(&voice);
+            if (!check.automated() || std::env::args().any(|a| a == "--settings-file"))
+                && let Err(e) = prefs.save()
+            {
+                menu.status = format!("Could not save settings: {e}");
+            }
+            menu.dirty = true;
             game.dirty = true;
             continue;
         }

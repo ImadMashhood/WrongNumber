@@ -35,6 +35,7 @@ pub struct Network {
     pub revision: u64,
     pub(super) seq: u64,
     speed: f32,
+    ready_hold: Option<(Instant, Instant)>,
     pub ack_seq: u64,
     elapsed: f32,
     pose_elapsed: f32,
@@ -46,7 +47,9 @@ pub struct Network {
 }
 impl Network {
     pub fn from_args() -> Result<Self, String> {
-        let args: Vec<_> = std::env::args().collect();
+        Self::from_options(std::env::args().collect())
+    }
+    pub fn from_options(args: Vec<String>) -> Result<Self, String> {
         let value = |flag: &str| {
             args.iter()
                 .position(|a| a == flag)
@@ -94,6 +97,7 @@ impl Network {
             } else {
                 1.0
             },
+            ready_hold: None,
             seq: 1,
             ack_seq: 0,
             elapsed: 0.0,
@@ -112,6 +116,9 @@ impl Network {
                 room: Box::new(Room::new(network.name.clone())),
                 server,
             };
+            if let Link::Host { room, .. } = &mut network.link {
+                room.game.staging_lobby();
+            }
             network.changed = true;
         } else if join.is_some() {
             network.id = None;
@@ -182,6 +189,21 @@ impl Network {
             }
             _ => {}
         }
+        if matches!(self.link, Link::Solo)
+            && !std::env::args().any(|a| {
+                matches!(
+                    a.as_str(),
+                    "--playtest"
+                        | "--conversation-test"
+                        | "--consequence-test"
+                        | "--escalation-test"
+                        | "--benchmark"
+                        | "--smoke-test"
+                )
+            })
+        {
+            game.staging_lobby();
+        }
         game
     }
     pub fn action(&mut self, game: &mut Session, action: Action, pose: Pose) {
@@ -191,7 +213,21 @@ impl Network {
             action
         };
         match &mut self.link {
-            Link::Solo => game.act(action),
+            Link::Solo => {
+                if let Action::Ready(held) = action {
+                    if held
+                        && game.phase == crate::game::Phase::Lobby
+                        && (pose.position[0] - 9.0).hypot(pose.position[2] - 0.5) <= 2.6
+                    {
+                        let now = Instant::now();
+                        self.ready_hold.get_or_insert((now, now)).1 = now;
+                    } else {
+                        self.ready_hold = None;
+                    }
+                } else {
+                    game.act(action);
+                }
+            }
             Link::Host { room, .. } => {
                 let _ = room.pose(1, pose);
                 let seq = room.members[&1].last_seq + 1;
@@ -378,7 +414,17 @@ impl Network {
     }
     pub fn tick(&mut self, game: &mut Session, seconds: f32) {
         match &mut self.link {
-            Link::Solo => game.tick(seconds),
+            Link::Solo => {
+                if let Some((start, last)) = self.ready_hold {
+                    if last.elapsed().as_secs_f32() > 0.5 {
+                        self.ready_hold = None;
+                    } else if start.elapsed().as_secs_f32() >= 1.5 {
+                        game.mark_ready(1);
+                        self.ready_hold = None;
+                    }
+                }
+                game.tick(seconds);
+            }
             Link::Host { room, .. } => {
                 let before = room.game.sim.now();
                 room.tick(seconds * self.speed);

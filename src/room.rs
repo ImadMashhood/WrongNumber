@@ -74,6 +74,8 @@ pub struct Snapshot {
     pub digest: u64,
     pub sim: PublicSnapshot,
     pub phase: Phase,
+    pub break_lobby: bool,
+    pub ready: std::collections::BTreeSet<u8>,
     pub shift: u32,
     pub funds: i32,
     pub radio: bool,
@@ -109,6 +111,7 @@ pub struct Member {
     pub last_pose: std::time::Instant,
 }
 pub struct Room {
+    pub ready_holds: BTreeMap<u8, (std::time::Instant, std::time::Instant)>,
     pub game: Session,
     pub members: BTreeMap<u8, Member>,
     pub revision: u64,
@@ -146,6 +149,7 @@ impl Room {
         };
         Self {
             game,
+            ready_holds: BTreeMap::new(),
             members: BTreeMap::from([(1, member)]),
             revision: 0,
             rejected: 0,
@@ -220,7 +224,7 @@ impl Room {
         };
         self.game.add_player(id);
         let mut desk = self.game.desk(id);
-        desk.screen = if self.game.phase == Phase::Lobby {
+        desk.screen = if self.game.phase == Phase::Lobby && !self.game.break_lobby {
             Screen::Lobby
         } else {
             Screen::Office
@@ -243,10 +247,16 @@ impl Room {
         if let Some(id) = self.player_for(connection) {
             self.members.get_mut(&id).unwrap().connection = None;
             self.game.disconnect_player(id);
+            self.game.ready.remove(&id);
+            self.ready_holds.remove(&id);
+            if let Some(ready) = self.game.ready.iter().next().copied() {
+                self.game.mark_ready(ready);
+            }
             self.observed.remove(&id);
         }
     }
     pub fn action(&mut self, id: u8, seq: u64, shift: u32, action: Action) -> Ack {
+        let before_shift = self.game.shift;
         let Some(member) = self.members.get(&id) else {
             return Ack {
                 seq,
@@ -283,8 +293,22 @@ impl Room {
         } else if matches!(action, Action::Quit) {
             Err("Close the local app to leave the room".into())
         } else {
-            self.check_geometry(id, &action)
-                .and_then(|_| self.game.as_player(id, action.clone()))
+            self.check_geometry(id, &action).and_then(|_| {
+                if let Action::Ready(held) = action {
+                    if held && (self.game.phase != Phase::Lobby || !self.game.break_lobby) {
+                        return Err("Readiness is only available in the break-room lobby".into());
+                    }
+                    if held {
+                        let now = std::time::Instant::now();
+                        self.ready_holds.entry(id).or_insert((now, now)).1 = now;
+                    } else {
+                        self.ready_holds.remove(&id);
+                    }
+                    Ok(())
+                } else {
+                    self.game.as_player(id, action.clone())
+                }
+            })
         };
         let accepted = result.is_ok();
         let message = result.err().unwrap_or_else(|| self.game.desk(id).notice);
@@ -312,7 +336,8 @@ impl Room {
             if matches!(action, Action::Stand) && seat.is_none() {
                 member.pose = member.standing;
             }
-            if matches!(action, Action::NextShift) {
+            if matches!(action, Action::NextShift) || self.game.shift != before_shift {
+                self.ready_holds.clear();
                 for member in self.members.values_mut() {
                     member.pose = Pose::spawn(member.id);
                     member.standing = member.pose;
@@ -325,6 +350,9 @@ impl Room {
         let p = self.members[&id].pose.position;
         let distance = |x: f32, z: f32| (p[0] - x).hypot(p[2] - z);
         match action {
+            Action::Ready(true) if distance(9.0, 0.5) > 2.6 => {
+                Err("Move to the break-room door".into())
+            }
             Action::Sit(n) if *n >= 6 => Err("Unknown workstation".into()),
             Action::Sit(n) if distance(world::SEATS[*n], 1.7) > 2.5 => {
                 Err("Move closer to the chair".into())
@@ -378,7 +406,34 @@ impl Room {
         Ok(())
     }
     pub fn tick(&mut self, seconds: f32) {
+        let now = std::time::Instant::now();
+        let mut completed = vec![];
+        self.ready_holds.retain(|id, (start, last)| {
+            let valid = self.game.phase == Phase::Lobby
+                && self.game.connected.contains(id)
+                && now.duration_since(*last).as_secs_f32() < 0.5
+                && self.members.get(id).is_some_and(|m| {
+                    (m.pose.position[0] - 9.0).hypot(m.pose.position[2] - 0.5) <= 2.6
+                });
+            if valid && now.duration_since(*start).as_secs_f32() >= 1.5 {
+                completed.push(*id);
+                false
+            } else {
+                valid
+            }
+        });
+        for id in completed {
+            self.game.mark_ready(id);
+        }
+        let shift = self.game.shift;
         self.game.tick(seconds);
+        if shift != self.game.shift {
+            self.ready_holds.clear();
+            for m in self.members.values_mut() {
+                m.pose = Pose::spawn(m.id);
+                m.standing = m.pose;
+            }
+        }
     }
     pub fn snapshot(&mut self) -> Snapshot {
         self.revision += 1;
@@ -416,6 +471,8 @@ impl Room {
             digest: hash,
             sim,
             phase: self.game.phase,
+            break_lobby: self.game.break_lobby,
+            ready: self.game.ready.clone(),
             shift: self.game.shift,
             funds: self.game.funds,
             radio: self.game.radio,
@@ -453,6 +510,8 @@ pub fn apply_snapshot(game: &mut Session, state: &Snapshot, id: u8) -> Result<()
     game.sim = sim;
     game.dialogue.conversations = state.conversations.clone();
     game.phase = state.phase;
+    game.break_lobby = state.break_lobby;
+    game.ready = state.ready.clone();
     game.shift = state.shift;
     game.funds = state.funds;
     game.radio = state.radio;
