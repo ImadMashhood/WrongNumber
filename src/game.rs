@@ -79,9 +79,13 @@ pub enum Action {
     NextShift,
     NewRun,
     Coffee,
+    Pickup(u8),
+    ThrowProp,
+    DropProp,
 }
 #[derive(Resource)]
 pub struct Session {
+    pub fun: crate::office_fun::Playground,
     pub break_lobby: bool,
     pub ready: BTreeSet<u8>,
     pub sim: Simulation,
@@ -113,6 +117,7 @@ pub struct Session {
 impl Default for Session {
     fn default() -> Self {
         Self {
+            fun: Default::default(),
             break_lobby: false,
             ready: BTreeSet::new(),
             dialogue: Default::default(),
@@ -672,6 +677,7 @@ impl Session {
                 self.dialogue.memory = memory;
                 self.dialogue.service = service;
                 self.dialogue.fixture = fixture;
+                self.fun = Default::default();
                 self.shift += 1;
                 self.sim = Self::make_sim(self.shift, self.radio, self.extra_police);
                 self.phase = if self.multiplayer {

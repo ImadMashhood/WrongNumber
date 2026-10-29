@@ -70,6 +70,7 @@ pub struct PlayerView {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Snapshot {
+    pub fun: crate::office_fun::Playground,
     pub revision: u64,
     pub digest: u64,
     pub sim: PublicSnapshot,
@@ -308,7 +309,12 @@ impl Room {
                     }
                     Ok(())
                 } else {
-                    self.game.as_player(id, action.clone())
+                    if crate::office_fun::is_action(&action) {
+                        let pose = self.members[&id].pose;
+                        crate::office_fun::apply(&mut self.game, id, pose, &action)
+                    } else {
+                        self.game.as_player(id, action.clone())
+                    }
                 }
             })
         };
@@ -354,6 +360,16 @@ impl Room {
         ack
     }
     fn check_geometry(&self, id: u8, action: &Action) -> Result<(), String> {
+        if self.game.fun.down(id)
+            && matches!(action, Action::Sit(_) | Action::Stand | Action::Ready(true))
+        {
+            return Err("Getting back up…".into());
+        }
+        if self.game.fun.held(id).is_some()
+            && matches!(action, Action::Sit(_) | Action::Ready(true))
+        {
+            return Err("Put down the object first".into());
+        }
         let p = self.members[&id].pose.position;
         let distance = |x: f32, z: f32| (p[0] - x).hypot(p[2] - z);
         match action {
@@ -382,6 +398,9 @@ impl Room {
     pub fn pose(&mut self, id: u8, pose: Pose) -> Result<(), Pose> {
         let member = self.members.get_mut(&id).ok_or(Pose::spawn(id))?;
         let previous = member.pose;
+        if self.game.fun.down(id) && pose.position != previous.position {
+            return Err(previous);
+        }
         let valid = pose
             .position
             .iter()
@@ -413,6 +432,13 @@ impl Room {
         Ok(())
     }
     pub fn tick(&mut self, seconds: f32) {
+        let poses: Vec<_> = self
+            .members
+            .iter()
+            .filter(|(_, m)| m.id == 1 || m.connection.is_some())
+            .map(|(id, m)| (*id, m.pose))
+            .collect();
+        self.game.fun.tick(seconds, &poses, self.game.phase);
         let now = std::time::Instant::now();
         let mut completed = vec![];
         self.ready_holds.retain(|id, (start, last)| {
@@ -477,6 +503,7 @@ impl Room {
             })
             .collect();
         Snapshot {
+            fun: self.game.fun.clone(),
             revision: self.revision,
             digest: hash,
             sim,
@@ -517,6 +544,7 @@ pub fn apply_snapshot(game: &mut Session, state: &Snapshot, id: u8) -> Result<()
     if hash != state.digest {
         return Err("Snapshot digest mismatch".into());
     }
+    game.fun = state.fun.clone();
     game.sim = sim;
     game.dialogue.conversations = state.conversations.clone();
     game.phase = state.phase;

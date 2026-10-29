@@ -19,19 +19,8 @@ pub fn setup(
     let dark = materials.add(Color::srgb(0.065, 0.075, 0.10));
     let white = materials.add(Color::srgb(0.85, 0.88, 0.83));
     for id in 1..=6 {
-        let skin = materials.add(match id % 3 {
-            0 => Color::srgb(0.36, 0.22, 0.16),
-            1 => Color::srgb(0.76, 0.53, 0.37),
-            _ => Color::srgb(0.91, 0.72, 0.57),
-        });
-        let shirt = materials.add(match id {
-            1 => Color::srgb(0.12, 0.42, 0.7),
-            2 => Color::srgb(0.8, 0.38, 0.12),
-            3 => Color::srgb(0.15, 0.55, 0.3),
-            4 => Color::srgb(0.55, 0.25, 0.65),
-            5 => Color::srgb(0.65, 0.55, 0.12),
-            _ => Color::srgb(0.65, 0.68, 0.7),
-        });
+        let skin = materials.add(skin_color(id));
+        let shirt = materials.add(shirt_color(id));
         commands
             .spawn((Avatar(id), Transform::default(), Visibility::Hidden))
             .with_children(|p| {
@@ -140,6 +129,7 @@ pub fn update(
     time: Res<Time>,
     net: Res<Network>,
     prefs: Res<Preferences>,
+    game: Res<crate::game::Session>,
     mut avatars: Query<
         (&Avatar, &mut Transform, &mut Visibility),
         (Without<Player>, Without<Limb>),
@@ -147,11 +137,9 @@ pub fn update(
     mut limbs: Query<(&Limb, &mut Transform), Without<Avatar>>,
 ) {
     for (avatar, mut transform, mut visible) in &mut avatars {
-        if let Some(player) = net
-            .players
-            .iter()
-            .find(|p| p.id == avatar.0 && p.connected && Some(p.id) != net.id)
-        {
+        if let Some(player) = net.players.iter().find(|p| {
+            p.id == avatar.0 && p.connected && Some(p.id) != net.id && !game.fun.down(p.id)
+        }) {
             let p = player.pose.position;
             let target = Vec3::new(p[0], 0.0, p[2]);
             let moving = transform.translation.distance_squared(target) > 0.002;
@@ -185,5 +173,23 @@ pub fn update(
         } else {
             *visible = Visibility::Hidden;
         }
+    }
+}
+
+pub fn skin_color(id: u8) -> Color {
+    match id % 3 {
+        0 => Color::srgb(0.36, 0.22, 0.16),
+        1 => Color::srgb(0.76, 0.53, 0.37),
+        _ => Color::srgb(0.91, 0.72, 0.57),
+    }
+}
+pub fn shirt_color(id: u8) -> Color {
+    match id {
+        1 => Color::srgb(0.12, 0.42, 0.7),
+        2 => Color::srgb(0.8, 0.38, 0.12),
+        3 => Color::srgb(0.15, 0.55, 0.3),
+        4 => Color::srgb(0.55, 0.25, 0.65),
+        5 => Color::srgb(0.65, 0.55, 0.12),
+        _ => Color::srgb(0.65, 0.68, 0.7),
     }
 }

@@ -233,7 +233,13 @@ impl Network {
                         self.ready_hold = None;
                     }
                 } else {
-                    game.act(action);
+                    if crate::office_fun::is_action(&action) {
+                        if let Err(error) = crate::office_fun::apply(game, 1, pose, &action) {
+                            game.notice = error;
+                        }
+                    } else {
+                        game.act(action);
+                    }
                 }
             }
             Link::Host { room, .. } => {
@@ -444,6 +450,9 @@ impl Network {
         }
     }
     pub fn publish(&mut self, game: &mut Session, seconds: f32, pose: Pose) {
+        if matches!(self.link, Link::Solo) {
+            game.fun.tick(seconds, &[(1, pose)], game.phase);
+        }
         self.elapsed += seconds;
         self.pose_elapsed += seconds;
         self.ping_elapsed += seconds;
@@ -453,7 +462,15 @@ impl Network {
                     self.pose_elapsed = 0.0;
                     let _ = room.pose(1, pose);
                 }
-                if self.elapsed >= 0.25 || self.changed {
+                let active_props = !room.game.fun.dolls.is_empty()
+                    || room
+                        .game
+                        .fun
+                        .props
+                        .iter()
+                        .any(|p| p.held.is_some() || p.velocity.length_squared() > 0.25);
+                let interval = if active_props { 0.1 } else { 0.25 };
+                if self.elapsed >= interval || self.changed {
                     self.elapsed = 0.0;
                     self.changed = false;
                     let state = room.snapshot();

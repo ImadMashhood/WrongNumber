@@ -4,6 +4,28 @@ use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 
 pub fn build(b: &mut Builder, screen: Handle<StandardMaterial>) {
+    for (i, x) in SEATS.into_iter().enumerate() {
+        b.block(
+            Paint::Plastic,
+            Vec3::new(x + 0.76, 0.945, 0.38),
+            Vec3::new(0.26, 0.04, 0.32),
+        );
+        for sheet in 0..4 {
+            b.rotated(
+                Paint::Paper,
+                Vec3::new(x + 0.76, 0.97 + sheet as f32 * 0.008, 0.38),
+                Vec3::new(0.23, 0.008, 0.28),
+                Quat::from_rotation_y((i + sheet) as f32 * 0.025),
+            );
+        }
+        b.rotated(
+            Paint::Wood,
+            Vec3::new(x + 0.58, 0.93, 0.50),
+            Vec3::new(0.012, 0.012, 0.16),
+            Quat::from_rotation_y(0.5),
+        );
+    }
+
     b.plane(
         Paint::Floor,
         Vec3::ZERO,

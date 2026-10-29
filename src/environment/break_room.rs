@@ -2,6 +2,126 @@ use super::geometry::{Builder, Paint};
 use bevy::prelude::*;
 use std::f32::consts::{FRAC_PI_2, PI};
 pub fn build(b: &mut Builder) {
+    // Persistent framed double doors: glazing, rails, kick plates and push bars.
+    for z in [-1.18, 2.18] {
+        b.block(
+            Paint::Wood,
+            Vec3::new(9.0, 1.5, z),
+            Vec3::new(0.24, 3.0, 0.14),
+        );
+    }
+    b.block(
+        Paint::Wood,
+        Vec3::new(9.0, 3.04, 0.5),
+        Vec3::new(0.24, 0.16, 3.5),
+    );
+    for (z, side) in [(-1.1, 1.0), (2.1, -1.0)] {
+        let root = b
+            .commands
+            .spawn((
+                crate::world::LobbyDoor(side),
+                Transform::from_xyz(9.0, 0.0, z),
+                Visibility::Visible,
+            ))
+            .id();
+        for (paint, pos, size) in [
+            (
+                Paint::Wood,
+                Vec3::new(0.0, 0.65, side * 0.79),
+                Vec3::new(0.12, 1.3, 1.57),
+            ),
+            (
+                Paint::Wood,
+                Vec3::new(0.0, 2.85, side * 0.79),
+                Vec3::new(0.12, 0.22, 1.57),
+            ),
+            (
+                Paint::Wood,
+                Vec3::new(0.0, 2.0, side * 0.09),
+                Vec3::new(0.12, 1.55, 0.18),
+            ),
+            (
+                Paint::Wood,
+                Vec3::new(0.0, 2.0, side * 1.49),
+                Vec3::new(0.12, 1.55, 0.18),
+            ),
+            (
+                Paint::Glass,
+                Vec3::new(0.0, 2.02, side * 0.79),
+                Vec3::new(0.035, 1.4, 1.2),
+            ),
+            (
+                Paint::Metal,
+                Vec3::new(0.07, 0.25, side * 0.79),
+                Vec3::new(0.02, 0.4, 1.4),
+            ),
+            (
+                Paint::Metal,
+                Vec3::new(-0.07, 0.25, side * 0.79),
+                Vec3::new(0.02, 0.4, 1.4),
+            ),
+            (
+                Paint::Metal,
+                Vec3::new(0.13, 1.12, side * 0.79),
+                Vec3::new(0.08, 0.055, 1.2),
+            ),
+            (
+                Paint::Metal,
+                Vec3::new(-0.13, 1.12, side * 0.79),
+                Vec3::new(0.08, 0.055, 1.2),
+            ),
+        ] {
+            let part = b.block(paint, pos, size);
+            b.commands.entity(root).add_child(part);
+        }
+        for y in [0.35, 1.5, 2.65] {
+            let part = b.block(
+                Paint::Metal,
+                Vec3::new(0.0, y, 0.0),
+                Vec3::new(0.18, 0.15, 0.08),
+            );
+            b.commands.entity(root).add_child(part);
+        }
+    }
+    // Small lived-in details sit on existing furniture or against perimeter walls.
+    for (x, z) in [(10.15, -4.2), (11.9, -4.2), (11.4, 1.1)] {
+        for n in 0..3 {
+            b.rotated(
+                Paint::Paper,
+                Vec3::new(
+                    x,
+                    (if z > 0.0 { 0.891 } else { 1.006 }) + n as f32 * 0.008,
+                    z,
+                ),
+                Vec3::new(0.22, 0.008, 0.28),
+                Quat::from_rotation_y(n as f32 * 0.12),
+            );
+        }
+    }
+    for (x, z) in [(13.4, 6.4), (12.95, 6.4)] {
+        b.block(
+            Paint::Cork,
+            Vec3::new(x, 0.22, z),
+            Vec3::new(0.4, 0.44, 0.4),
+        );
+        b.block(
+            Paint::Paper,
+            Vec3::new(x, 0.445, z),
+            Vec3::new(0.055, 0.008, 0.4),
+        );
+    }
+    for n in 0..4 {
+        b.block(
+            Paint::Paper,
+            Vec3::new(
+                13.88,
+                1.6 + (n / 2) as f32 * 0.32,
+                3.6 + (n % 2) as f32 * 0.28,
+            ),
+            Vec3::new(0.01, 0.25, 0.2),
+        );
+    }
+
     b.plane(
         Paint::Floor,
         Vec3::new(11.5, 0.015, 1.0),

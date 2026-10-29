@@ -12,6 +12,8 @@ mod headless;
 mod investigation;
 mod net_playtest;
 mod network;
+mod office_fun;
+mod office_props;
 mod peers;
 mod performance;
 mod phone;
@@ -92,6 +94,7 @@ fn main() {
                 environment::setup,
                 world::setup,
                 peers::setup,
+                office_props::setup,
                 phone::setup,
                 ambience::setup,
                 city_effects::setup,
@@ -120,7 +123,13 @@ fn main() {
                 )
                     .chain(),
                 (
-                    (peers::update, environment::street::update).chain(),
+                    (
+                        peers::update,
+                        environment::street::update,
+                        office_props::preview,
+                        office_props::update,
+                    )
+                        .chain(),
                     world::doors,
                     phone::update,
                     ambience::update,

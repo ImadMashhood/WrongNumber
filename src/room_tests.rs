@@ -380,3 +380,69 @@ fn door_start_then_sitting_receives_a_call_within_initial_delay() {
     r.tick(11.0);
     assert!(r.game.ringing.is_some());
 }
+
+#[test]
+fn throwable_authority_replication_and_recovery_preserve_dispatch() {
+    let mut r = joined();
+    r.game.phase = Phase::Running;
+    r.members.get_mut(&1).unwrap().pose.position = [0.0, 1.65, 5.0];
+    r.members.get_mut(&2).unwrap().pose.position = [0.0, 1.65, 3.0];
+    r.game.fun.props[0].position = bevy::prelude::Vec3::new(0.0, 1.4, 4.0);
+    assert!(act(&mut r, 1, Action::Pickup(0)).accepted);
+    assert!(!act(&mut r, 2, Action::Pickup(0)).accepted);
+    assert!(act(&mut r, 1, Action::ThrowProp).accepted);
+    let funds = r.game.funds;
+    for _ in 0..30 {
+        r.tick(1.0 / 120.0);
+    }
+    assert!(r.game.fun.down(2));
+    let state = r.snapshot();
+    let mut mirror = Session::default();
+    apply_snapshot(&mut mirror, &state, 2).unwrap();
+    assert!(mirror.fun.down(2));
+    assert_eq!(mirror.fun.dolls[&2].points, r.game.fun.dolls[&2].points);
+    let mut moved = r.members[&2].pose;
+    moved.position[0] += 0.1;
+    assert!(r.pose(2, moved).is_err());
+    assert!(!act(&mut r, 2, Action::Sit(0)).accepted);
+    assert_eq!(r.game.funds, funds);
+    for _ in 0..360 {
+        r.tick(1.0 / 120.0);
+    }
+    assert!(!r.game.fun.down(2));
+    r.game.phase = Phase::Review;
+    assert!(act(&mut r, 1, Action::NextShift).accepted);
+    assert!(r.game.fun.dolls.is_empty());
+    assert!(r.game.fun.props.iter().all(|p| p.held.is_none()));
+}
+
+#[test]
+fn ragdoll_keeps_a_seated_dispatchers_call_connected() {
+    let mut r = joined();
+    assert!(act(&mut r, 2, Action::Sit(1)).accepted);
+    assert!(act(&mut r, 1, Action::StartShift).accepted);
+    for _ in 0..20 {
+        r.tick(1.0);
+        if r.game.desk(2).ringing.is_some() {
+            break;
+        }
+    }
+    assert!(act(&mut r, 2, Action::OpenDesk).accepted);
+    let answer = act(&mut r, 2, Action::Answer);
+    assert!(answer.accepted, "{}: {:?}", answer.message, r.game.desk(2));
+    let before = r.game.desk(2);
+    let pose = r.members[&2].pose;
+    r.game.fun.dolls.insert(
+        2,
+        crate::office_fun::Doll::new(pose, bevy::prelude::Vec3::X * 5.0),
+    );
+    for _ in 0..60 {
+        r.tick(1.0 / 60.0);
+    }
+    assert_eq!(r.game.desk(2).conversation, before.conversation);
+    assert_eq!(r.game.desk(2).seated, before.seated);
+    assert_eq!(r.game.desk(2).screen, before.screen);
+    let mut mirror = Session::default();
+    apply_snapshot(&mut mirror, &r.snapshot(), 2).unwrap();
+    assert_eq!(mirror.conversation, before.conversation);
+}
