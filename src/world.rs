@@ -37,11 +37,11 @@ impl Seating {
 pub const SEATS: [f32; 6] = [-5.25, -3.15, -1.05, 1.05, 3.15, 5.25];
 #[derive(Component)]
 pub struct LobbyDoor;
-#[derive(Default)]
+#[derive(Resource, Default)]
 pub struct ReadyInput {
-    elapsed: f32,
+    pub elapsed: f32,
     since_send: f32,
-    active: bool,
+    pub active: bool,
 }
 pub fn setup(
     mut commands: Commands,
@@ -277,7 +277,7 @@ pub fn controls(
     mut was_looking: Local<bool>,
     prefs: Res<crate::frontend::Preferences>,
     menu: Res<crate::frontend::Frontend>,
-    mut ready: Local<ReadyInput>,
+    mut ready: ResMut<ReadyInput>,
 ) {
     if check.automated() {
         return;
@@ -434,7 +434,9 @@ pub fn hud_text(game: &Session, pose: &Transform) -> String {
         Some(Action::OpenReview) => "[E] Open shift review",
         Some(Action::Coffee) => "[E] Get coffee",
         _ => {
-            if game.seated.is_some() {
+            if game.break_lobby && game.phase == Phase::Lobby {
+                "Aim at the dispatch doorway and hold E to get ready"
+            } else if game.seated.is_some() {
                 "Aim at your monitor to use dispatch | Space stand"
             } else {
                 "Find a workstation and aim at a chair"

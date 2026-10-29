@@ -25,7 +25,7 @@ try:
   except OSError:time.sleep(.05)
  for index in [13,40]:
   person=cast[index]
-  c=dict(version=3,kind='Opening',caller_name=person['name'],location='Queen Drive 4',report='A rumour about a fight outside a shop',personality=brief(person),caller_private='You passed on an unverified old message. You have not witnessed a fight. If asked about the source, admit your mistake without inventing new details.',facts=[dict(id='report',question='What was reported?',answer='An old message claimed a fight outside a shop.'),dict(id='source',question='Did you witness this?',answer='I passed on an unverified old message and did not witness it.'),dict(id='location',question='Where?',answer='Queen Drive 4')],history=[],question='')
+  c=dict(version=4,kind='Opening',caller_name=person['name'],location='Queen Drive 4',report='A rumour about a fight outside a shop',personality=brief(person),caller_private='You passed on an unverified old message. You have not witnessed a fight. If asked about the source, admit your mistake without inventing new details.',facts=[dict(id='report',question='What was reported?',answer='An old message claimed a fight outside a shop.'),dict(id='source',question='Did you witness this?',answer='I passed on an unverified old message and did not witness it.'),dict(id='location',question='Where?',answer='Queen Drive 4')],history=[],question='')
   turns=[]
   for question in ['', 'Did you actually see this, or is it a rumour?', 'What do you mean? Explain it plainly.', 'Why do you keep saying the same thing?', 'Okay, I understand. What should I call you?']:
    c['kind']='Opening' if not question else 'Conversation';c['question']=question

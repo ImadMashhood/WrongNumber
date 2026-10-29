@@ -49,7 +49,7 @@ Implementation references: [OpenRouter structured outputs](https://openrouter.ai
 Speech adapters are executable files invoked directly, without a shell:
 
 - `--stt-command PATH`: receives `INPUT.wav OUTPUT.txt`; writes a UTF-8 question of at most 1024 bytes.
-- `--tts-command PATH`: receives `INPUT.txt OUTPUT.wav`; writes a supported PCM WAV. The configured launcher selects local Kokoro; without an adapter the executable tries `espeak-ng` with fixed arguments. See [neural TTS setup](local-tts.md).
+- `--tts-command PATH`: receives `INPUT.txt OUTPUT.wav`; writes a supported PCM WAV. The configured launcher selects local Piper; without an adapter the executable tries `espeak-ng` with fixed arguments. See [neural TTS setup](local-tts.md).
 
 The supplied `tools/speech/transcribe.py` uses Faster Whisper on CPU with a pre-downloaded local model. Create a Python virtual environment, install `tools/speech/requirements.txt`, download a compatible model and use a small executable wrapper that selects that environment and sets `WRONG_NUMBER_STT_MODEL` to its model folder. The script never downloads a model during gameplay. See [Faster Whisper's installation/model documentation](https://github.com/SYSTRAN/faster-whisper). The model/runtime are optional local dependencies and are not committed.
 
@@ -96,7 +96,7 @@ The computer can be opened while standing: aim at a nearby monitor and press E. 
 
 The game selects from 50 stable authored caller identities: 40 original adults and ten clearly fictional parodies. Their biographies, speaking style and stress reactions live in assets/scenarios/callers.json; docs/design/caller-cast.md is the readable cast bible. Profiles are assigned independently of incident truth/severity, including consequence follow-ups. Each has an original stylized portrait. Only the selected profile is sent to the AI.
 
-Caller-service protocol 3 includes hashes of every earlier reply in that conversation. The latest eight exchanges also travel as actual user/assistant chat turns. The host and service reject normalized exact repeats; the service also checks high bigram overlap against recent replies to catch cosmetic rewrites. One bounded paid rewrite is permitted for repetition, never a canned fallback. New wording must preserve known facts; asking the same factual question cannot guarantee new information. Richer reactions come from character, context and emotional response, not fabricated incident evidence.
+Caller-service protocol 4 includes hashes of every earlier reply in that conversation. The latest eight exchanges also travel as actual user/assistant chat turns. The host and service reject normalized exact repeats; the service also checks high bigram overlap against recent replies to catch cosmetic rewrites. One bounded paid rewrite is permitted for repetition, never a canned fallback. New wording must preserve known facts; asking the same factual question cannot guarantee new information. Richer reactions come from character, context and emotional response, not fabricated incident evidence.
 
 The desktop clock, finances, resource ETA and speech status update existing text entities. Other UI changes are staged for a layout frame before replacing the visible tree, preventing blank flashes during clock/capture updates. The selected character, hidden facts and request budgets remain host-owned.
 
@@ -106,3 +106,7 @@ The desktop clock, finances, resource ETA and speech status update existing text
 Settings is available before joining and from the in-game room menu. Voice Activation remains the initial default; Push to Talk and Muted are explicit alternatives. Push to Talk uses V by default (rebindable), records only while the answered call is focused and the caller is not speaking, and submits on release. The silence gate does not prematurely end a held PTT turn. Both modes enforce the same configured maximum recording time (3–12 seconds); after a hard cutoff, PTT requires a new press for a new turn. Losing focus, entering menus, muting, leaving or hanging up cancels capture rather than submitting it.
 
 Preferences live in ignored `.wrong-number/settings.json`: voice mode, caller volume, ringtone volume, named input/output devices, noise floor, recording limit, transcript-review preference and control/display settings. Device names resolve after enumeration, falling back to the system default if missing. Saving audio consent is deliberately session-only. The menu does not provide teammate voice chat. TTS uses the selected caller output; telephone rings and ambient loops use Bevy's system audio output with separate volumes.
+
+## Psychology and continuity
+
+The provider now uses contract version 4, including bounded behavioral proposals. See [psychology/investigation](caller-psychology.md) for private state, locked disclosures, public provenance, transfer continuity and session memory. Dispatch and incident deadlines no longer automatically end an answered call. Piper is now the configured faster local speech engine; see [speech setup](local-tts.md).

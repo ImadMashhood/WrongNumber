@@ -1,6 +1,7 @@
 use wrong_number_caller::*;
 fn context() -> Context {
     Context {
+        allow_hangup: false,
         previous_reply_hashes: vec![],
         version: VERSION,
         kind: TurnKind::Conversation,
@@ -126,6 +127,7 @@ fn conversational_acknowledgement_without_evidence_keeps_line_open() {
         proposed_action: Proposal::Answer,
         fact_references: vec![],
         call_complete: false,
+        behavior: Default::default(),
     };
     assert!(validate(&c, &r));
     assert!(r.fact_references.is_empty());

@@ -1,7 +1,7 @@
 //! Provider-neutral dialogue contract. Facts stay authored; dialogue cannot execute game commands.
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 pub const CLARIFY: &str = "Could you ask about what happened or what I can see?";
 pub const GOODBYE: &str = "Okay. Thank you for listening.";
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,6 +20,8 @@ pub enum TurnKind {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Context {
+    #[serde(default)]
+    pub allow_hangup: bool,
     pub version: u32,
     pub report: String,
     #[serde(default)]
@@ -43,6 +45,13 @@ pub enum Emotion {
     Anxious,
     Confused,
     Dry,
+    Angry,
+    Defensive,
+    Embarrassed,
+    Relieved,
+    Panicked,
+    Cooperative,
+    Suspicious,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Proposal {
@@ -51,9 +60,18 @@ pub enum Proposal {
     Clarify,
     Goodbye,
 }
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BehaviorProposal {
+    pub event: Option<String>,
+    pub quote: Option<String>,
+    pub requested_disclosure: Option<String>,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reply {
+    #[serde(default)]
+    pub behavior: BehaviorProposal,
     pub spoken_text: String,
     pub emotion: Emotion,
     pub proposed_action: Proposal,
@@ -73,7 +91,7 @@ pub fn valid_context(c: &Context) -> bool {
         && c.question.len() <= 1024
         && c.report.len() <= 512
         && c.personality.len() <= 1600
-        && c.caller_private.len() <= 512
+        && c.caller_private.len() <= 8192
         && c.caller_name.len() <= 80
         && c.location.len() <= 160
         && c.facts.len() <= 8
@@ -83,7 +101,7 @@ pub fn valid_context(c: &Context) -> bool {
         && c.history.len() <= 8
         && c.history
             .iter()
-            .all(|(a, b)| a.len() <= 1024 && b.len() <= 512)
+            .all(|(a, b)| a.len() <= 1152 && b.len() <= 512)
 }
 fn normalized_words(text: &str) -> Vec<String> {
     text.to_lowercase()
@@ -125,6 +143,31 @@ pub fn repeated_reply(c: &Context, text: &str) -> bool {
 }
 pub fn validate(c: &Context, r: &Reply) -> bool {
     if !valid_context(c)
+        || r.behavior.event.as_deref().is_some_and(|e| {
+            ![
+                "Information",
+                "Clarification",
+                "Evidence",
+                "Contradiction",
+                "Accusation",
+                "Reassurance",
+                "Negotiation",
+                "Pressure",
+                "Threat",
+                "Trick",
+                "Irrelevant",
+                "Insult",
+            ]
+            .contains(&e)
+        })
+        || r.behavior
+            .quote
+            .as_deref()
+            .is_some_and(|q| q.is_empty() || q.len() > 256 || !c.question.contains(q))
+        || r.behavior
+            .requested_disclosure
+            .as_ref()
+            .is_some_and(|id| !c.facts.iter().any(|f| &f.id == id))
         || r.spoken_text.trim().is_empty()
         || r.spoken_text.len() > 512
         || r.spoken_text.chars().any(|ch| ch.is_control())
@@ -166,6 +209,7 @@ pub fn fixture_reply(c: &Context) -> Reply {
             proposed_action: Proposal::Opening,
             fact_references: vec![],
             call_complete: false,
+            behavior: Default::default(),
         };
     }
     let q = c.question.to_lowercase();
@@ -254,6 +298,7 @@ pub fn fixture_reply(c: &Context) -> Reply {
             proposed_action: Proposal::Goodbye,
             fact_references: vec![],
             call_complete: true,
+            behavior: Default::default(),
         }
     } else if let Some(f) = fact {
         Reply {
@@ -262,6 +307,7 @@ pub fn fixture_reply(c: &Context) -> Reply {
             proposed_action: Proposal::Answer,
             fact_references: vec![f.id.clone()],
             call_complete: false,
+            behavior: Default::default(),
         }
     } else {
         Reply {
@@ -270,6 +316,7 @@ pub fn fixture_reply(c: &Context) -> Reply {
             proposed_action: Proposal::Clarify,
             fact_references: vec![],
             call_complete: false,
+            behavior: Default::default(),
         }
     }
 }
@@ -290,6 +337,19 @@ pub fn service(address: std::net::SocketAddr, context: &Context) -> Result<Servi
         .write_all(&bytes)
         .map_err(|_| "Caller service write failed")?;
     let line = read_frame(&mut stream, 16_384, std::time::Duration::from_secs(22))?;
+    if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&line)
+        && let Some(code) = value.get("error").and_then(|v| v.as_str())
+    {
+        return Err(match code {
+            "request_budget" => {
+                "Host AI request budget exhausted. Restart the AI launcher for a new session."
+            }
+            "rate_limit" => "Host AI request rate limit reached.",
+            "unavailable" => "Host AI provider is not configured.",
+            _ => "AI provider failed, timed out, or repeated an invalid reply.",
+        }
+        .into());
+    }
     let response: ServiceReply =
         serde_json::from_slice(&line).map_err(|_| "Invalid caller response")?;
     if response.source != "provider"

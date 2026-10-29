@@ -45,7 +45,7 @@ def main():
             temp.replace(path)
     config = repo/".wrong-number/speech.env"
     config.parent.mkdir(parents=True,exist_ok=True)
-    config.write_text("WRONG_NUMBER_TTS_PYTHON="+shlex.quote(str(python))+"\nWRONG_NUMBER_TTS_MODELS="+shlex.quote(str(models))+"\n")
+    config.write_text("WRONG_NUMBER_TTS_ENGINE=kokoro\nWRONG_NUMBER_TTS_PYTHON="+shlex.quote(str(python))+"\nWRONG_NUMBER_TTS_MODELS="+shlex.quote(str(models))+"\n")
     config.chmod(0o600)
     print("Installed Kokoro. The Bash game launcher now uses local neural speech.")
 

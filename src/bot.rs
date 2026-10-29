@@ -145,6 +145,13 @@ impl Agent {
                 return;
             }
             if let Some(incident) = game.conversation {
+                if !matches!(
+                    game.sim.incidents()[&incident].state,
+                    wrong_number_sim::IncidentState::Active
+                ) {
+                    self.action(net, game, Action::HangUp);
+                    return;
+                }
                 if game.selected != incident {
                     self.action(net, game, Action::Select(incident));
                     return;

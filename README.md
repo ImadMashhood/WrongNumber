@@ -14,6 +14,8 @@ This repository is the project home. Solo and direct-connect co-op prototypes ar
 
 The menu includes Host, Join, join codes and persistent control/audio settings, including push to talk. Internet codes connect directly to the creator’s PC and require a reachable forwarded TCP port; there is no relay. See [menu and hosting instructions](docs/menu.md). The desktop uses dark elevated panels, live resources/map and a compact phone; local CC0 ambience blends between office and break room.
 
+See the [caller psychology and investigation design](docs/caller-psychology.md) for private goals, disclosure rules, evidence and in-session memory. Dispatch now keeps the phone connected; hang up explicitly when finished.
+
 ## Design pillars
 
 1. **Triage is the game.** Players investigate incomplete reports and choose whether a response is justified.
@@ -310,7 +312,7 @@ Normal play draws from [300 complaints](docs/design/complaint-catalogue.md), wit
 
 Answer a call, click **Type a question...**, type and press **Enter**. Caller replies, subtitles and evidence use the same authority rules in solo/co-op. Authored question buttons remain available. Live dialogue requires the configured service; it never falls back to scripted replies. The AI writes an opening statement and natural replies from the selected fixed scenario; the host controls truth and outcomes.
 
-Caller speech can use [local Kokoro neural TTS](docs/local-tts.md), now configured on the development PC, or a replaceable TTS adapter. With a configured local STT adapter, answer the phone and speak naturally. Voice activation sends a local transcription after a short pause; the phone has a mute/unmute button. Optional transcript review lets you edit before pressing Enter. Voice activation is **on during answered calls**; saved audio remains **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
+Caller speech can use [local Piper neural TTS](docs/local-tts.md), now configured on the development PC, or a replaceable TTS adapter. With a configured local STT adapter, answer the phone and speak naturally. Voice activation sends a local transcription after a short pause; the phone has a mute/unmute button. Optional transcript review lets you edit before pressing Enter. Voice activation is **on during answered calls**; saved audio remains **off by default**. Caller volume/device controls and opt-in local clip replay/deletion are included.
 
 For OpenRouter or another compatible provider, start `cargo run --locked -p wrong-number-caller-server` with a locally configured key and explicit model, then pass `--caller-service 127.0.0.1:47005` to the solo/co-op host. Clients need no key. See [setup, limits, privacy and verification](docs/callers.md); a live GPT-4o request is verified; physical microphone/listening quality still needs playtesting.
 

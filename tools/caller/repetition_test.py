@@ -18,11 +18,11 @@ env=os.environ.copy();env.update(CALLER_API_KEY='fixture-placeholder',CALLER_MOD
 binary=Path('target/debug/wrong-number-caller-server').resolve()
 if os.name=='nt':binary=binary.with_suffix('.exe')
 proc=subprocess.Popen([str(binary)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-c=dict(version=3,report='Old rumour',personality='Embarrassed but honest',facts=[dict(id='source',question='Where did this come from?',answer='An unverified old message.')],history=[['What happened?',old]],question='Why are you repeating that?')
+c=dict(version=4,report='Old rumour',personality='Embarrassed but honest',facts=[dict(id='source',question='Where did this come from?',answer='An unverified old message.')],history=[['What happened?',old]],question='Why are you repeating that?')
 def ask():
  with socket.create_connection(('127.0.0.1',port),timeout=5) as sock:
   sock.sendall(json.dumps(c).encode()+b'\n');data=sock.makefile('rb').readline()
-  return json.loads(data) if data else None
+  return (lambda v: None if "error" in v else v)(json.loads(data)) if data else None
 try:
  for _ in range(100):
   try:

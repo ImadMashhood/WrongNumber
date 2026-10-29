@@ -515,6 +515,11 @@ fn terminal(
                         for fact in &view.facts {
                             text(p, &fact.answer, 13.0, MUTED);
                         }
+                        if let Some(c) = game.dialogue.conversations.get(&game.selected) {
+                            for evidence in &c.evidence {
+                                text(p, format!("{} #{} · dispatcher {} · turn {}: {}", if evidence.verified { "CONFIRMED" } else { &evidence.kind }, evidence.id, evidence.player, evidence.turn, evidence.detail), 12.0, if evidence.verified {TEAL} else {MUTED});
+                            }
+                        }
                         let actionable =
                             running && game.selected_call_answered() && game.seated.is_some();
                         p.spawn(Node {
@@ -626,7 +631,7 @@ fn terminal(
                         text(p, "No active call", 14.0, MUTED);
                         text(
                             p,
-                            "The phone opens when a call reaches your workstation.",
+                            if game.phase == Phase::Lobby { "Shift has not started. Hold Interact at the break-room door." } else if game.seated.is_none() { "You are standing. Exit the computer and press Interact at a chair to receive calls." } else { "Line ready. Incoming calls appear here automatically." },
                             13.0,
                             MUTED,
                         );
@@ -1936,5 +1941,98 @@ mod stable_desktop_tests {
         assert_eq!(desktop_key(&game, &chat, &voice), key);
         voice.gate_db = -75;
         assert_ne!(desktop_key(&game, &chat, &voice), key);
+    }
+}
+
+#[derive(Component)]
+pub struct ReadyProgress;
+#[derive(Component)]
+pub struct ReadyFill;
+#[derive(Component)]
+pub struct ReadyLabel;
+pub fn setup_ready_progress(mut commands: Commands) {
+    commands
+        .spawn((
+            ReadyProgress,
+            Visibility::Hidden,
+            GlobalZIndex(50),
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: px(24),
+                left: percent(32),
+                width: percent(36),
+                padding: UiRect::all(px(14)),
+                flex_direction: FlexDirection::Column,
+                row_gap: px(10),
+                ..default()
+            },
+            BackgroundColor(INK),
+        ))
+        .with_children(|p| {
+            p.spawn((
+                ReadyLabel,
+                Text::new("Hold E to open dispatch"),
+                TextFont {
+                    font_size: FontSize::Px(18.0),
+                    ..default()
+                },
+                TextColor(TEXT),
+            ));
+            p.spawn((
+                Node {
+                    width: percent(100),
+                    height: px(12),
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
+            ))
+            .with_children(|p| {
+                p.spawn((
+                    ReadyFill,
+                    Node {
+                        width: percent(0),
+                        height: percent(100),
+                        ..default()
+                    },
+                    BackgroundColor(TEAL),
+                ));
+            });
+        });
+}
+pub fn ready_progress(
+    ready: Res<crate::world::ReadyInput>,
+    game: Res<Session>,
+    menu: Res<crate::frontend::Frontend>,
+    prefs: Res<crate::frontend::Preferences>,
+    mut bars: Query<&mut Visibility, With<ReadyProgress>>,
+    mut fills: Query<&mut Node, With<ReadyFill>>,
+    mut labels: Query<&mut Text, With<ReadyLabel>>,
+) {
+    let show = ready.active
+        && game.phase == Phase::Lobby
+        && game.screen == Screen::Office
+        && !menu.visible
+        && !game.ready.contains(&game.local_player);
+    for mut bar in &mut bars {
+        *bar = if show {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+    for mut fill in &mut fills {
+        fill.width = percent((ready.elapsed / 1.5).clamp(0.0, 1.0) * 100.0);
+    }
+    for mut label in &mut labels {
+        label.0 = format!(
+            "Hold {} — {}  ·  {:.0}%",
+            prefs.keys[5].trim_start_matches("Key"),
+            if game.local_player == 1 {
+                "Open dispatch"
+            } else {
+                "Ready up"
+            },
+            (ready.elapsed / 1.5).clamp(0.0, 1.0) * 100.0
+        );
     }
 }

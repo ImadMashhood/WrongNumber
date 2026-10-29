@@ -48,6 +48,8 @@ pub fn complaints() -> &'static [Complaint] {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CaseBrief {
+    #[serde(default)]
+    pub psychology: Option<crate::psychology::Profile>,
     pub catalogue_id: u16,
     pub false_report: bool,
     pub severity: Severity,
@@ -306,6 +308,12 @@ impl Simulation {
                 caller_name: name,
                 variation: 0,
                 case_brief: Some(CaseBrief {
+                    psychology: Some(crate::psychology::Profile::new(
+                        1000 + caller_index as u32,
+                        fake.then_some(((roll >> 16) % 3) as usize),
+                        emergency,
+                        capability_id,
+                    )),
                     catalogue_id: card.id,
                     false_report: fake,
                     severity: card.severity,
@@ -325,6 +333,9 @@ impl Simulation {
                 i.caller_name.len() <= 80
                     && i.case_brief.as_ref().is_none_or(|c| {
                         complaints().iter().any(|v| v.id == c.catalogue_id)
+                            && c.psychology.as_ref().is_none_or(|p| {
+                                p.valid() && p.cover_fact.is_some() == c.false_report
+                            })
                             && c.persona.len() <= 1600
                             && c.caller_private.len() <= 512
                             && c.address.len() <= 160
@@ -360,6 +371,7 @@ impl Simulation {
         i.deadline = 300;
         i.caller_name = "Nearby witness".into();
         i.case_brief = Some(CaseBrief {
+            psychology: Some(crate::psychology::Profile::new(i.caller_id, None, true, "medical")),
             catalogue_id: 217,
             false_report: false,
             severity: Severity::Major,

@@ -210,7 +210,7 @@ impl Session {
         let start = self.sim.events().iter().find_map(|e| {
             matches!(e.kind,EventKind::CallAccepted{incident,..} if incident==id).then_some(e.at)
         });
-        start.map_or(0,|start|self.sim.events().iter().find_map(|e|matches!(e.kind,EventKind::CallEnded{incident,..}|EventKind::CallDeclined{incident,..}|EventKind::IncidentEnded{incident,..} if incident==id).then_some(e.at)).unwrap_or(self.sim.now()).saturating_sub(start))
+        start.map_or(0,|start|self.sim.events().iter().find_map(|e|matches!(e.kind,EventKind::CallEnded{incident,..}|EventKind::CallDeclined{incident,..} if incident==id).then_some(e.at)).unwrap_or(self.sim.now()).saturating_sub(start))
     }
     pub fn remaining(&self) -> u32 {
         SHIFT_SECONDS.saturating_sub(self.sim.now())
@@ -329,6 +329,7 @@ impl Session {
         }
     }
     pub fn act(&mut self, action: Action) {
+        let memory_start = self.sim.events().len();
         self.last_error = None;
         self.dirty = true;
         match action {
@@ -557,7 +558,7 @@ impl Session {
                     Command::FullResponse {
                         incident: self.selected,
                     },
-                    "Full response assigned. Conversation ended.",
+                    "Full response assigned. Phone remains connected.",
                 ) {
                     self.end_decision();
                 }
@@ -599,7 +600,7 @@ impl Session {
                             unit: id,
                             incident: self.selected,
                         },
-                        "Unit assigned. Conversation ended; the next caller will arrive shortly.",
+                        "Unit assigned. Phone remains connected.",
                     ),
                     UnitState::Assigned { incident } | UnitState::EnRoute { incident, .. }
                         if *incident == self.selected =>
@@ -649,7 +650,9 @@ impl Session {
             Action::NextShift if self.phase == Phase::Review => {
                 let service = self.dialogue.service;
                 let fixture = self.dialogue.fixture;
+                let memory = std::mem::take(&mut self.dialogue.memory);
                 self.dialogue = Default::default();
+                self.dialogue.memory = memory;
                 self.dialogue.service = service;
                 self.dialogue.fixture = fixture;
                 self.shift += 1;
@@ -687,16 +690,10 @@ impl Session {
             }
         }
         self.synchronize_line();
+        self.remember_decision(memory_start);
     }
     fn end_decision(&mut self) {
-        if self.conversation == Some(self.selected) {
-            let _ = self.sim.apply(
-                self.local_player,
-                Command::EndCall {
-                    incident: self.selected,
-                },
-            );
-        }
+        self.notice = "Responders assigned. The phone stays connected until you hang up.".into();
     }
     pub(super) fn command(&mut self, command: Command, success: &str) -> bool {
         let result = self.sim.apply(self.local_player, command);
@@ -1055,22 +1052,24 @@ mod review_tests {
         g
     }
     #[test]
-    fn final_dispatch_closes_call_and_failed_dispatch_keeps_it_open() {
+    fn dispatch_keeps_call_open_until_explicit_hangup() {
         let mut g = answered();
         g.act(Action::Unit(1));
         assert_eq!(g.conversation, Some(1));
         g.act(Action::Ask("smoke".into()));
         g.act(Action::Unit(3));
+        assert_eq!(g.conversation, Some(1));
+        g.act(Action::HangUp);
         assert!(g.conversation.is_none());
         assert!(g.next_call_at.is_some());
         assert_eq!(g.sim.incidents()[&1].call, CallState::Closed);
         assert_eq!(g.sim.incidents()[&1].state, IncidentState::Active);
     }
     #[test]
-    fn full_response_ends_conversation_and_reserves_all_three_teams() {
+    fn full_response_keeps_conversation_and_reserves_all_three_teams() {
         let mut g = answered();
         g.act(Action::FullResponse);
-        assert!(g.conversation.is_none());
+        assert_eq!(g.conversation, Some(1));
         assert!(
             g.sim
                 .units()
@@ -1079,7 +1078,7 @@ mod review_tests {
         );
     }
     #[test]
-    fn phone_interaction_answers_and_duration_freezes_when_dispatch_ends_call() {
+    fn phone_duration_continues_after_dispatch_until_hangup() {
         let mut g = Session::default();
         g.act(Action::Sit(0));
         g.tick(10.0);
@@ -1089,7 +1088,10 @@ mod review_tests {
         assert_eq!(g.call_duration(1), 7);
         g.act(Action::Unit(3));
         g.tick(5.0);
-        assert_eq!(g.call_duration(1), 7);
+        assert_eq!(g.call_duration(1), 12);
+        g.act(Action::HangUp);
+        g.tick(5.0);
+        assert_eq!(g.call_duration(1), 12);
     }
     #[test]
     fn authored_calls_repeat_after_six_within_configured_delay() {
@@ -1116,6 +1118,7 @@ mod review_tests {
                     g.tick(1.0);
                 }
                 g.act(Action::Unit(unit));
+                g.act(Action::HangUp);
             } else {
                 g.act(Action::Decline);
             }

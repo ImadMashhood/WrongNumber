@@ -358,3 +358,17 @@ fn completed_shift_returns_all_players_to_breakroom_and_clears_votes() {
         Phase::Running
     ));
 }
+
+#[test]
+fn door_start_then_sitting_receives_a_call_within_initial_delay() {
+    let mut r = staging_room(1);
+    held_ready(&mut r, 1);
+    assert_eq!(r.game.phase, Phase::Running);
+    // Merely focusing a computer while standing must not silently imply phone readiness.
+    r.game.as_player(1, Action::OpenDesk).unwrap();
+    r.tick(11.0);
+    assert!(r.game.ringing.is_none());
+    r.game.as_player(1, Action::Sit(0)).unwrap();
+    r.tick(11.0);
+    assert!(r.game.ringing.is_some());
+}

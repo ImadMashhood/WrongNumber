@@ -9,6 +9,7 @@ mod environment;
 mod frontend;
 mod game;
 mod headless;
+mod investigation;
 mod net_playtest;
 mod network;
 mod peers;
@@ -60,6 +61,7 @@ fn main() {
         .insert_resource(menu)
         .insert_resource(net)
         .init_resource::<Actions>()
+        .init_resource::<world::ReadyInput>()
         .init_resource::<voice::Voice>()
         .init_resource::<voice::ChatInput>()
         .init_resource::<net_playtest::NetPlaytest>()
@@ -82,6 +84,7 @@ fn main() {
             (
                 frontend::setup,
                 ui::load_map,
+                ui::setup_ready_progress,
                 wall_map::setup,
                 routes::setup,
                 environment::setup,
@@ -133,7 +136,7 @@ fn main() {
                     ui::scroll_panels,
                     ui::transcript_scroll,
                     ui::update_hud,
-                    ui::hover,
+                    (ui::ready_progress, ui::hover).chain(),
                 )
                     .chain(),
             )

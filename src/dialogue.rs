@@ -11,7 +11,7 @@ use std::{
     },
     time::Instant,
 };
-use wrong_number_caller::{Context, Emotion, Knowledge, Proposal, Reply, ServiceReply};
+use wrong_number_caller::{Context, Emotion, Knowledge, Reply, ServiceReply};
 use wrong_number_sim::{CallState, Command};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Turn {
@@ -24,6 +24,8 @@ pub struct Turn {
 }
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Conversation {
+    #[serde(default)]
+    pub evidence: Vec<crate::investigation::EvidenceRecord>,
     pub turns: Vec<Turn>,
     pub pending: Option<u8>,
     pub diagnostic: String,
@@ -41,6 +43,8 @@ struct Completed {
     response: Result<ServiceReply, String>,
 }
 pub struct Dialogue {
+    pub psychology: crate::investigation::States,
+    pub memory: crate::investigation::Memories,
     pub conversations: BTreeMap<u32, Conversation>,
     pub service: Option<SocketAddr>,
     pub fixture: bool,
@@ -70,6 +74,8 @@ impl Default for Dialogue {
     fn default() -> Self {
         let (tx, rx) = mpsc::sync_channel(12);
         Self {
+            psychology: Default::default(),
+            memory: Default::default(),
             conversations: BTreeMap::new(),
             service: None,
             fixture: fixture_mode(),
@@ -152,6 +158,18 @@ impl Session {
             return Err("Give the caller a moment before asking again".into());
         }
         let i = self.sim.incidents().get(&id).ok_or("Unknown call")?;
+        if let Some(profile) = i.case_brief.as_ref().and_then(|c| c.psychology.clone()) {
+            let memory = self.dialogue.memory.get(&i.caller_id);
+            let state = self
+                .dialogue
+                .psychology
+                .entry(id)
+                .or_insert_with(|| crate::investigation::State::new(profile, memory));
+            if !opening {
+                state.observe(&text);
+            }
+        }
+
         if i.call
             != (CallState::Answered {
                 by: self.local_player,
@@ -171,22 +189,41 @@ impl Session {
                     .collect::<Vec<_>>()
                     .into_iter()
                     .rev()
-                    .map(|t| (t.question.clone(), t.spoken_text.clone()))
+                    .map(|t| {
+                        (
+                            if t.question.is_empty() {
+                                String::new()
+                            } else {
+                                format!("Dispatcher {}: {}", t.player, t.question)
+                            },
+                            t.spoken_text.clone(),
+                        )
+                    })
                     .collect()
             })
             .unwrap_or_default();
+        let psyche = self.dialogue.psychology.get(&id);
+        let private_brief = psyche.map(|p| {
+            format!(
+                "Current dispatcher: {}. {}",
+                self.local_player,
+                p.brief(self.dialogue.memory.get(&i.caller_id))
+            )
+        });
         let context = Context {
+            allow_hangup: psyche.is_some_and(|p|p.can_hang_up()),
             previous_reply_hashes: self.dialogue.conversations.get(&id).map(|c|c.turns.iter().map(|t|wrong_number_caller::reply_hash(&t.spoken_text)).collect()).unwrap_or_default(),
             version: wrong_number_caller::VERSION,
             report: i.report.clone(),
             kind: if opening {wrong_number_caller::TurnKind::Opening}else{wrong_number_caller::TurnKind::Conversation},
             location: i.case_brief.as_ref().map_or_else(||crate::city::address(i.location),|c|c.address.clone()),
             caller_name: if i.caller_name.is_empty(){"Alex Morgan".into()}else{i.caller_name.clone()},
-            caller_private: i.case_brief.as_ref().map_or_else(||"The supplied report and facts are your only knowledge. Do not invent any extra events.".into(),|c|c.caller_private.clone()),
+            caller_private: private_brief.unwrap_or_else(||i.case_brief.as_ref().map_or_else(||"The supplied report and facts are your only knowledge. Do not invent any extra events.".into(),|c|c.caller_private.clone())),
             personality: i.case_brief.as_ref().map_or_else(||"An anxious local adult speaking in everyday language.".into(),|c|c.persona.clone()),
             facts: i
                 .facts
                 .iter()
+                .filter(|f| psyche.is_none_or(|p|p.permits(&f.id)))
                 .map(|f| Knowledge {
                     id: f.id.clone(),
                     question: f.question.clone(),
@@ -248,6 +285,26 @@ impl Session {
         Ok(())
     }
     pub fn poll_dialogue(&mut self) {
+        let ended: Vec<_> = self
+            .dialogue
+            .psychology
+            .iter()
+            .filter(|(_, s)| s.hangup_at.is_some_and(|at| self.sim.now() >= at))
+            .map(|(id, _)| *id)
+            .collect();
+        for id in ended {
+            self.dialogue.psychology.get_mut(&id).unwrap().hangup_at = None;
+            if let Some(i) = self.sim.incidents().get(&id)
+                && let CallState::Answered { by } = i.call
+            {
+                self.drop_caller(
+                    id,
+                    by,
+                    "Caller ended the call after repeated abuse and a boundary warning.",
+                );
+            }
+        }
+
         let completed: Vec<_> = self.dialogue.rx.lock().unwrap().try_iter().collect();
         for result in completed {
             if self
@@ -310,16 +367,30 @@ impl Session {
             {
                 (r.reply, r.source)
             }
+            Err(reason) => {
+                self.drop_caller(id, p.player, &reason);
+                return;
+            }
             _ => {
                 self.drop_caller(
                     id,
                     p.player,
-                    "AI service disconnected, timed out, or returned an invalid response.",
+                    "AI provider returned an invalid or repeated response.",
                 );
                 return;
             }
         };
         self.apply_reply(id, p.player, &p.context, &reply);
+        self.record_investigation(id, p.player, &p.context, &reply);
+        if reply.call_complete
+            && p.context.allow_hangup
+            && let Some(state) = self.dialogue.psychology.get_mut(&id)
+        {
+            state.hangup_at = Some(
+                self.sim.now()
+                    + ((reply.spoken_text.split_whitespace().count() as u32 / 2) + 3).clamp(8, 25),
+            );
+        }
         let c = self.dialogue.conversations.entry(id).or_default();
         c.diagnostic = format!("{source} | {elapsed} ms | {:?}", reply.emotion);
         c.turns.push(Turn {
@@ -330,16 +401,6 @@ impl Session {
             emotion: reply.emotion,
             source,
         });
-        if reply.call_complete {
-            let mut desk = self.desk(p.player);
-            desk.conversation = None;
-            desk.call_station = None;
-            if p.player == self.local_player {
-                self.load_desk(p.player, desk);
-            } else {
-                self.desks.insert(p.player, desk);
-            }
-        }
         self.dirty = true;
     }
     pub fn drop_caller(&mut self, id: u32, player: u8, reason: &str) {
@@ -389,10 +450,7 @@ impl Session {
                 );
             }
         }
-        // A validated goodbye ends only the conversation, never the incident or response.
-        if reply.proposed_action == Proposal::Goodbye {
-            let _ = self.sim.apply(player, Command::EndCall { incident: id });
-        }
+        // The dispatcher owns hang-up; a model suggestion cannot close the phone.
     }
 }
 #[cfg(test)]
@@ -415,6 +473,104 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
         assert!(s.dialogue.pending.is_empty());
+    }
+    #[test]
+    fn locked_source_is_not_sent_to_provider_or_public_snapshot() {
+        let mut s = Session::default();
+        s.sim
+            .enable_catalogue(crate::city::catalogue_locations().clone())
+            .unwrap();
+        s.dialogue.psychology.insert(
+            1,
+            crate::investigation::State::new(
+                wrong_number_sim::psychology::Profile::new(1019, Some(0), false, "fire"),
+                None,
+            ),
+        );
+        s.act(Action::Sit(0));
+        s.act(Action::OpenDesk);
+        s.tick(10.0);
+        s.act(Action::Answer);
+        s.opening(1).unwrap();
+        let c = &s.dialogue.pending[&1].context;
+        assert!(!c.facts.iter().any(|f| f.id == "verification"));
+        let hidden = &s.sim.incidents()[&1]
+            .facts
+            .iter()
+            .find(|f| f.id == "verification")
+            .unwrap()
+            .answer;
+        assert!(!c.caller_private.contains(hidden));
+        settle(&mut s);
+        let public = serde_json::to_string(&s.sim.public_snapshot()).unwrap();
+        assert!(!public.contains("psychology") && !public.contains("trust_required"));
+        s.dialogue.last.clear();
+        s.talk(1, "I'm here to help. How do you know?".into())
+            .unwrap();
+        assert!(
+            !s.dialogue.pending[&1]
+                .context
+                .facts
+                .iter()
+                .any(|f| f.id == "verification")
+        );
+        settle(&mut s);
+        s.dialogue.last.clear();
+        s.talk(1, "I'm not here to judge. Tell me the source.".into())
+            .unwrap();
+        assert!(
+            s.dialogue.pending[&1]
+                .context
+                .facts
+                .iter()
+                .any(|f| f.id == "verification")
+        );
+    }
+    #[test]
+    fn transfer_retains_private_attitude_and_public_history() {
+        let mut s = answered();
+        let mut state = crate::investigation::State::new(
+            wrong_number_sim::psychology::Profile::new(1019, Some(0), false, "fire"),
+            None,
+        );
+        state.observe("You are lying");
+        let trust = state.trust;
+        s.dialogue.psychology.insert(1, state);
+        let turns = s.dialogue.conversations[&1].turns.len();
+        s.add_player(2);
+        s.as_player(2, Action::Sit(1)).unwrap();
+        s.act(Action::Transfer(2));
+        assert_eq!(s.desk(2).conversation, Some(1));
+        assert_eq!(s.dialogue.psychology[&1].trust, trust);
+        assert_eq!(s.dialogue.conversations[&1].turns.len(), turns);
+    }
+    #[test]
+    fn memory_survives_next_shift_without_old_transcripts_or_private_client_state() {
+        let mut s = answered();
+        let id = s.sim.incidents()[&1].caller_id;
+        s.dialogue
+            .memory
+            .entry(id)
+            .or_default()
+            .record(crate::investigation::MemoryEvent {
+                shift: 1,
+                incident: 1,
+                player: 1,
+                event: "Responders dispatched".into(),
+            });
+        s.phase = Phase::Review;
+        s.act(Action::NextShift);
+        assert_eq!(s.dialogue.memory[&id].events.len(), 1);
+        assert!(s.dialogue.conversations.is_empty() && s.dialogue.psychology.is_empty());
+    }
+    #[test]
+    fn model_goodbye_does_not_hang_up_the_dispatcher_phone() {
+        let mut s = answered();
+        s.dialogue.last.clear();
+        s.talk(1, "Goodbye".into()).unwrap();
+        settle(&mut s);
+        assert_eq!(s.conversation, Some(1));
+        assert_eq!(s.sim.incidents()[&1].call, CallState::Answered { by: 1 });
     }
     #[test]
     fn natural_text_reveals_evidence_without_changing_scenario_or_units() {
@@ -553,9 +709,10 @@ mod opening_test {
                 reply: wrong_number_caller::Reply {
                     spoken_text: "Hello? I need help with smoke coming from a dryer!".into(),
                     emotion: Emotion::Anxious,
-                    proposed_action: Proposal::Opening,
+                    proposed_action: wrong_number_caller::Proposal::Opening,
                     fact_references: vec![],
                     call_complete: false,
+                    behavior: Default::default(),
                 },
                 source: "provider".into(),
             };

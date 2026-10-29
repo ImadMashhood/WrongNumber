@@ -915,6 +915,7 @@ mod tests {
 pub fn verify(
     mut commands: Commands,
     mut frame: Local<u32>,
+    mut ready: ResMut<crate::world::ReadyInput>,
     mut menu: ResMut<Frontend>,
     prefs: Res<Preferences>,
     voice: Res<Voice>,
@@ -985,6 +986,16 @@ pub fn verify(
         }
         215 => capture(&mut commands, "host-menu"),
         225 => click(&mut commands, MenuAction::Host),
+        260..=275 => {
+            ready.active = true;
+            ready.elapsed = 0.9;
+            if *frame == 270 {
+                capture(&mut commands, "door-hold-progress");
+            }
+        }
+        276 => {
+            *ready = default();
+        }
         280 => {
             menu.actions.push(MenuAction::CopyCode);
         }

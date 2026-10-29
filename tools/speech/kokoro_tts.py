@@ -40,23 +40,51 @@ def validate_request(value):
 def serve(model_dir, state):
     import numpy as np
     import onnxruntime as rt
-    import soundfile as sf
-    from kokoro_onnx import Kokoro
-    from kokoro_onnx.config import EspeakConfig
-    import ctypes.util
-    logging.disable(logging.CRITICAL)  # Upstream debug logs can include phonemes/text.
+    import wave
+    logging.disable(logging.CRITICAL)
     options = rt.SessionOptions()
     options.intra_op_num_threads = 2
     options.inter_op_num_threads = 1
     options.log_severity_level = 3
-    session = rt.InferenceSession(str(model_dir / "kokoro-v1.0.onnx"), sess_options=options, providers=["CPUExecutionProvider"])
-    # Some espeakng-loader Linux wheels retain a build-machine data path.
-    # Prefer the installed system phonemizer when its data is present.
-    data = Path(os.environ.get("WRONG_NUMBER_ESPEAK_DATA", "/usr/share/espeak-ng-data"))
-    library = ctypes.util.find_library("espeak-ng")
-    espeak = EspeakConfig(lib_path=library, data_path=str(data)) if library and (data/"phontab").exists() else None
-    engine = Kokoro.from_session(session, str(model_dir / "voices-v1.0.bin"), espeak_config=espeak)
-    engine.create("Caller audio is ready.", voice="af_heart", speed=1.0, lang="en-us")
+    backend = os.environ.get("WRONG_NUMBER_TTS_ENGINE", "kokoro")
+    if backend == "piper":
+        from piper import PiperVoice, SynthesisConfig
+        from piper.config import PiperConfig
+        model = model_dir / "en_US-libritts_r-medium.onnx"
+        engine = PiperVoice(
+            session=rt.InferenceSession(str(model), sess_options=options, providers=["CPUExecutionProvider"]),
+            config=PiperConfig.from_dict(json.loads(Path(str(model)+".json").read_text())),
+        )
+        def render(text, caller):
+            speaker = (caller - 1000) % 50 if 1000 <= caller < 1050 else 0
+            buffer = io.BytesIO()
+            with wave.open(buffer, "wb") as wav:
+                engine.synthesize_wav(text, wav, syn_config=SynthesisConfig(speaker_id=speaker))
+            audio = buffer.getvalue()
+            with wave.open(io.BytesIO(audio), "rb") as wav:
+                duration = wav.getnframes()/wav.getframerate()
+            return audio, duration, f"speaker-{speaker}"
+    elif backend == "kokoro":
+        import soundfile as sf
+        from kokoro_onnx import Kokoro
+        from kokoro_onnx.config import EspeakConfig
+        import ctypes.util
+        session = rt.InferenceSession(str(model_dir / "kokoro-v1.0.onnx"), sess_options=options, providers=["CPUExecutionProvider"])
+        data = Path(os.environ.get("WRONG_NUMBER_ESPEAK_DATA", "/usr/share/espeak-ng-data"))
+        library = ctypes.util.find_library("espeak-ng")
+        espeak = EspeakConfig(lib_path=library, data_path=str(data)) if library and (data/"phontab").exists() else None
+        engine = Kokoro.from_session(session, str(model_dir / "voices-v1.0.bin"), espeak_config=espeak)
+        def render(text, caller):
+            voice = selected_voice(caller)
+            samples, rate = engine.create(text, voice=voice, speed=1.0, lang="en-gb" if voice.startswith("b") else "en-us")
+            if not len(samples) or not np.isfinite(samples).all():
+                raise ValueError("Invalid synthesized samples")
+            buffer = io.BytesIO()
+            sf.write(buffer, samples, rate, format="WAV", subtype="PCM_16")
+            return buffer.getvalue(), len(samples)/rate, voice
+    else:
+        raise ValueError("Unknown TTS engine")
+    render("Caller audio is ready.", 1000)
     token = secrets.token_urlsafe(32)
     busy = threading.Lock()
 
@@ -76,7 +104,9 @@ def serve(model_dir, state):
                 length = int(self.headers.get("Content-Length", "0"))
                 if not 0 < length <= 4096:
                     raise ValueError("Invalid request length")
-                text, voice = validate_request(json.loads(self.rfile.read(length)))
+                request_value = json.loads(self.rfile.read(length))
+                text, _ = validate_request(request_value)
+                caller = request_value.get("caller", 0)
             except (ValueError, TimeoutError):
                 self.send_error(400)
                 return
@@ -85,12 +115,7 @@ def serve(model_dir, state):
                 return
             try:
                 start = time.monotonic()
-                samples, rate = engine.create(text, voice=voice, speed=1.0, lang="en-gb" if voice.startswith("b") else "en-us")
-                if not len(samples) or not np.isfinite(samples).all():
-                    raise ValueError("Invalid synthesized samples")
-                buffer = io.BytesIO()
-                sf.write(buffer, samples, rate, format="WAV", subtype="PCM_16")
-                wav = buffer.getvalue()
+                wav, duration, voice = render(text, caller)
                 if not 44 < len(wav) <= MAX_WAV:
                     raise ValueError("Audio exceeds game limit")
                 self.send_response(200)
@@ -98,7 +123,7 @@ def serve(model_dir, state):
                 self.send_header("Content-Length", str(len(wav)))
                 self.end_headers()
                 self.wfile.write(wav)
-                print(f"Kokoro voice={voice} generation={time.monotonic()-start:.2f}s audio={len(samples)/rate:.2f}s", flush=True)
+                print(f"{backend} voice={voice} generation={time.monotonic()-start:.2f}s audio={duration:.2f}s", flush=True)
             except (BrokenPipeError, ConnectionResetError, TimeoutError):
                 pass
             except Exception:
@@ -116,7 +141,7 @@ def serve(model_dir, state):
     fd = os.open(state, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as file:
         json.dump({"port": server.server_port, "token": token}, file)
-    print("Kokoro ready / local CPU / 2 inference threads", flush=True)
+    print(f"{backend} ready / local CPU / 2 inference threads", flush=True)
     try:
         server.serve_forever(poll_interval=0.2)
     finally:

@@ -1,0 +1,402 @@
+The current gameplay loop relies heavily on receiving an emergency call, questioning the caller, determining whether the emergency is genuine, and dispatching appropriate resources.
+Although this works as a dispatch simulator, it does not consistently create the conversational tension, deception, manipulation, or unexpected situations needed for a compelling multiplayer party game.
+The objective of this overhaul is to make AI callers feel like independent characters with their own motivations, secrets, fears, personalities, and agendas.
+The core gameplay should shift from "Is this emergency real?" to "What is this person actually trying to accomplish, and can I figure it out before making a decision?"
+The player should experience:
+- Callers who deliberately lie and maintain believable cover stories.
+- Callers who conceal information for understandable reasons.
+- Callers who manipulate the dispatcher into taking particular actions.
+- Callers who become angry, defensive, cooperative, frightened, sarcastic, or evasive based on player behavior.
+- Callers who contradict themselves and can be confronted with evidence.
+- Callers who can be persuaded to reveal secrets.
+- Callers who are genuinely confused rather than malicious.
+- Callers who attempt to manipulate multiple dispatchers differently.
+- Callers who remember previous conversations and decisions.
+- Situations in which dispatching immediately is appropriate, even when information is incomplete.
+The intended experience is a mixture of conversational investigation, psychological deduction, emergency management, and chaotic comedy.
+The game must remain unpredictable without becoming unfair or mechanically arbitrary.
+The existing repository already contains substantial systems that should be reused rather than rewritten.
+Relevant components include:
+Inspect the actual code and current interfaces before making changes. Documentation may not fully reflect the latest implementation.
+Preserve the existing design principles:
+1. The simulation owns incident truth.
+2. AI output cannot arbitrarily create incidents or change established facts.
+3. Multiplayer remains server-authoritative.
+4. AI provider credentials remain outside the game client.
+5. AI provider failures terminate conversations according to existing requirements; do not introduce a scripted fallback.
+6. Dialogue remains natural and unrestricted by predetermined question menus.
+7. Existing city consequences, responder pathfinding, and dispatch controls remain functional.
+This overhaul should primarily add a richer private character model, conversational state, structured deception mechanics, and investigation outcomes.
+Each incoming call must have two distinct layers.
+This represents objective reality.
+Examples:
+- A building is genuinely on fire.
+- A man is falsely accusing his neighbor.
+- A robbery occurred, but the caller committed it.
+- A woman is experiencing a medical emergency.
+- Someone mistakenly believes an intruder entered their home.
+- A caller wants police to remove someone from a property.
+This truth must be generated or selected before the conversation begins.
+This represents what the caller wants, believes, fears, and is willing to do.
+For example, a caller reporting a robbery might actually want to:
+- Receive police protection.
+- Conceal their own involvement.
+- Obtain an official incident report.
+- Have another person arrested.
+- Distract officers from another location.
+- Avoid admitting an embarrassing mistake.
+Two callers reporting identical incidents may behave completely differently because their agendas differ.
+The caller's desired outcome must influence dialogue and behavior, not merely appear as background text.
+Introduce an internal CallerPsychology or equivalent data model.
+Suggested conceptual structure:
+```rust
+struct CallerPsychology {
+    primary_goal: Goal,
+    secondary_goal: Option<Goal>,
+
+    hidden_secret: Option<Secret>,
+    cover_story: Option<CoverStory>,
+
+    personality: Personality,
+    emotional_state: EmotionalState,
+
+    trust: f32,
+    stress: f32,
+    defensiveness: f32,
+    cooperation: f32,
+
+    deception_strategy: DeceptionStrategy,
+    disclosure_rules: Vec<DisclosureRule>,
+}
+```
+This is illustrative. Adapt to existing types and conventions.
+Personality should remain relatively stable throughout a call.
+Potential dimensions:
+- Honesty
+- Patience
+- Aggressiveness
+- Confidence
+- Anxiety
+- Manipulativeness
+- Sociability
+- Impulsiveness
+- Distrust of authority
+Emotional state should change during conversation.
+Examples:
+- Calm
+- Nervous
+- Frustrated
+- Angry
+- Panicked
+- Defensive
+- Embarrassed
+- Relieved
+- Cooperative
+- Suspicious
+Emotional changes must be caused by meaningful conversational events.
+A naturally anxious caller should not become calm simply because the dispatcher asks one polite question.
+Likewise, an aggressive caller should not automatically become cooperative after receiving an apology.
+Emotional changes should affect word choice, willingness to disclose information, interruptions, and conversational tactics.
+Emotions are not reliable proof of deception. Genuine victims may behave aggressively or inconsistently, and deceptive callers may remain calm.
+Not every caller should be deceptive.
+Introduce distinct caller truthfulness categories.
+The caller accurately describes the emergency to the best of their knowledge.
+The challenge is triage, not interrogation.
+The caller sincerely believes something false.
+Example: Someone believes a neighbor is stealing their packages, but the deliveries were made to the wrong address.
+They are not intentionally lying.
+The caller reports genuine events but intentionally omits important information.
+Example: A man reports being attacked but refuses to admit he initiated the confrontation.
+The caller invents or distorts information to obtain a desired outcome.
+Example: A caller falsely reports an armed suspect to get police sent to a rival's address.
+The caller wants help but fears the consequences of revealing the truth.
+Example: Someone reports a medical emergency but conceals drug use because they fear legal trouble.
+The caller attempts to influence the dispatcher using emotional pressure, flattery, threats, false urgency, or appeals to authority.
+Manipulation can coexist with truthful or deceptive reports.
+Important: These categories are not necessarily mutually exclusive. A caller can be truthful about an emergency while manipulating the dispatcher to prioritize them.
+A major failure mode of LLM-driven deduction games is unlimited improvisation.
+If a player catches a contradiction, an unrestricted LLM may invent a new explanation that retroactively repairs the story.
+This makes deduction meaningless.
+Implement a fixed scenario truth and a separate, constrained cover story.
+Example:
+Actual truth
+- Caller is angry at a neighbor.
+- Neighbor does not possess a weapon.
+- Caller wants police to remove the neighbor.
+- Caller has never entered the neighbor's apartment.
+Cover story
+- Caller claims to have seen a gun.
+- Caller claims the neighbor threatened someone.
+- Caller says they observed the situation from outside.
+- Caller does not know the interior layout of the apartment.
+Potential contradiction
+The caller claims to have seen something that could not reasonably be visible from the claimed observation point.
+The AI should be allowed to:
+- Evade the question.
+- Become defensive.
+- Refuse to answer.
+- Repeat an earlier claim.
+- Admit uncertainty.
+- Change its story if the scenario explicitly permits that behavior.
+- Confess when appropriate conditions are met.
+It should not freely invent new physical evidence, witnesses, or facts that invalidate the scenario's intended deduction.
+Each deceptive scenario should define:
+1. Immutable actual facts.
+2. Facts the caller knows.
+3. Facts the caller falsely believes.
+4. Deliberately fabricated claims.
+5. Information the caller intends to hide.
+6. Allowed evasions or alternate explanations.
+7. Evidence that could undermine the cover story.
+8. Conditions under which the caller may admit the truth.
+The LLM should generate natural dialogue within these constraints.
+Do not assume prompt instructions alone guarantee consistency.
+The player must be able to investigate naturally.
+There should be no requirement to select predetermined dialogue options.
+Example interactions:
+Dispatcher: "Where exactly were you standing when you saw the gun?"
+Caller: "Across the street. I already told you."
+Dispatcher: "Then how did you see inside the bedroom?"
+Caller: "I don't know, man. The curtains were open."
+Dispatcher: "You said it happened in the kitchen earlier."
+Caller: "Look, are you sending somebody or not?"
+The system should recognize that the player is challenging an inconsistency.
+It should distinguish between:
+- Asking for information.
+- Requesting clarification.
+- Presenting evidence.
+- Challenging a contradiction.
+- Accusing the caller of lying.
+- Reassuring the caller.
+- Negotiating cooperation.
+- Applying pressure.
+- Threatening consequences.
+- Attempting to trick the caller.
+- Making irrelevant remarks.
+- Insulting or provoking the caller.
+These conversational actions should influence the caller's psychological state and disclosure decisions.
+A player's exact wording should matter where appropriate, but the game must not depend on specific magic phrases.
+Introduce a structured investigation state for each call.
+Potential evidence types:
+- Caller statements
+- Timeline inconsistencies
+- Conflicting locations
+- Physical impossibilities
+- Contradictory descriptions
+- External dispatch records
+- Prior caller history
+- Witness reports
+- Verified information
+- Caller admissions
+Evidence should have provenance.
+For example:
+```text
+Statement #12
+Caller: "I saw him enter at 9 PM."
+
+Statement #18
+Caller: "I was at work until 11 PM."
+
+Potential contradiction:
+Caller claims direct observation while allegedly elsewhere.
+```
+However, the system must distinguish between a potential contradiction and a verified contradiction.
+An LLM may propose that two statements conflict, but the simulation should only award a confirmed contradiction when supported by structured scenario facts or validated evidence.
+Do not reward players merely for repeatedly accusing callers of lying.
+Players should be able to verbally confront a caller.
+Successful confrontation may cause:
+- A partial admission.
+- A full confession.
+- A revised account.
+- Increased defensiveness.
+- A refusal to cooperate.
+- A hang-up.
+- Disclosure of another hidden fact.
+The result should depend on the scenario, caller psychology, available evidence, and previous interaction.
+A confession should be a possible outcome, not a guaranteed reward for asking enough questions.
+Implement a lightweight, deterministic state transition system.
+For example:
+```text
+Initial state:
+Trust: 45
+Stress: 30
+Defensiveness: 40
+Cooperation: 55
+
+Dispatcher reassures caller:
+Trust increases slightly.
+Stress may decrease.
+
+Dispatcher presents strong contradictory evidence:
+Stress increases.
+Defensiveness may increase or decrease.
+Confession becomes possible.
+
+Dispatcher repeatedly insults caller:
+Trust decreases.
+Cooperation decreases.
+Caller may hang up.
+```
+The specific numbers are illustrative and should be tuned through playtesting.
+The LLM should not have unrestricted authority to modify these values.
+Instead, use structured conversational events validated by the host.
+A possible pipeline:
+```text
+Player speaks
+    ↓
+Speech-to-text / text input
+    ↓
+Conversation interpretation
+    ↓
+Validated conversational event
+    ↓
+Host updates psychological state
+    ↓
+Disclosure rules evaluated
+    ↓
+LLM generates in-character response
+    ↓
+Output validation
+    ↓
+Player hears response
+```
+Avoid requiring multiple paid LLM calls for every player utterance.
+Prefer a single structured provider response containing both natural dialogue and proposed conversational metadata, followed by deterministic validation.
+Use the existing provider-neutral caller architecture.
+Callers must not behave like cooperative information databases.
+A caller may:
+- Demand immediate action.
+- Refuse to provide their name.
+- Refuse to identify another person.
+- Question the dispatcher's competence.
+- Demand a supervisor.
+- Threaten to complain.
+- Ask for reassurance.
+- Refuse to answer incriminating questions.
+- Attempt to change the subject.
+- Offer a misleading explanation.
+- Demand confidentiality.
+- Hang up when pushed too far.
+However, caller resistance must have understandable motivations.
+A terrified victim refusing to cooperate should feel different from a criminal trying to misdirect police.
+Certain information may be revealed only after the player establishes sufficient trust or satisfies a scenario-specific condition.
+Example:
+A caller refuses to explain why someone is unconscious.
+The dispatcher might say:
+"Listen, I'm not here to judge you. I need to know what happened so the ambulance knows what to expect."
+A successful reassurance could cause the caller to admit that drugs were involved.
+The admission provides useful medical information and improves the quality of the response.
+The player should feel that their conversational approach changed the outcome.
+The game supports up to six players.
+Use this existing multiplayer capability to create arguments and social interaction naturally.
+A caller should retain their conversational history when transferred.
+Example:
+Dispatcher A spends two minutes questioning a caller.
+The caller becomes angry and refuses to cooperate.
+Dispatcher B takes over and attempts a calmer approach.
+The caller remembers that Dispatcher A accused them of lying.
+This can create genuine player-to-player conflict.
+Players should be able to disagree over how to handle a caller.
+One player may want to dispatch immediately.
+Another may believe the caller is manipulating the department.
+Another may want to continue investigating.
+These differences should have consequences.
+Players should be able to review the case transcript and discovered evidence.
+They should not automatically receive the caller's hidden motives or actual incident truth.
+Some incidents may involve multiple callers describing the same underlying event.
+Example:
+- Caller A reports an armed robbery.
+- Caller B claims the supposed victim was actually the aggressor.
+- Caller C reports hearing gunshots but did not see anything.
+Different dispatchers investigate different accounts.
+The team must compare information and decide what to believe.
+This is particularly valuable for multiplayer because it creates genuine disagreements based on incomplete information.
+The underlying event must remain consistent across all connected calls.
+Introduce persistent in-session caller memory.
+Callers should remember:
+- Previous conversations.
+- Earlier dispatch decisions.
+- Promises made by dispatchers.
+- Whether they were accused of lying.
+- Whether emergency responders were sent.
+- Relevant prior incidents.
+- Their relationship with the department.
+Example:
+A player refuses a caller's earlier report.
+Later, the same caller phones again:
+"Oh, it's you again. Last time you told me I was wasting your time."
+The caller may be less cooperative.
+Another caller might become more trusting after receiving appropriate help.
+Memory should be stored as structured events and concise summaries rather than unlimited transcripts.
+Caller identity and memory must remain consistent across the session.
+Do not allow an AI-generated recollection to invent events that never happened.
+Create a modular scenario format that supports reusable psychological patterns.
+Each scenario should define:
+```json
+{
+  "scenario_id": "neighbor_false_report_001",
+  "incident_type": "reported_armed_threat",
+  "truth_category": "deliberately_deceptive",
+  "actual_emergency": false,
+  "caller_goal": "get_police_sent_to_neighbor",
+  "caller_secret": "ongoing_neighbor_dispute",
+  "cover_story": "neighbor_has_weapon",
+  "personality_profile": "aggressive_manipulator",
+  "known_facts": [],
+  "false_claims": [],
+  "hidden_facts": [],
+  "contradiction_rules": [],
+  "disclosure_conditions": [],
+  "allowed_outcomes": []
+}
+```
+This is a proposed schema, not an existing repository contract.
+Extend the current complaint catalogue rather than replacing its existing entries wholesale.
+Personal disputes
+Neighbor conflicts, relationship arguments, property disagreements, workplace conflicts, family disputes.
+Criminal deception
+False accusations, attempts to redirect police, concealment of involvement, fabricated victimhood.
+Embarrassing emergencies
+Callers concealing personal circumstances, illegal activity, or socially embarrassing information.
+Mistaken emergencies
+Misinterpreted noises, misunderstandings, incorrect addresses, false assumptions.
+Genuine high-pressure emergencies
+Callers who are panicked, confused, injured, incoherent, or unable to cooperate.
+Absurd comedy
+Ridiculous complaints, bizarre demands, stubborn callers, misunderstandings, and escalating interpersonal arguments.
+Comedy should emerge from character behavior and circumstances rather than every caller behaving like a joke character.
+Separate three concerns.
+Owned by the Rust simulation.
+Contains actual truth, evidence, incident state, deadlines, and dispatch consequences.
+Never expose the entire authoritative scenario to joining clients.
+Contains the information the AI character may know or believe.
+This includes:
+- Personal background
+- Goals
+- Cover story
+- Allowed lies
+- Emotional state
+- Known facts
+- Hidden information
+- Recent conversation history
+- Permitted disclosures
+The AI may receive this limited private context.
+It should not receive unrelated future events, global scoring details, or authoritative information outside the character's knowledge.
+The AI produces a conversational response consistent with the caller's private knowledge and current psychological state.
+The response should sound natural, not like a game NPC reading structured metadata.
+Suggested output contract:
+```json
+{
+  "spoken_text": "Look, I told you what I saw!",
+  "emotion": "defensive",
+  "proposed_action": "answer",
+  "fact_references": [],
+  "call_complete": false,
+  "conversation_event": "evasive_response",
+  "requested_disclosure": null
+}
+```
+Extend the existing structured response contract rather than replacing it blindly.
+All new fields require strict validation.
+Critical distinction: An LLM-generated classification is a proposal, not authoritative proof that the player found a contradiction or persuaded someone.
+The simulation decides whether a recognized conversational action

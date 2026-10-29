@@ -585,3 +585,22 @@ fn repeat_variants_keep_caller_history_and_truth_fixed() {
     }
     assert_eq!(reports.len(), 3);
 }
+
+#[test]
+fn incident_timeout_keeps_answered_phone_until_dispatcher_hangs_up() {
+    let mut sim = Simulation::new(42);
+    accept(&mut sim, 1);
+    let deadline = sim.incidents()[&1].deadline;
+    sim.advance(deadline + 1).unwrap();
+    assert_eq!(sim.incidents()[&1].call, CallState::Answered { by: 1 });
+    let fact = sim.call_view(1).unwrap().questions[0].0.clone();
+    sim.apply(1, Command::Ask { incident: 1, fact }).unwrap();
+    let restored = Simulation::from_public_snapshot(sim.public_snapshot()).unwrap();
+    assert_eq!(restored.incidents()[&1].call, CallState::Answered { by: 1 });
+    assert_eq!(
+        Simulation::load_json(&sim.save_json().unwrap()).unwrap(),
+        sim
+    );
+    sim.apply(1, Command::EndCall { incident: 1 }).unwrap();
+    assert_eq!(sim.incidents()[&1].call, CallState::Closed);
+}

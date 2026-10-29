@@ -3,6 +3,7 @@ pub mod callers;
 pub mod catalogue;
 pub mod consequences;
 pub mod director;
+pub mod psychology;
 pub mod public;
 pub mod road_events;
 pub mod roads;
@@ -914,7 +915,10 @@ impl Simulation {
     ) {
         let i = self.incidents.get_mut(&id).unwrap();
         i.state = state;
-        i.call = CallState::Closed;
+        // Incident deadlines and responder completion do not terminate a live conversation.
+        if state == IncidentState::Dismissed || !matches!(i.call, CallState::Answered { .. }) {
+            i.call = CallState::Closed;
+        }
         self.score += score_delta;
         self.emit(EventKind::IncidentEnded {
             incident: id,
@@ -1008,9 +1012,6 @@ impl Simulation {
             }
             Command::Ask { incident, fact } => {
                 let i = self.incident(incident)?;
-                if i.state != IncidentState::Active {
-                    return Err(Error::IncidentClosed);
-                }
                 match i.call {
                     CallState::Answered { by } if by == player => {}
                     CallState::Answered { .. } => return Err(Error::NotCallOwner),
@@ -1421,7 +1422,7 @@ impl Simulation {
                 || (i.state == IncidentState::Pending && i.reported_at.is_some())
                 || (i.state == IncidentState::Active && i.deadline <= self.now)
                 || (!matches!(i.state, IncidentState::Active | IncidentState::Pending)
-                    && i.call != CallState::Closed)
+                    && !matches!(i.call, CallState::Closed | CallState::Answered { .. }))
                 || (i.state == IncidentState::Pending && i.call != CallState::Queued)
                 || (i.state != IncidentState::Pending && i.call == CallState::Queued)
                 || matches!(i.call, CallState::Answered {by} if !(1..=6).contains(&by))

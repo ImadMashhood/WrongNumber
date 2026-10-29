@@ -13,12 +13,13 @@ struct Provider {
     client: reqwest::blocking::Client,
     prices: [f64; 2],
 }
-fn schema(kind: TurnKind) -> serde_json::Value {
+fn schema(kind: TurnKind, allow_hangup: bool) -> serde_json::Value {
     let actions = match kind {
         TurnKind::Opening => vec!["Opening"],
-        TurnKind::Conversation => vec!["Answer", "Clarify", "Goodbye"],
+        TurnKind::Conversation if allow_hangup => vec!["Answer", "Clarify", "Goodbye"],
+        TurnKind::Conversation => vec!["Answer", "Clarify"],
     };
-    serde_json::json!({"type":"json_schema","json_schema":{"name":"caller_reply","strict":true,"schema":{"type":"object","additionalProperties":false,"required":["spoken_text","emotion","proposed_action","fact_references","call_complete"],"properties":{"spoken_text":{"type":"string"},"emotion":{"type":"string","enum":["Calm","Anxious","Confused","Dry"]},"proposed_action":{"type":"string","enum":actions},"fact_references":{"type":"array","items":{"type":"string"}},"call_complete":{"type":"boolean"}}}}})
+    serde_json::json!({"type":"json_schema","json_schema":{"name":"caller_reply","strict":true,"schema":{"type":"object","additionalProperties":false,"required":["spoken_text","emotion","proposed_action","fact_references","call_complete","behavior"],"properties":{"spoken_text":{"type":"string"},"emotion":{"type":"string","enum":["Calm","Anxious","Confused","Dry","Angry","Defensive","Embarrassed","Relieved","Panicked","Cooperative","Suspicious"]},"proposed_action":{"type":"string","enum":actions},"fact_references":{"type":"array","items":{"type":"string"}},"call_complete":{"type":"boolean","enum":if allow_hangup {vec![false,true]} else {vec![false]}},"behavior":{"type":"object","additionalProperties":false,"required":["event","quote","requested_disclosure"],"properties":{"event":{"type":["string","null"],"enum":[null,"Information","Clarification","Evidence","Contradiction","Accusation","Reassurance","Negotiation","Pressure","Threat","Trick","Irrelevant","Insult"]},"quote":{"type":["string","null"]},"requested_disclosure":{"type":["string","null"]}}}}}}})
 }
 impl Provider {
     fn respond(&self, c: &Context, mut reserve: impl FnMut() -> bool) -> Option<Reply> {
@@ -49,6 +50,8 @@ impl Provider {
         // The brief remains the first user message for strict fixture inspection.
         let mut brief = serde_json::to_value(c).ok()?;
         brief["history"] = serde_json::json!([]);
+        brief["question"] = serde_json::json!("");
+        brief.as_object_mut()?.remove("previous_reply_hashes");
         let mut messages = vec![
             serde_json::json!({"role":"system","content":system}),
             serde_json::json!({"role":"user","content":brief.to_string()}),
@@ -65,11 +68,11 @@ impl Provider {
         if rewrite {
             messages.push(serde_json::json!({"role":"system","content":"Your previous attempt duplicated earlier wording and was not delivered. Write a genuinely different in-character response to the latest dispatcher message. Change the conversational move, not just the first two words. Acknowledge frustration, explain a misunderstanding, ask one useful question, or establish a personal boundary as appropriate. Preserve all incident facts. Return the required JSON."}));
         }
-        let mut body = serde_json::json!({"model":self.model,"messages":messages,"max_tokens":256,"temperature":0.85,"response_format":schema(c.kind),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
+        let mut body = serde_json::json!({"model":self.model,"messages":messages,"max_tokens":256,"temperature":0.85,"response_format":schema(c.kind, c.allow_hangup),"provider":{"require_parameters":true,"max_price":{"prompt":self.prices[0],"completion":self.prices[1]}},"stream":false});
         if !self.endpoint.starts_with("https://openrouter.ai/") {
             body.as_object_mut()?.remove("provider");
         }
-        if serde_json::to_vec(&body).ok()?.len() > 32_000 {
+        if serde_json::to_vec(&body).ok()?.len() > 48_000 {
             return None;
         }
         let response = self
@@ -189,11 +192,12 @@ fn main() {
         std::thread::spawn(move || {
             let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
             let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
-            let read = read_frame(&mut stream, 20_000, Duration::from_secs(2));
+            let read = read_frame(&mut stream, 32_000, Duration::from_secs(2));
             if let Ok(line) = read
                 && let Ok(c) = serde_json::from_slice::<Context>(&line)
                 && valid_context(&c)
             {
+                let denied = std::cell::Cell::new(None);
                 let reserve = || {
                     let mut l = limits.lock().unwrap();
                     if l.0.elapsed() >= Duration::from_secs(60) {
@@ -201,6 +205,13 @@ fn main() {
                         l.1 = 0;
                     }
                     let allowed = l.1 < 30 && l.2 < max;
+                    if !allowed {
+                        denied.set(Some(if l.2 >= max {
+                            "request_budget"
+                        } else {
+                            "rate_limit"
+                        }));
+                    }
                     if allowed {
                         l.1 += 1;
                         l.2 += 1;
@@ -214,6 +225,16 @@ fn main() {
                         source: "provider".into(),
                     };
                     let mut bytes = serde_json::to_vec(&response).unwrap();
+                    bytes.push(b'\n');
+                    let _ = stream.write_all(&bytes);
+                } else {
+                    let code = denied.get().unwrap_or(if provider.is_none() {
+                        "unavailable"
+                    } else {
+                        "provider_failure"
+                    });
+                    eprintln!("Caller request failed: {code}");
+                    let mut bytes = serde_json::to_vec(&serde_json::json!({"error":code})).unwrap();
                     bytes.push(b'\n');
                     let _ = stream.write_all(&bytes);
                 }
@@ -249,8 +270,12 @@ mod tests {
             let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
             assert_eq!(body["max_tokens"], 256);
             assert_eq!(body["response_format"]["type"], "json_schema");
-            let c: Context =
+            let mut c: Context =
                 serde_json::from_str(body["messages"][1]["content"].as_str().unwrap()).unwrap();
+            c.question = body["messages"].as_array().unwrap().last().unwrap()["content"]
+                .as_str()
+                .unwrap()
+                .into();
             let mut reply = fixture_reply(&c);
             if bad {
                 reply.fact_references = vec!["invented_unavailable_fact".into()];
@@ -278,6 +303,7 @@ mod tests {
     }
     fn context() -> Context {
         Context {
+            allow_hangup: false,
             previous_reply_hashes: vec![],
             version: VERSION,
             kind: TurnKind::Conversation,

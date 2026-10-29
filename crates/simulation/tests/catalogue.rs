@@ -68,6 +68,8 @@ fn caller_private_brief_stays_off_public_wire_and_in_authority_saves() {
         !public.contains("false_report")
             && !public.contains("caller_private")
             && !public.contains("catalogue_id")
+            && !public.contains("psychology")
+            && !public.contains("trust_required")
     );
     let resumed = Simulation::load_json(&s.save_json().unwrap()).unwrap();
     assert_eq!(resumed, s);

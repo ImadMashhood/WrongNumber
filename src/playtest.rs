@@ -236,6 +236,10 @@ pub fn automate(
                 assert_eq!(game.selected, id);
                 click(&mut commands, &buttons, Action::Answer);
             } else if let Some(id) = game.conversation {
+                if game.sim.incidents()[&id].state != wrong_number_sim::IncidentState::Active {
+                    click(&mut commands, &buttons, Action::HangUp);
+                    return;
+                }
                 let view = game.sim.call_view(id).unwrap();
                 if view.facts.is_empty() {
                     let fact = [
