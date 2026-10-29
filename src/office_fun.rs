@@ -40,6 +40,8 @@ pub struct Doll {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Playground {
     pub props: Vec<Prop>,
+    #[serde(default)]
+    pub staff: crate::environment::people::StaffCrowd,
     pub dolls: BTreeMap<u8, Doll>,
     pub immunity: BTreeMap<u8, f32>,
     #[serde(skip)]
@@ -48,6 +50,7 @@ pub struct Playground {
 impl Default for Playground {
     fn default() -> Self {
         Self {
+            staff: Default::default(),
             props: [
                 (0, Vec3::new(10.4, 0.38, 5.65)),
                 (0, Vec3::new(-7.75, 0.38, 4.8)),
@@ -194,7 +197,19 @@ impl Playground {
         self.accumulator += seconds.min(0.1);
         while self.accumulator >= STEP {
             self.accumulator -= STEP;
-            self.step(players, phase);
+            self.staff.step(STEP, &self.dolls);
+            let mut bodies = players.to_vec();
+            bodies.extend(self.staff.members.iter().enumerate().map(|(i, s)| {
+                (
+                    100 + i as u8,
+                    Pose {
+                        position: [s.position.x, 1.65, s.position.z],
+                        yaw: s.yaw,
+                        pitch: 0.0,
+                    },
+                )
+            }));
+            self.step(&bodies, phase);
         }
     }
     fn step(&mut self, players: &[(u8, Pose)], phase: Phase) {
@@ -367,6 +382,7 @@ mod tests {
     #[test]
     fn throw_hits_recovers_and_does_not_chain_stun() {
         let mut toys = Playground::default();
+        toys.staff.members.clear(); // Isolate player-versus-player physics.
         let a = pose(0.0, 5.0);
         let b = pose(0.0, 3.0);
         toys.props[0].held = Some(1);

@@ -198,7 +198,9 @@ pub fn validate(c: &Context, r: &Reply) -> bool {
         Proposal::Clarify => {
             c.kind == TurnKind::Conversation && !r.call_complete && refs.is_empty()
         }
-        Proposal::Goodbye => c.kind == TurnKind::Conversation && r.call_complete && refs.is_empty(),
+        Proposal::Goodbye => {
+            c.allow_hangup && c.kind == TurnKind::Conversation && r.call_complete && refs.is_empty()
+        }
     }
 }
 pub fn fixture_reply(c: &Context) -> Reply {
@@ -291,7 +293,7 @@ pub fn fixture_reply(c: &Context) -> Reply {
                 .iter()
                 .any(|w| q.contains(w))
         });
-    if bye {
+    if bye && c.allow_hangup {
         Reply {
             spoken_text: GOODBYE.into(),
             emotion: Emotion::Calm,

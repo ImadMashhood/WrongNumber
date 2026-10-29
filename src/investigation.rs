@@ -169,7 +169,6 @@ pub struct State {
     pub verified_contradiction: bool,
     seen: BTreeSet<u64>,
     interpreted: BTreeSet<u64>,
-    pub hangup_at: Option<u32>,
     pub boundary_warned: bool,
 }
 impl State {
@@ -199,7 +198,6 @@ impl State {
             verified_contradiction: false,
             seen: BTreeSet::new(),
             interpreted: BTreeSet::new(),
-            hangup_at: None,
             boundary_warned: false,
         }
     }
@@ -291,11 +289,7 @@ impl State {
         self.profile.hidden_fact.as_deref() != Some(fact) || self.unlocked.contains(fact)
     }
     pub fn can_hang_up(&self) -> bool {
-        self.profile.pattern.can_refuse
-            && self.boundary_warned
-            && self.insults >= 3
-            && self.trust <= 25
-            && self.cooperation <= 25
+        false // Only the dispatcher ends the line (user policy).
     }
     pub fn brief(&self, memory: Option<&Memory>) -> String {
         let conceal = self.profile.cover_fact.is_some()
@@ -338,8 +332,7 @@ impl crate::game::Session {
         state.consider_proposal(&reply.behavior, &context.question);
         if state.insults >= 2 && !state.boundary_warned {
             state.boundary_warned = true;
-            self.notice =
-                "Caller boundary: continued abuse may cause them to end this call.".into();
+            self.notice = "Caller is upset; their cooperation may suffer.".into();
         }
         let conversation = self.dialogue.conversations.entry(id).or_default();
         let turn = conversation.turns.len() as u32 + 1;
@@ -586,7 +579,7 @@ mod tests {
         s.observe("Shut up moron");
         s.observe("Fuck you");
         s.boundary_warned = true;
-        assert!(s.can_hang_up());
+        assert!(!s.can_hang_up());
         assert!(!s.verified_contradiction);
     }
 }

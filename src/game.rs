@@ -494,7 +494,7 @@ impl Session {
                     self.conversation = Some(self.selected);
                     self.ringing = None;
                     if self.dialogue.service.is_none() && !self.dialogue.fixture {
-                        self.drop_caller(
+                        self.caller_service_error(
                             self.selected,
                             self.local_player,
                             "No AI service configured on the host.",
@@ -502,7 +502,7 @@ impl Session {
                     } else if !self.dialogue.fixture
                         && let Err(e) = self.opening(self.selected)
                     {
-                        self.drop_caller(self.selected, self.local_player, &e);
+                        self.caller_service_error(self.selected, self.local_player, &e);
                     }
                 }
             }

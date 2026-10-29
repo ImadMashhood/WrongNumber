@@ -54,7 +54,7 @@ fn unrelated_instructions_clarify_and_goodbye_cannot_end_an_incident() {
     assert!(validate(&c, &r));
     c.question = "goodbye".into();
     let r = fixture_reply(&c);
-    assert_eq!(r.proposed_action, Proposal::Goodbye);
+    assert_eq!(r.proposed_action, Proposal::Clarify);
     assert!(validate(&c, &r));
 }
 #[test]

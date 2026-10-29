@@ -285,26 +285,6 @@ impl Session {
         Ok(())
     }
     pub fn poll_dialogue(&mut self) {
-        let ended: Vec<_> = self
-            .dialogue
-            .psychology
-            .iter()
-            .filter(|(_, s)| s.hangup_at.is_some_and(|at| self.sim.now() >= at))
-            .map(|(id, _)| *id)
-            .collect();
-        for id in ended {
-            self.dialogue.psychology.get_mut(&id).unwrap().hangup_at = None;
-            if let Some(i) = self.sim.incidents().get(&id)
-                && let CallState::Answered { by } = i.call
-            {
-                self.drop_caller(
-                    id,
-                    by,
-                    "Caller ended the call after repeated abuse and a boundary warning.",
-                );
-            }
-        }
-
         let completed: Vec<_> = self.dialogue.rx.lock().unwrap().try_iter().collect();
         for result in completed {
             if self
@@ -368,11 +348,11 @@ impl Session {
                 (r.reply, r.source)
             }
             Err(reason) => {
-                self.drop_caller(id, p.player, &reason);
+                self.caller_service_error(id, p.player, &reason);
                 return;
             }
             _ => {
-                self.drop_caller(
+                self.caller_service_error(
                     id,
                     p.player,
                     "AI provider returned an invalid or repeated response.",
@@ -382,15 +362,6 @@ impl Session {
         };
         self.apply_reply(id, p.player, &p.context, &reply);
         self.record_investigation(id, p.player, &p.context, &reply);
-        if reply.call_complete
-            && p.context.allow_hangup
-            && let Some(state) = self.dialogue.psychology.get_mut(&id)
-        {
-            state.hangup_at = Some(
-                self.sim.now()
-                    + ((reply.spoken_text.split_whitespace().count() as u32 / 2) + 3).clamp(8, 25),
-            );
-        }
         let c = self.dialogue.conversations.entry(id).or_default();
         c.diagnostic = format!("{source} | {elapsed} ms | {:?}", reply.emotion);
         c.turns.push(Turn {
@@ -403,26 +374,18 @@ impl Session {
         });
         self.dirty = true;
     }
-    pub fn drop_caller(&mut self, id: u32, player: u8, reason: &str) {
+    pub fn caller_service_error(&mut self, id: u32, player: u8, reason: &str) {
         self.dialogue.cancel(player, id);
-        if self
-            .sim
-            .incidents()
-            .get(&id)
-            .is_some_and(|i| i.call == CallState::Answered { by: player })
-        {
-            let _ = self.sim.apply(player, Command::EndCall { incident: id });
-        }
-        let diagnostic = format!("Caller disconnected: {reason}");
+        let diagnostic = format!(
+            "Caller service interrupted: {reason}. Line stays open; speak or type to retry."
+        );
         self.dialogue
             .conversations
             .entry(id)
             .or_default()
             .diagnostic = diagnostic.clone();
         let mut desk = self.desk(player);
-        desk.conversation = None;
-        desk.ringing = None;
-        desk.call_station = None;
+
         desk.notice = diagnostic;
         if player == self.local_player {
             self.load_desk(player, desk);
@@ -602,7 +565,7 @@ mod tests {
         assert!(s.sim.call_view(1).unwrap().facts.is_empty());
     }
     #[test]
-    fn unavailable_service_drops_the_caller_and_does_not_block_the_clock() {
+    fn unavailable_service_keeps_line_open_and_does_not_block_the_clock() {
         let mut s = answered();
         s.dialogue.service = Some("127.0.0.1:1".parse().unwrap());
         let at = Instant::now();
@@ -616,12 +579,12 @@ mod tests {
         assert!(
             s.dialogue.conversations[&1]
                 .diagnostic
-                .contains("disconnected")
+                .contains("interrupted")
         );
-        assert_eq!(s.conversation, None);
+        assert_eq!(s.conversation, Some(1));
     }
     #[test]
-    fn hung_response_drops_the_caller_and_limits_are_enforced() {
+    fn hung_response_keeps_line_open_and_limits_are_enforced() {
         let mut s = answered();
         assert!(s.talk(2, "what happened".into()).is_err());
         assert!(s.talk(1, "x".repeat(1025)).is_err());
@@ -644,9 +607,9 @@ mod tests {
         assert!(
             s.dialogue.conversations[&1]
                 .diagnostic
-                .contains("disconnected")
+                .contains("interrupted")
         );
-        assert_eq!(s.conversation, None);
+        assert_eq!(s.conversation, Some(1));
     }
 }
 #[cfg(test)]
@@ -654,21 +617,24 @@ mod required_service_tests {
     use super::*;
     use crate::game::Action;
     #[test]
-    fn normal_call_without_ai_disconnects_and_preserves_the_incident() {
+    fn normal_call_without_ai_stays_open_and_preserves_the_incident() {
         let mut s = Session::default();
         s.dialogue.fixture = false;
         s.act(Action::Sit(0));
         s.tick(10.0);
         s.act(Action::OpenDesk);
         s.act(Action::Answer);
-        assert_eq!(s.conversation, None);
-        assert_eq!(s.sim.call_view(1).unwrap().call, CallState::Closed);
+        assert_eq!(s.conversation, Some(1));
+        assert_eq!(
+            s.sim.call_view(1).unwrap().call,
+            CallState::Answered { by: 1 }
+        );
         assert!(s.sim.call_view(1).unwrap().facts.is_empty());
         assert_eq!(
             s.sim.incidents()[&1].state,
             wrong_number_sim::IncidentState::Active
         );
-        assert!(s.notice.contains("disconnected"));
+        assert!(s.notice.contains("interrupted"));
         assert_eq!(s.sim.score(), 0);
     }
     #[test]
@@ -681,7 +647,7 @@ mod required_service_tests {
         s.dialogue.fixture = false;
         s.act(Action::Ask("smoke".into()));
         assert!(s.sim.call_view(1).unwrap().facts.is_empty());
-        assert_eq!(s.conversation, None);
+        assert_eq!(s.conversation, Some(1));
         assert_eq!(s.dialogue.conversations[&1].turns.len(), 1);
     }
 }

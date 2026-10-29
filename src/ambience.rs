@@ -43,6 +43,7 @@ pub fn update(
     for (ambient, mut sink) in &mut sinks {
         let target = prefs.ambient_volume
             * duck
+            * 0.06
             * if ambient.0 {
                 break_mix
             } else {
@@ -59,43 +60,36 @@ pub fn update(
 pub struct CityBed;
 #[derive(Component)]
 pub struct Engine;
-/// Original synthesized ambience, generated locally; never contains caller dialogue.
-fn sound(engine: bool) -> Vec<u8> {
+/// Short telephone/horn tones only. Street/engine beds use licensed recordings.
+fn tone(horn: bool) -> Vec<u8> {
     let rate = 16000u32;
-    let count = rate * 16;
-    let mut samples = Vec::with_capacity(count as usize * 2);
-    let mut seed = 13u32;
-    let mut low = 0.0f32;
+    let count = rate * 3;
+    let mut samples = Vec::new();
     for i in 0..count {
         let t = i as f32 / rate as f32;
-        seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
-        let noise = (seed >> 8) as f32 / 8388608.0 - 1.0;
-        low = low * 0.97 + noise * 0.03;
-        let fade = (t / 0.1).min(1.0) * ((16.0 - t) / 0.1).min(1.0);
-        let wave = if engine {
-            0.10 * (t * std::f32::consts::TAU * 76.0).sin()
-                + 0.05 * (t * std::f32::consts::TAU * 114.0).sin()
-                + low * 0.6
-                + noise * 0.035
+        let burst = if horn {
+            t < 0.32 || (0.50..0.75).contains(&t)
         } else {
-            let passing = (0.5 + 0.5 * (t * std::f32::consts::TAU / 8.0).cos()).powi(3);
-            let horn = if (6.0..6.4).contains(&t) {
-                ((t - 6.0) / 0.04).min(1.0)
-                    * ((6.4 - t) / 0.05).min(1.0)
-                    * (t * std::f32::consts::TAU * 330.0).sin()
-                    * 0.035
-            } else {
-                0.0
-            };
-            low * (0.7 + passing * 0.5) + noise * 0.025 + horn
+            t % 1.5 < 0.7
         };
-        samples.extend_from_slice(
-            &((wave * fade * if engine { 2.2 } else { 3.0 } * 32767.0).clamp(-32767.0, 32767.0)
-                as i16)
-                .to_le_bytes(),
-        );
+        let freq = if horn { 310.0 } else { 620.0 };
+        let (local, length) = if horn {
+            if t < 0.5 { (t, 0.32) } else { (t - 0.5, 0.25) }
+        } else {
+            (t % 1.5, 0.7)
+        };
+        let envelope = (local / 0.02).clamp(0.0, 1.0) * ((length - local) / 0.02).clamp(0.0, 1.0);
+        let wave = if burst {
+            ((t * std::f32::consts::TAU * freq).sin()
+                + (t * std::f32::consts::TAU * (freq * 1.25)).sin())
+                * 0.14
+                * envelope
+        } else {
+            0.0
+        };
+        samples.extend_from_slice(&((wave * 32767.0) as i16).to_le_bytes());
     }
-    let mut wav = vec![];
+    let mut wav = Vec::new();
     wav.extend(b"RIFF");
     wav.extend((36 + samples.len() as u32).to_le_bytes());
     wav.extend(b"WAVEfmt ");
@@ -111,20 +105,45 @@ fn sound(engine: bool) -> Vec<u8> {
     wav.extend(samples);
     wav
 }
+#[derive(Resource)]
+pub struct CityEvents {
+    ring: Handle<AudioSource>,
+    horn: Handle<AudioSource>,
+    next: f32,
+    rng: u32,
+}
+#[derive(Component)]
+pub struct CityEvent(bool);
+pub fn window_gain(p: Vec3) -> f32 {
+    let distance = (p.x + 9.0).abs().min((p.z + 7.0).abs());
+    0.35 + 0.65 * (1.0 - distance / 5.0).clamp(0.0, 1.0)
+}
 pub fn city_setup(
     mut commands: Commands,
     mut sources: ResMut<Assets<AudioSource>>,
+    assets: Res<AssetServer>,
     cars: Query<Entity, With<crate::environment::street::Traffic>>,
     check: Res<crate::playtest::LaunchCheck>,
 ) {
     if check.automated() && !std::env::args().any(|a| a == "--audible-test") {
         return;
     }
-    let bed = sources.add(AudioSource {
-        bytes: sound(false).into(),
+    let bed = assets.load("audio/street-muffled.wav");
+    let engine = assets.load("audio/car-engine.wav");
+    let ring = sources.add(AudioSource {
+        bytes: tone(false).into(),
     });
-    let engine = sources.add(AudioSource {
-        bytes: sound(true).into(),
+    let horn = sources.add(AudioSource {
+        bytes: tone(true).into(),
+    });
+    commands.insert_resource(CityEvents {
+        ring,
+        horn,
+        next: if check.automated() { 1.0 } else { 18.0 },
+        rng: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as u32,
     });
     commands.spawn((
         CityBed,
@@ -144,11 +163,15 @@ pub fn city_setup(
 }
 #[allow(clippy::too_many_arguments)]
 pub fn city_update(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut events: Option<ResMut<CityEvents>>,
+    mut event_sinks: Query<(&CityEvent, &mut AudioSink), Without<CityBed>>,
     prefs: Res<crate::frontend::Preferences>,
     menu: Res<crate::frontend::Frontend>,
     voice: Res<crate::voice::Voice>,
     player: Single<&Transform, With<crate::world::Player>>,
-    mut bed: Query<&mut AudioSink, With<CityBed>>,
+    mut bed: Query<&mut AudioSink, (With<CityBed>, Without<CityEvent>)>,
     mut cars: Query<(&Transform, &mut SpatialAudioSink), With<Engine>>,
 ) {
     let duck = if menu.visible || voice.recording || std::env::args().any(|a| a == "--mute") {
@@ -158,16 +181,38 @@ pub fn city_update(
     } else {
         1.0
     };
-    let near_window =
-        ((8.5 - player.translation.x.abs()).min(player.translation.z + 7.0) / 6.0).clamp(0.0, 1.0);
-    let level = prefs.ambient_volume * duck * (1.0 - near_window * 0.75);
+    let level = prefs.ambient_volume * duck * window_gain(player.translation);
+    for (event, mut sink) in &mut event_sinks {
+        sink.set_volume(Volume::Linear(if event.0 {
+            level * 0.5
+        } else {
+            prefs.ambient_volume * duck * 0.35
+        }));
+    }
+    if let Some(events) = events.as_mut() {
+        events.next -= time.delta_secs();
+        if events.next <= 0.0 && duck > 0.0 {
+            events.rng = events.rng.wrapping_mul(1664525).wrapping_add(1013904223);
+            let horn = events.rng.is_multiple_of(3);
+            commands.spawn((
+                CityEvent(horn),
+                AudioPlayer::new(if horn {
+                    events.horn.clone()
+                } else {
+                    events.ring.clone()
+                }),
+                PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.0)),
+            ));
+            events.next = 18.0 + (events.rng % 31) as f32;
+        }
+    }
     for mut sink in &mut bed {
-        sink.set_volume(Volume::Linear(level * 0.6));
+        sink.set_volume(Volume::Linear(level * 0.8));
     }
     for (pose, mut sink) in &mut cars {
         let d = pose.translation.distance(player.translation);
         sink.set_volume(Volume::Linear(if d < 35.0 {
-            level * 0.6 * (1.0 - d / 35.0)
+            level * 0.8 * (1.0 - d / 35.0)
         } else {
             0.0
         }));
@@ -177,20 +222,10 @@ pub fn city_update(
 mod tests {
     use super::*;
     #[test]
-    fn generated_city_audio_has_valid_duration_and_audible_samples() {
-        for engine in [false, true] {
-            let bytes = sound(engine);
-            assert_eq!(&bytes[..4], b"RIFF");
-            assert_eq!(bytes.len(), 44 + 16000 * 16 * 2);
-            let samples: Vec<_> = bytes[44..]
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|b| i16::from_le_bytes([b[0], b[1]]) as f64 / 32768.0)
-                .collect();
-            let rms = (samples.iter().map(|x| x * x).sum::<f64>() / samples.len() as f64).sqrt();
-            assert!((0.05..0.5).contains(&rms), "rms={rms}");
-            assert!(samples.iter().all(|x| x.abs() < 1.0));
+    fn window_gain_is_bounded_and_nearer_is_louder() {
+        assert!(window_gain(Vec3::new(-8.4, 1.6, 0.0)) > window_gain(Vec3::new(0.0, 1.6, 0.0)));
+        for x in -8..14 {
+            assert!((0.35..=1.0).contains(&window_gain(Vec3::new(x as f32, 1.6, 0.0))));
         }
     }
 }

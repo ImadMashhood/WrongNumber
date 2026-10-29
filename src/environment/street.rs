@@ -112,90 +112,168 @@ fn building(b: &mut Builder, center: Vec2, size: Vec2, height: f32, detailed: bo
         }
     }
 }
-pub fn build(b: &mut Builder) {
+pub const GRID: [f32; 4] = [-66.0, -14.0, 38.0, 90.0];
+fn street_lamp(b: &mut Builder, p: Vec3) {
+    b.block(Paint::Metal, p + Vec3::Y * 2.7, Vec3::new(0.12, 5.4, 0.12));
     b.block(
-        Paint::Green,
-        Vec3::new(0.0, ROAD_Y - 0.18, 0.0),
-        Vec3::new(340.0, 0.2, 340.0),
+        Paint::Metal,
+        p + Vec3::new(0.45, 5.35, 0.0),
+        Vec3::new(1.0, 0.12, 0.15),
     );
-    for cross in [false, true] {
-        for edge in [-14.0, 38.0] {
-            let pos = |a, y, c| {
-                if cross {
-                    Vec3::new(a, y, c)
+    b.block(
+        Paint::Warm,
+        p + Vec3::new(0.9, 5.25, 0.0),
+        Vec3::new(0.65, 0.10, 0.4),
+    );
+}
+pub fn build(b: &mut Builder) {
+    // Roads define the grid first. Every building lot is inset from these corridors.
+    b.block(
+        Paint::Floor,
+        Vec3::new(12.0, ROAD_Y - 0.25, 12.0),
+        Vec3::new(220.0, 0.3, 220.0),
+    );
+    for axis in [false, true] {
+        for road in GRID {
+            let place = |along, height, across| {
+                if axis {
+                    Vec3::new(along, height, across)
                 } else {
-                    Vec3::new(c, y, a)
+                    Vec3::new(across, height, along)
+                }
+            };
+            let size = |length, width| {
+                if axis {
+                    Vec3::new(length, 0.02, width)
+                } else {
+                    Vec3::new(width, 0.02, length)
                 }
             };
             b.block(
                 Paint::Plastic,
-                pos(12.0, ROAD_Y - 0.10, edge),
-                if cross {
-                    Vec3::new(60.0, 0.2, 8.0)
-                } else {
-                    Vec3::new(8.0, 0.2, 60.0)
-                },
+                place(12.0, ROAD_Y - 0.01, road),
+                size(164.0, 8.0),
             );
-            for curb in [edge - 5.5, edge + 5.5] {
-                b.block(
-                    Paint::Cream,
-                    pos(12.0, ROAD_Y + 0.07, curb),
-                    if cross {
-                        Vec3::new(52.0, 0.14, 3.0)
-                    } else {
-                        Vec3::new(3.0, 0.14, 52.0)
-                    },
-                );
-            }
-            for i in 0..13 {
-                b.block(
-                    Paint::Paper,
-                    pos(-10.0 + i as f32 * 3.6, ROAD_Y + 0.006, edge),
-                    if cross {
-                        Vec3::new(1.8, 0.008, 0.07)
-                    } else {
-                        Vec3::new(0.07, 0.008, 1.8)
-                    },
-                );
+            for n in 0..77 {
+                let at = -64.0 + n as f32 * 2.0;
+                if GRID.iter().all(|cross| (at - cross).abs() > 5.0) {
+                    b.block(
+                        Paint::Cream,
+                        place(at, ROAD_Y + 0.004, road),
+                        Vec3::new(
+                            if axis { 1.1 } else { 0.08 },
+                            0.006,
+                            if axis { 0.08 } else { 1.1 },
+                        ),
+                    );
+                }
             }
         }
     }
-    // Sidewalks meet the four corners; striping stays on the asphalt surface.
-    for x in [-14.0, 38.0] {
-        for z in [-14.0, 38.0] {
+    for x in [-40.0, 12.0, 64.0] {
+        for z in [-40.0, 12.0, 64.0] {
+            // Raised continuous pavement surrounds each city block, never crosses a road.
             b.block(
-                Paint::Plastic,
-                Vec3::new(x, ROAD_Y - 0.1, z),
-                Vec3::new(8.0, 0.2, 8.0),
+                Paint::Cream,
+                Vec3::new(x, ROAD_Y + 0.07, z),
+                Vec3::new(44.0, 0.14, 44.0),
             );
+            if x == 12.0 && z == 12.0 {
+                building(b, Vec2::new(24.0, 12.0), Vec2::new(12.0, 36.0), 22.0, true);
+                building(b, Vec2::new(2.0, 23.0), Vec2::new(24.0, 14.0), 17.0, true);
+            } else {
+                building(
+                    b,
+                    Vec2::new(x, z),
+                    Vec2::splat(38.0),
+                    22.0 + ((x as i32 + z as i32).unsigned_abs() % 12) as f32,
+                    x < 20.0 && z < 20.0,
+                );
+            }
+            for side in [-1.0, 1.0] {
+                street_lamp(b, Vec3::new(x + side * 20.0, ROAD_Y + 0.14, z - 20.0));
+                street_lamp(b, Vec3::new(x + side * 20.0, ROAD_Y + 0.14, z + 20.0));
+            }
         }
     }
-    building(b, Vec2::new(-28.0, 11.0), Vec2::new(14.0, 38.0), 24.0, true);
-    building(b, Vec2::new(11.0, -28.0), Vec2::new(38.0, 14.0), 27.0, true);
-    building(b, Vec2::new(23.0, 18.0), Vec2::new(16.0, 24.0), 18.0, true);
-    building(b, Vec2::new(-28.0, -28.0), Vec2::splat(14.0), 30.0, false);
-    for x in [-75.0, -51.0, 55.0, 79.0] {
-        for z in [-75.0, -51.0, -25.0, 1.0, 27.0, 55.0, 79.0] {
-            building(
-                b,
-                Vec2::new(x, z),
-                Vec2::new(17.0, 18.0),
-                18.0 + ((x as i32 + z as i32).unsigned_abs() % 17) as f32,
-                false,
-            );
+    // Zebra crossings terminate on curb corners; road markings lie flush with asphalt.
+    for x in GRID {
+        for z in GRID {
+            for side in [-1.0, 1.0] {
+                for stripe in 0..7 {
+                    let across = -3.0 + stripe as f32;
+                    b.block(
+                        Paint::Paper,
+                        Vec3::new(x + across, ROAD_Y + 0.007, z + side * 5.2),
+                        Vec3::new(0.5, 0.008, 1.6),
+                    );
+                    b.block(
+                        Paint::Paper,
+                        Vec3::new(x + side * 5.2, ROAD_Y + 0.007, z + across),
+                        Vec3::new(1.6, 0.008, 0.5),
+                    );
+                }
+            }
         }
     }
-    for z in [-55.0, 55.0, 80.0] {
-        for x in [-25.0, 0.0, 25.0] {
-            building(
-                b,
-                Vec2::new(x, z),
-                Vec2::new(18.0, 17.0),
-                24.0 + ((x as i32).unsigned_abs() % 13) as f32,
-                false,
-            );
-        }
+    for z in [-2.0, 21.0] {
+        let x = -20.5;
+        b.round(
+            Paint::Metal,
+            Vec3::new(x, ROAD_Y + 0.65, z),
+            Vec3::new(0.65, 1.0, 0.65),
+        );
+        b.round(
+            Paint::Plastic,
+            Vec3::new(x, ROAD_Y + 1.17, z),
+            Vec3::new(0.72, 0.08, 0.72),
+        );
+        b.block(
+            Paint::Metal,
+            Vec3::new(x, ROAD_Y + 1.2, z + 4.0),
+            Vec3::new(0.07, 2.1, 0.07),
+        );
+        b.block(
+            Paint::Cool,
+            Vec3::new(x, ROAD_Y + 2.1, z + 4.0),
+            Vec3::new(0.12, 0.65, 0.55),
+        );
     }
+    // Bus shelter, glazed back, bench, timetable and shelter roof, all on pavement.
+    for z in [8.0, 12.0] {
+        b.block(
+            Paint::Metal,
+            Vec3::new(-20.6, ROAD_Y + 1.5, z),
+            Vec3::new(0.09, 2.7, 0.09),
+        );
+    }
+    b.block(
+        Paint::Glass,
+        Vec3::new(-20.6, ROAD_Y + 1.5, 10.0),
+        Vec3::new(0.04, 2.5, 4.0),
+    );
+    b.block(
+        Paint::Metal,
+        Vec3::new(-19.7, ROAD_Y + 2.9, 10.0),
+        Vec3::new(2.0, 0.15, 4.5),
+    );
+    b.block(
+        Paint::Wood,
+        Vec3::new(-20.1, ROAD_Y + 0.65, 10.0),
+        Vec3::new(0.55, 0.12, 2.9),
+    );
+    for z in [9.0, 11.0] {
+        b.block(
+            Paint::Metal,
+            Vec3::new(-20.1, ROAD_Y + 0.39, z),
+            Vec3::new(0.13, 0.5, 0.16),
+        );
+    }
+    b.block(
+        Paint::Paper,
+        Vec3::new(-20.55, ROAD_Y + 1.8, 11.5),
+        Vec3::new(0.06, 0.65, 0.4),
+    );
     // Supported, alternating stairs and landings on the nearest facade.
     for level in 0..6 {
         let y = ROAD_Y + 3.0 + level as f32 * 3.0;
@@ -475,6 +553,8 @@ pub fn preview(
             Transform::from_xyz(-11.0, 8.0, 14.0).looking_at(Vec3::new(-19.0, -1.0, 0.0), Vec3::Y)
         } else if n < 300 {
             Transform::from_xyz(-10.0, 3.0, -9.0).looking_at(Vec3::new(-32.0, 40.0, -36.0), Vec3::Y)
+        } else if n < 330 {
+            Transform::from_xyz(58.0, 95.0, 65.0).looking_at(Vec3::new(5.0, -8.0, 5.0), Vec3::Y)
         } else {
             Transform::from_xyz(0.0, 2.0, 2.7).looking_at(Vec3::new(-0.7, 1.0, 0.0), Vec3::Y)
         };
@@ -483,6 +563,7 @@ pub fn preview(
             130 => "window-depth",
             200 => "street-life",
             280 => "sky-clouds",
+            320 => "street-grid",
             350 => "desk-detail",
             _ => return,
         };

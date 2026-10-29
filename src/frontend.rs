@@ -838,6 +838,7 @@ pub fn draw(
     .with_children(|p| {
         text(p, "WRONG NUMBER", 42.0, white);
         text(p, "DISPATCH OPERATIONS  /  EVERY CALL IS A DECISION", 14.0, muted);
+        text(p, "Sound effects: Eric Matyas — www.soundimage.org | Engines: domasx2 (CC0)", 12.0, muted);
         p.spawn(Node { flex_grow: 1.0, min_height: px(0), column_gap: px(28), ..default() }).with_children(|p| {
             p.spawn(Node { width: percent(if menu.page == Page::Settings { 50.0 } else { 52.0 }), flex_direction: FlexDirection::Column, overflow: Overflow::scroll_y(), min_height: px(0), row_gap: px(7), padding: UiRect::all(px(16)), ..default() }).with_children(|p| {
                 match menu.page {

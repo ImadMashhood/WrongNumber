@@ -91,7 +91,7 @@ pub fn setup(
                 }
             });
     }
-    for owner in 1..=6 {
+    for owner in (1..=6).chain(100..105) {
         let skin = materials.add(crate::peers::skin_color(owner));
         let uniform = materials.add(crate::peers::shirt_color(owner));
         for index in 0..=LINKS.len() {
@@ -211,7 +211,7 @@ pub fn preview(
     };
     if n == 210 {
         game.fun.dolls.insert(
-            1,
+            100,
             crate::office_fun::Doll::new(
                 crate::room::Pose {
                     position: [0.0, 1.65, 3.0],

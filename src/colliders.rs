@@ -28,7 +28,7 @@ pub fn furniture() -> &'static [BoxShape] {
                 half: s * 0.5,
             })
         };
-        for z in [0.0, -3.5] {
+        for z in [0.0, crate::environment::people::ROW_Z] {
             add(Vec3::new(0.0, 0.84, z), Vec3::new(12.9, 0.16, 1.45));
             for (index, x) in crate::world::SEATS.into_iter().enumerate() {
                 add(Vec3::new(x, 1.4, z - 0.39), Vec3::new(1.13, 0.74, 0.13));
@@ -43,7 +43,10 @@ pub fn furniture() -> &'static [BoxShape] {
                         Vec3::new(0.43, 0.78, 0.36),
                     );
                 }
-                add(Vec3::new(x, 0.72, z + 1.7), Vec3::new(0.7, 1.2, 0.65));
+                add(
+                    Vec3::new(x, 0.72, z + if z == 0.0 { 1.7 } else { 1.05 }),
+                    Vec3::new(0.7, 1.2, 0.65),
+                );
             }
         }
         for (x, z) in [(-7.5, -5.8), (7.4, -5.8), (13.4, 5.7)] {
@@ -79,10 +82,10 @@ mod tests {
     fn screens_plants_and_both_rows_block_props() {
         for p in [
             Vec3::new(-1.05, 1.4, -0.39),
-            Vec3::new(-1.05, 1.4, -3.89),
+            Vec3::new(-1.05, 1.4, -4.99),
             Vec3::new(-7.5, 0.4, -5.8),
             Vec3::new(0.0, 0.84, 0.0),
-            Vec3::new(0.0, 0.84, -3.5),
+            Vec3::new(0.0, 0.84, -4.6),
         ] {
             assert!(solid(p), "{p}");
         }
@@ -108,7 +111,7 @@ mod overlap_tests {
     #[test]
     fn broad_props_cannot_straddle_thin_monitor_or_desktop() {
         assert!(overlaps(
-            Vec3::new(0.0, 0.84, -3.5),
+            Vec3::new(0.0, 0.84, -4.6),
             Vec3::new(0.15, 0.3, 0.15)
         ));
         assert!(overlaps(Vec3::new(-1.05, 1.4, -0.39), Vec3::splat(0.15)));

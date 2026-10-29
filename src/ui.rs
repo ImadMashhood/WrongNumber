@@ -892,6 +892,9 @@ fn dispatch_phone(
                             );
                         }
                     }
+                    if c.diagnostic.starts_with("Caller service interrupted:") {
+                        text(p, &c.diagnostic, 13.0, Color::srgb(1.0, 0.72, 0.32));
+                    }
                     if c.pending == Some(game.local_player) {
                         button(
                             p,

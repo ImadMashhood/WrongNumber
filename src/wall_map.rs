@@ -90,7 +90,7 @@ pub fn refresh(
         ))
         .with_children(|p| {
             p.spawn(Node {
-                width: percent(65),
+                width: percent(100),
                 height: percent(100),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -99,7 +99,7 @@ pub fn refresh(
             .with_children(|p| {
                 p.spawn(Node {
                     height: percent(100),
-                    aspect_ratio: Some(1.5),
+                    width: percent(100),
                     position_type: PositionType::Relative,
                     ..default()
                 })
@@ -194,51 +194,6 @@ pub fn refresh(
                         .with_children(|p| label(p, letter, 26.0, color));
                     }
                 });
-            });
-            p.spawn(Node {
-                width: percent(35),
-                height: percent(100),
-                padding: UiRect::all(px(28)),
-                flex_direction: FlexDirection::Column,
-                row_gap: px(12),
-                ..default()
-            })
-            .with_children(|p| {
-                label(p, "CITY OPERATIONS", 35.0, Color::srgb(0.8, 0.9, 0.9));
-                label(
-                    p,
-                    format!(
-                        "{}  |  {:02}:{:02}",
-                        game.status(),
-                        game.remaining() / 60,
-                        game.remaining() % 60
-                    ),
-                    22.0,
-                    Color::srgb(0.95, 0.65, 0.25),
-                );
-                for id in game
-                    .visible_ids()
-                    .filter(|id| game.sim.incidents()[id].state == IncidentState::Active)
-                    .take(6)
-                {
-                    let call = game.sim.call_view(*id).unwrap();
-                    label(
-                        p,
-                        format!("{:02}  {}\n{:?}", id, call.report, call.state),
-                        23.0,
-                        if call.state == IncidentState::Active {
-                            Color::srgb(0.95, 0.6, 0.3)
-                        } else {
-                            Color::srgb(0.5, 0.6, 0.6)
-                        },
-                    );
-                }
-                label(
-                    p,
-                    "P Police | M Medical | F Fire\nPILOT DISTRICT / LIVE ROAD ROUTES",
-                    18.0,
-                    Color::srgb(0.4, 0.6, 0.7),
-                );
             });
         });
 }

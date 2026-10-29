@@ -207,7 +207,7 @@ pub(super) fn workstation(
         Vec3::new(x, 1.4, -0.335),
         Vec2::new(1.03, 0.64),
         Quat::IDENTITY,
-        Some((0.075, 0.575)),
+        None,
     );
     b.block(
         Paint::Plastic,
@@ -219,7 +219,7 @@ pub(super) fn workstation(
         Vec3::new(x + 0.78, 1.39, -0.37),
         Vec2::new(0.37, 0.61),
         Quat::IDENTITY,
-        Some((0.66, 1.0)),
+        None,
     );
     b.block(
         Paint::Plastic,
